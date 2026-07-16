@@ -1,0 +1,16 @@
+[
+    {
+        "data_hora": "2026-07-16 17:28:41",
+        "produto": "Mouse",
+        "quantidade": 5,
+        "preco_unitario": 45.0,
+        "total": 225.0
+    },
+    {
+        "data_hora": "2026-07-16 17:34:18",
+        "produto": "Mouse",
+        "quantidade": 5,
+        "preco_unitario": 45.0,
+        "total": 225.0
+    }
+]

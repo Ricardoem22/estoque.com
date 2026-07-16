@@ -1,0 +1,22 @@
+========================================
+RELATÓRIO DE ESTOQUE E VENDAS
+Gerado em: 16/07/2026 17:28:59
+========================================
+
+--- ESTOQUE ATUAL ---
+Notebook             Qtd: 1     Preço: R$ 3500.00
+Mouse                Qtd: 15    Preço: R$ 45.00
+Teclado              Qtd: 15    Preço: R$ 90.00
+
+Valor total em estoque: R$ 5525.00
+
+--- PRODUTOS COM ESTOQUE BAIXO (< 5) ---
+Notebook             Qtd: 1
+
+--- HISTÓRICO DE VENDAS ---
+[2026-07-16 17:28:41] 5x Mouse | Unit: R$ 45.00 | Total: R$ 225.00
+
+Total vendido: R$ 225.00
+
+========================================
+FIM DO RELATÓRIO
