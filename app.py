@@ -6,6 +6,7 @@ from flask import Flask, render_template, request, redirect, session, url_for
 
 import config
 from contagem import bp as contagem_bp, init_db as init_db_contagem
+from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -15,6 +16,7 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
 app.register_blueprint(contagem_bp)
+app.register_blueprint(desperdicio_bp)
 DB_NAME = config.DB_PATH
 
 
@@ -169,6 +171,7 @@ def excluir(id):
 # Cria as tabelas também quando rodando via gunicorn
 init_db()
 init_db_contagem()
+init_db_desperdicio()
 
 if __name__ == "__main__":
     import os
