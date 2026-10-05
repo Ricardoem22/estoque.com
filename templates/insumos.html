@@ -1,0 +1,38 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Insumos{% endblock %}
+{% block conteudo %}
+<h1>🧾 Insumos</h1>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+<form method="post" class="form-insumo">
+    <input type="text" name="nome" placeholder="Nome do insumo" required>
+    <select name="categoria" required>
+        {% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+    <select name="unidade">
+        {% for u in unidades %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
+    </select>
+    <button class="btn" type="submit">+ Adicionar</button>
+</form>
+
+{% for categoria, itens in grupos %}
+<h2>{{ categoria }} <span class="sub">({{ itens|length }})</span></h2>
+<table>
+    <tbody>
+        {% for item in itens %}
+        <tr>
+            <td>{{ item['nome'] }}</td>
+            <td>{{ item['unidade'] }}</td>
+            <td class="acoes">
+                <form class="inline" method="post" action="{{ url_for('contagem.excluir_insumo', id=item['id']) }}"
+                      onsubmit='return confirm({{ ("Excluir " ~ item["nome"] ~ "? Ele sai também das contagens antigas.")|tojson }})'>
+                    <button class="btn btn-delete" type="submit">Excluir</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endfor %}
+{% endblock %}
