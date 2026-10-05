@@ -1,0 +1,92 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Compras{% endblock %}
+{% block conteudo %}
+<h1>🛒 Compras</h1>
+<p class="sub">Registre aqui o que chegou de mercadoria. O relatório usa as compras para calcular quanto foi consumido entre uma contagem e outra.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if salvo %}<div class="sucesso">Compra registrada.</div>{% endif %}
+
+<form method="post" class="form-desperdicio">
+    <label for="insumo_id">Insumo</label>
+    <select id="insumo_id" name="insumo_id" required autofocus>
+        <option value="">Escolha...</option>
+        {% for categoria, itens in grupos %}
+        <optgroup label="{{ categoria }}">
+            {% for item in itens %}
+            <option value="{{ item['id'] }}" data-unidade="{{ item['unidade'] }}"
+                    {% if form.get('insumo_id') == item['id']|string %}selected{% endif %}>{{ item['nome'] }}</option>
+            {% endfor %}
+        </optgroup>
+        {% endfor %}
+    </select>
+
+    <div class="linha">
+        <div>
+            <label for="quantidade">Quantidade</label>
+            <input type="text" id="quantidade" name="quantidade" inputmode="decimal" placeholder="Ex.: 10"
+                   value="{{ form.get('quantidade', '') }}" required>
+        </div>
+        <div>
+            <label for="unidade">Unidade</label>
+            <select id="unidade" name="unidade">
+                {% for u in unidades %}<option value="{{ u }}" {% if form.get('unidade') == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="linha">
+        <div>
+            <label for="data">Data da entrega</label>
+            <input type="date" id="data" name="data" value="{{ data_padrao }}" required>
+        </div>
+        <div>
+            <label for="fornecedor">Fornecedor</label>
+            <input type="text" id="fornecedor" name="fornecedor" placeholder="Opcional" value="{{ fornecedor }}">
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn" type="submit">Registrar compra</button>
+    </div>
+</form>
+
+<form method="get" class="top-bar filtro-mes">
+    <h2>Compras do mês</h2>
+    <div><input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()"></div>
+</form>
+
+{% if registros %}
+<table>
+    <thead><tr><th>Data</th><th>Insumo</th><th>Qtd.</th><th>Fornecedor</th><th></th></tr></thead>
+    <tbody>
+        {% for r in registros %}
+        <tr>
+            <td>{{ r['data']|data_br }}</td>
+            <td>{{ r['insumo_nome'] }}</td>
+            <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}</td>
+            <td>{{ r['fornecedor'] }}</td>
+            <td class="acoes">
+                <form class="inline" method="post" action="{{ url_for('compras.excluir_compra', id=r['id']) }}"
+                      onsubmit="return confirm('Excluir esta compra?')">
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <button class="btn btn-delete" type="submit">Excluir</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhuma compra registrada neste mês.</p>
+{% endif %}
+
+<script>
+    document.getElementById("insumo_id").addEventListener("change", function () {
+        var opcao = this.selectedOptions[0];
+        if (opcao && opcao.dataset.unidade) {
+            document.getElementById("unidade").value = opcao.dataset.unidade;
+        }
+    });
+</script>
+{% endblock %}

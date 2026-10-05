@@ -2,14 +2,20 @@
 # Registro de desperdício de insumos (vencido, estragado, erro de preparo...).
 import csv
 import io
+import os
+import uuid
 from datetime import date, datetime
 
-from flask import Blueprint, Response, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, redirect, render_template, request, send_from_directory, url_for
+
+import config
 
 from contagem import agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection, parse_quantidade
 from insumos_iniciais import UNIDADES
 
 bp = Blueprint("desperdicio", __name__)
+
+EXTENSOES_FOTO = {"jpg", "jpeg", "png", "webp", "heic", "heif"}
 
 MOTIVOS = ["Vencido", "Estragado", "Erro de preparo", "Queimado", "Caiu / quebrou", "Sobra descartada", "Outro"]
 
@@ -30,11 +36,34 @@ def init_db():
             motivo TEXT NOT NULL,
             responsavel TEXT NOT NULL DEFAULT '',
             observacao TEXT NOT NULL DEFAULT '',
+            foto TEXT NOT NULL DEFAULT '',
             criado_em TEXT NOT NULL
         )
     """)
+    # Bancos criados antes da foto ser obrigatória
+    colunas = [c["name"] for c in conn.execute("PRAGMA table_info(desperdicios)")]
+    if "foto" not in colunas:
+        conn.execute("ALTER TABLE desperdicios ADD COLUMN foto TEXT NOT NULL DEFAULT ''")
     conn.commit()
     conn.close()
+
+
+def extensao_foto(arquivo):
+    """Retorna a extensão se o arquivo for uma foto aceita, senão None."""
+    if not arquivo or not arquivo.filename:
+        return None
+    ext = arquivo.filename.rsplit(".", 1)[-1].lower() if "." in arquivo.filename else ""
+    if ext not in EXTENSOES_FOTO and (arquivo.mimetype or "").startswith("image/"):
+        ext = arquivo.mimetype.split("/", 1)[1].lower()
+    return ext if ext in EXTENSOES_FOTO else None
+
+
+def apagar_foto(nome):
+    if nome:
+        try:
+            os.remove(os.path.join(config.UPLOAD_DIR, nome))
+        except OSError:
+            pass
 
 
 def mes_selecionado():
@@ -89,17 +118,25 @@ def desperdicio():
             erro = "Informe uma quantidade maior que zero."
         elif motivo not in MOTIVOS:
             erro = "Escolha o motivo."
+        foto = request.files.get("foto")
+        ext = extensao_foto(foto)
+        if not erro and ext is None:
+            erro = "Tire ou anexe uma foto do que foi desperdiçado."
 
         if not erro:
+            os.makedirs(config.UPLOAD_DIR, exist_ok=True)
+            nome_foto = f"{uuid.uuid4().hex}.{ext}"
+            foto.save(os.path.join(config.UPLOAD_DIR, nome_foto))
             conn.execute("""
                 INSERT INTO desperdicios
-                    (data, insumo_id, insumo_nome, categoria, quantidade, unidade, motivo, responsavel, observacao, criado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (data, insumo_id, insumo_nome, categoria, quantidade, unidade, motivo, responsavel, observacao,
+                     foto, criado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data, insumo["id"], insumo["nome"], insumo["categoria"], quantidade,
                 form.get("unidade", "").strip() or insumo["unidade"], motivo,
                 form.get("responsavel", "").strip(), form.get("observacao", "").strip(),
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                nome_foto, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             ))
             conn.commit()
             conn.close()
@@ -119,10 +156,20 @@ def desperdicio():
 @bp.route("/desperdicio/<int:id>/excluir", methods=["POST"])
 def excluir_desperdicio(id):
     conn = get_connection()
+    registro = conn.execute("SELECT foto FROM desperdicios WHERE id = ?", (id,)).fetchone()
+    if registro:
+        apagar_foto(registro["foto"])
     conn.execute("DELETE FROM desperdicios WHERE id = ?", (id,))
     conn.commit()
     conn.close()
     return redirect(url_for("desperdicio.desperdicio", mes=request.form.get("mes", "")))
+
+
+@bp.route("/desperdicio/foto/<nome>")
+def foto(nome):
+    if not nome:
+        abort(404)
+    return send_from_directory(config.UPLOAD_DIR, nome)
 
 
 @bp.route("/desperdicio/csv")
@@ -134,11 +181,12 @@ def exportar_csv():
 
     saida = io.StringIO()
     writer = csv.writer(saida, delimiter=";")
-    writer.writerow(["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Motivo", "Responsável", "Observação"])
+    writer.writerow(["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Motivo", "Responsável", "Observação", "Foto"])
     for r in registros:
         writer.writerow([
             data_br_filter(r["data"]), r["categoria"], r["insumo_nome"], formatar_quantidade(r["quantidade"]),
             r["unidade"], r["motivo"], r["responsavel"], r["observacao"],
+            url_for("desperdicio.foto", nome=r["foto"], _external=True) if r["foto"] else "",
         ])
 
     # BOM para o Excel reconhecer os acentos
