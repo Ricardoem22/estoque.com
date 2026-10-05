@@ -8,9 +8,10 @@ from itertools import groupby
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
 
+import config
 from insumos_iniciais import CATEGORIAS, UNIDADES
 
-DB_NAME = "estoque.db"
+DB_NAME = config.DB_PATH
 
 bp = Blueprint("contagem", __name__)
 

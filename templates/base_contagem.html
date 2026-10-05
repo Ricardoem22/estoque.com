@@ -12,6 +12,7 @@
             <a href="{{ url_for('contagem.contagens') }}">📋 Contagens</a>
             <a href="{{ url_for('contagem.insumos') }}">🧾 Insumos</a>
             <a href="{{ url_for('index') }}">📦 Produtos</a>
+            <a class="sair" href="{{ url_for('sair') }}">Sair</a>
         </nav>
         {% block conteudo %}{% endblock %}
     </div>

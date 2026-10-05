@@ -3,7 +3,9 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 
-DB_PATH = "estoque.db"
+import config
+
+DB_PATH = config.DB_PATH
 
 
 def init_db():
