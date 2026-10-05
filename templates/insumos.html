@@ -1,9 +1,13 @@
 {% extends "base_contagem.html" %}
 {% block titulo %}Insumos{% endblock %}
 {% block conteudo %}
-<h1>🧾 Insumos</h1>
+<div class="top-bar">
+    <h1>🧾 Insumos</h1>
+    <a class="btn btn-edit" href="{{ url_for('contagem.importar_insumos') }}">📥 Importar de arquivo</a>
+</div>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if importados is not none %}<div class="sucesso">{{ importados }} insumo(s) importado(s).</div>{% endif %}
 
 <form method="post" class="form-insumo">
     <input type="text" name="nome" placeholder="Nome do insumo" required>

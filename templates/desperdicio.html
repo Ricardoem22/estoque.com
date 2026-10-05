@@ -1,7 +1,15 @@
 {% extends "base_contagem.html" %}
 {% block titulo %}Desperdício{% endblock %}
 {% block conteudo %}
-<h1>🗑️ Desperdício</h1>
+<div class="top-bar">
+    <h1>🗑️ Desperdício</h1>
+    {% if gerente %}
+    <span class="sub">🔑 Gerência: {{ gerente }} · <a href="{{ url_for('sair_gerencia') }}">sair</a></span>
+    {% else %}
+    <a class="btn btn-edit" href="{{ url_for('gerencia', proximo=url_for('desperdicio.desperdicio', mes=mes)) }}">🔑 Entrar como gerência</a>
+    {% endif %}
+</div>
+<p class="sub">O desperdício só é descontado do estoque depois que a gerência aprova.</p>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 {% if salvo %}<div class="sucesso">Desperdício registrado.</div>{% endif %}
@@ -74,13 +82,19 @@
     </div>
 </form>
 
+{% if pendentes %}
+<div class="aviso">⏳ {{ pendentes }} registro(s) aguardando aprovação da gerência neste mês.</div>
+{% endif %}
+
 {% if registros %}
-<h2>Resumo por insumo</h2>
+<h2>Resumo por insumo <span class="sub">(aprovados)</span></h2>
 <table>
     <thead><tr><th>Insumo</th><th>Total</th><th>Vezes</th></tr></thead>
     <tbody>
         {% for t in resumo %}
         <tr><td>{{ t.nome }}</td><td>{{ t.quantidade|qtd }} {{ t.unidade }}</td><td>{{ t.vezes }}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="sub">Nenhum desperdício aprovado neste mês.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -102,13 +116,30 @@
                 {{ r['insumo_nome'] }}
                 <br><span class="sub">{{ r['data']|data_br }}{% if r['responsavel'] %} · {{ r['responsavel'] }}{% endif %}{% if r['observacao'] %} · {{ r['observacao'] }}{% endif %}</span>
             </td>
-            <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}<br><span class="sub">{{ r['motivo'] }}</span></td>
+            <td>
+                {{ r['quantidade']|qtd }} {{ r['unidade'] }}<br><span class="sub">{{ r['motivo'] }}</span><br>
+                {% if r['status'] == 'aprovado' %}<span class="tag tag-ok" title="Por {{ r['aprovado_por'] }}">Aprovado</span>
+                {% elif r['status'] == 'recusado' %}<span class="tag tag-recusado" title="Por {{ r['aprovado_por'] }}">Recusado</span>
+                {% else %}<span class="tag tag-aberta">Pendente</span>{% endif %}
+            </td>
             <td class="acoes">
+                {% if gerente and r['status'] == 'pendente' %}
+                <form class="inline" method="post" action="{{ url_for('desperdicio.decidir_desperdicio', id=r['id'], acao='aprovar') }}">
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <button class="btn" type="submit">Aprovar</button>
+                </form>
+                <form class="inline" method="post" action="{{ url_for('desperdicio.decidir_desperdicio', id=r['id'], acao='recusar') }}">
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <button class="btn btn-edit" type="submit">Recusar</button>
+                </form>
+                {% endif %}
+                {% if r['status'] == 'pendente' or gerente %}
                 <form class="inline" method="post" action="{{ url_for('desperdicio.excluir_desperdicio', id=r['id']) }}"
                       onsubmit="return confirm('Excluir este registro?')">
                     <input type="hidden" name="mes" value="{{ mes }}">
                     <button class="btn btn-delete" type="submit">Excluir</button>
                 </form>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

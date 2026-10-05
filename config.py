@@ -14,6 +14,9 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join(BASE_DIR, "fotos"))
 # Senha de acesso da equipe. Sem ela definida, ninguém consegue entrar.
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
+# Senha da gerência, para aprovar desperdícios. Sem ela ninguém aprova.
+GERENCIA_PASSWORD = os.environ.get("GERENCIA_PASSWORD", "")
+
 # Chave para assinar o cookie de login. Se não for definida, é gerada a cada
 # reinício (todos precisam entrar de novo depois de um Reload).
 SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
