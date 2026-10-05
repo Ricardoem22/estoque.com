@@ -1,0 +1,99 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Importar Contagem{% endblock %}
+{% block conteudo %}
+<h1>📥 Preencher contagem com arquivo</h1>
+<p class="sub">
+    <strong>Contagem de:</strong> {{ contagem['data']|data_br }} &nbsp;·&nbsp;
+    <strong>Responsável:</strong> {{ contagem['responsavel'] }}
+</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+{% if encontrados is none %}
+<p class="sub">
+    Envie a contagem em PDF, Excel (.xlsx), CSV ou Word (.docx). O app lê o nome de cada insumo e a quantidade,
+    por exemplo uma tabela com as colunas <strong>Insumo</strong>, <strong>Unidade</strong> e <strong>Qtd.</strong>
+    Antes de gravar, você confere tudo.
+</p>
+<form method="post" enctype="multipart/form-data" class="form-desperdicio">
+    <label for="arquivo">Arquivo da contagem</label>
+    <input type="file" id="arquivo" name="arquivo" required
+           accept="{{ extensoes }},.doc,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv">
+    <div class="form-actions">
+        <button class="btn" type="submit">Ler arquivo</button>
+        <a class="btn btn-delete" href="{{ url_for('contagem.contar', id=contagem['id']) }}">Cancelar</a>
+    </div>
+</form>
+{% else %}
+<p class="sub">
+    Encontrei <strong>{{ encontrados|length }}</strong> insumo(s) cadastrados{% if novos %} e
+    <strong>{{ novos|length }}</strong> que não estão na lista de insumos{% endif %}.
+    {% if sem_quantidade %}{{ sem_quantidade }} linha(s) sem quantidade foram ignoradas.{% endif %}
+    Confira as quantidades antes de gravar. O que já foi digitado na contagem é substituído pelo valor do arquivo.
+</p>
+<form method="post" action="{{ url_for('contagem.confirmar_importacao_contagem', id=contagem['id']) }}">
+    <input type="hidden" name="total" value="{{ encontrados|length + novos|length }}">
+    {% if encontrados %}
+    <h2>✅ Insumos encontrados</h2>
+    <table class="tabela-importar tabela-contagem">
+        <thead><tr><th></th><th>Insumo</th><th>Qtd.</th><th>Un.</th></tr></thead>
+        <tbody>
+            {% for item in encontrados %}
+            {% set i = loop.index0 %}
+            <tr>
+                <td><input type="checkbox" name="incluir_{{ i }}" value="1" checked aria-label="Incluir"></td>
+                <td>
+                    {{ item.insumo['nome'] }}
+                    <input type="hidden" name="insumo_{{ i }}" value="{{ item.insumo['id'] }}">
+                    {% if item.nome|lower != item.insumo['nome']|lower %}<br><span class="sub">no arquivo: {{ item.nome }}</span>{% endif %}
+                    {% if item.observacao %}<br><span class="sub">{{ item.observacao }}</span>{% endif %}
+                    <input type="hidden" name="obs_{{ i }}" value="{{ item.observacao or '' }}">
+                </td>
+                <td><input class="qtd" type="text" inputmode="decimal" name="qtd_{{ i }}" value="{{ item.quantidade|qtd }}"></td>
+                <td>
+                    <select name="unidade_{{ i }}">
+                        {% for u in unidades %}<option value="{{ u }}" {% if u == item.unidade %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                    </select>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if novos %}
+    <h2>❔ Não estão na lista de insumos</h2>
+    <p class="sub">Marque os que quiser cadastrar como insumo novo. Os desmarcados são ignorados.</p>
+    <table class="tabela-importar tabela-contagem">
+        <thead><tr><th></th><th>Insumo</th><th>Qtd.</th><th>Un.</th></tr></thead>
+        <tbody>
+            {% for item in novos %}
+            {% set i = encontrados|length + loop.index0 %}
+            <tr>
+                <td><input type="checkbox" name="criar_{{ i }}" value="1" aria-label="Cadastrar"></td>
+                <td>
+                    <input type="text" name="nome_{{ i }}" value="{{ item.nome }}">
+                    <input type="hidden" name="obs_{{ i }}" value="{{ item.observacao or '' }}">
+                    <select name="categoria_{{ i }}">
+                        {% for c in categorias %}<option value="{{ c }}" {% if c == item.categoria %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                    </select>
+                </td>
+                <td><input class="qtd" type="text" inputmode="decimal" name="qtd_{{ i }}" value="{{ item.quantidade|qtd }}"></td>
+                <td>
+                    <select name="unidade_{{ i }}">
+                        {% for u in unidades %}<option value="{{ u }}" {% if u == item.unidade %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                    </select>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="barra-acoes">
+        <a class="btn btn-delete" href="{{ url_for('contagem.importar_contagem', id=contagem['id']) }}">Outro arquivo</a>
+        <button class="btn" type="submit">Gravar na contagem</button>
+    </div>
+</form>
+{% endif %}
+{% endblock %}

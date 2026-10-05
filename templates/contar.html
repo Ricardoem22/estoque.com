@@ -9,6 +9,10 @@
 </p>
 
 {% if salvo %}<div class="sucesso">Contagem salva.</div>{% endif %}
+{% if importados is not none %}<div class="sucesso">{{ importados }} insumo(s) preenchido(s) pelo arquivo. Confira e clique em Salvar ou Finalizar.</div>{% endif %}
+{% if not contagem['finalizada'] %}
+<p><a class="btn btn-edit" href="{{ url_for('contagem.importar_contagem', id=contagem['id']) }}">📥 Preencher com arquivo (PDF, Excel, Word)</a></p>
+{% endif %}
 {% for e in erros %}<div class="erro">{{ e }}</div>{% endfor %}
 
 <div class="contagem-topo">

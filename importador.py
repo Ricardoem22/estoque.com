@@ -16,6 +16,7 @@ CABECALHOS = {
     "categoria": ["categoria", "grupo", "setor", "tipo", "secao"],
     "unidade": ["unidade", "und", "unid", "un", "medida", "um"],
     "quantidade": ["quantidade", "qtd", "qtde", "quant", "contada", "estoque", "saldo"],
+    "observacao": ["observacoes", "observacao", "obs", "validade"],
 }
 
 # Sinônimos de unidades -> unidade do app
@@ -34,6 +35,19 @@ SINONIMOS_UNIDADE = {
 def sem_acento(texto):
     texto = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode()
     return re.sub(r"\s+", " ", texto).strip().lower()
+
+
+def chave_nome(nome):
+    """Nome sem acento e no singular, para casar 'Tomates' com 'Tomate' e 'Camarões' com 'Camarão'."""
+    def singular(palavra):
+        if len(palavra) <= 3:
+            return palavra
+        if palavra.endswith(("oes", "aes", "aos")):
+            return palavra[:-3] + "ao"
+        if palavra.endswith(("res", "zes", "ses")):
+            return palavra[:-2]
+        return palavra[:-1] if palavra.endswith("s") else palavra
+    return " ".join(singular(p) for p in sem_acento(nome).split(" "))
 
 
 def normalizar_unidade(texto):
@@ -253,6 +267,7 @@ def extrair_itens(linhas, categorias):
                 "categoria": celula(linha, "categoria"),
                 "unidade": normalizar_unidade(celula(linha, "unidade")),
                 "quantidade": parse_numero(celula(linha, "quantidade")),
+                "observacao": celula(linha, "observacao"),
             }
         else:
             item = interpretar_sem_cabecalho([str(c) for c in linha])

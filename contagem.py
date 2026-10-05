@@ -9,7 +9,7 @@ from itertools import groupby
 from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
 
 import config
-from importador import EXTENSOES, extrair_itens, ler_arquivo, sem_acento
+from importador import EXTENSOES, chave_nome, extrair_itens, ler_arquivo, sem_acento
 from insumos_iniciais import CATEGORIAS, UNIDADES
 
 DB_NAME = config.DB_PATH
@@ -214,8 +214,117 @@ def contar(id):
     conn.close()
     return render_template(
         "contar.html", contagem=contagem, grupos=grupos, unidades=UNIDADES,
-        erros=erros, salvo=request.args.get("salvo"),
+        erros=erros, salvo=request.args.get("salvo"), importados=request.args.get("importados"),
     )
+
+
+def salvar_item(conn, contagem_id, insumo_id, quantidade, unidade, observacao=None):
+    """Grava a quantidade do insumo na contagem, mantendo a observação se não vier outra."""
+    conn.execute("""
+        INSERT INTO contagem_itens (contagem_id, insumo_id, unidade, quantidade, observacao)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (contagem_id, insumo_id) DO UPDATE SET
+            unidade = excluded.unidade,
+            quantidade = excluded.quantidade,
+            observacao = COALESCE(?, contagem_itens.observacao)
+    """, (contagem_id, insumo_id, unidade, quantidade, observacao or "", observacao))
+    # A unidade escolhida vira o padrão para as próximas contagens
+    conn.execute("UPDATE insumos SET unidade = ? WHERE id = ?", (unidade, insumo_id))
+
+
+@bp.route("/contagens/<int:id>/importar", methods=["GET", "POST"])
+def importar_contagem(id):
+    conn = get_connection()
+    contagem = carregar_contagem(conn, id)
+    insumos = conn.execute("SELECT * FROM insumos").fetchall()
+    conn.close()
+    if contagem["finalizada"]:
+        return redirect(url_for("contagem.ver_contagem", id=id))
+
+    categorias = lista_categorias(agrupar_por_categoria(insumos))
+    erro = None
+    encontrados = novos = None
+    sem_quantidade = 0
+
+    if request.method == "POST":
+        arquivo = request.files.get("arquivo")
+        if not arquivo or not arquivo.filename:
+            erro = "Escolha um arquivo."
+        else:
+            try:
+                itens = extrair_itens(ler_arquivo(arquivo.filename, arquivo.read()), categorias)
+            except ValueError as e:
+                itens, erro = [], str(e)
+            except Exception:
+                itens, erro = [], "Não consegui ler esse arquivo. Confira se ele não está corrompido ou protegido por senha."
+            com_quantidade = [i for i in itens if i["quantidade"] is not None]
+            sem_quantidade = len(itens) - len(com_quantidade)
+            if not erro and not com_quantidade:
+                erro = ("Não encontrei quantidades nesse arquivo. Se for um PDF escaneado (foto de papel), "
+                        "ele não tem texto para ler.")
+            por_nome = {chave_nome(i["nome"]): i for i in insumos}
+            encontrados, novos = [], []
+            for item in com_quantidade:
+                insumo = por_nome.get(chave_nome(item["nome"]))
+                if insumo:
+                    item["insumo"] = insumo
+                    item["unidade"] = item["unidade"] or insumo["unidade"]
+                    encontrados.append(item)
+                else:
+                    item["categoria"] = item["categoria"] or categorias[0]
+                    item["unidade"] = item["unidade"] or unidade_padrao(item["categoria"])
+                    novos.append(item)
+            if erro:
+                encontrados = novos = None
+            elif novos:
+                categorias += sorted({i["categoria"] for i in novos if i["categoria"] not in categorias})
+
+    return render_template(
+        "importar_contagem.html", contagem=contagem, erro=erro, encontrados=encontrados, novos=novos,
+        sem_quantidade=sem_quantidade, categorias=categorias, unidades=UNIDADES,
+        extensoes=", ".join(sorted("." + e for e in EXTENSOES)),
+    )
+
+
+@bp.route("/contagens/<int:id>/importar/confirmar", methods=["POST"])
+def confirmar_importacao_contagem(id):
+    conn = get_connection()
+    contagem = carregar_contagem(conn, id)
+    if contagem["finalizada"]:
+        conn.close()
+        return redirect(url_for("contagem.ver_contagem", id=id))
+    form = request.form
+    preenchidos = 0
+    for i in range(form.get("total", 0, type=int)):
+        try:
+            quantidade = parse_quantidade(form.get(f"qtd_{i}"))
+        except ValueError:
+            continue
+        if quantidade is None:
+            continue
+        unidade = form.get(f"unidade_{i}", "").strip() or "un"
+        observacao = form.get(f"obs_{i}", "").strip() or None
+        insumo_id = form.get(f"insumo_{i}", type=int)
+        if form.get(f"incluir_{i}") and insumo_id:
+            if conn.execute("SELECT 1 FROM insumos WHERE id = ?", (insumo_id,)).fetchone():
+                salvar_item(conn, id, insumo_id, quantidade, unidade, observacao)
+                preenchidos += 1
+        elif form.get(f"criar_{i}"):
+            nome = form.get(f"nome_{i}", "").strip()
+            categoria = form.get(f"categoria_{i}", "").strip()
+            if not nome or not categoria:
+                continue
+            existente = conn.execute("SELECT id FROM insumos WHERE nome = ?", (nome,)).fetchone()
+            if existente:
+                novo_id = existente["id"]
+            else:
+                novo_id = conn.execute("INSERT INTO insumos (nome, categoria, unidade) VALUES (?, ?, ?)",
+                                       (nome, categoria, unidade)).lastrowid
+            salvar_item(conn, id, novo_id, quantidade, unidade, observacao)
+            preenchidos += 1
+    conn.commit()
+    conn.close()
+    return redirect(url_for("contagem.contar", id=id, importados=preenchidos))
 
 
 @bp.route("/contagens/<int:id>/ver")

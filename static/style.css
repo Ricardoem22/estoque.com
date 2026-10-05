@@ -316,3 +316,10 @@ button.btn:disabled { background: #aaa; cursor: not-allowed; }
 .aviso { background: #fff4e0; color: #8a5a00; padding: 10px; border-radius: 6px; margin: 15px 0; }
 .tabela-registros .acoes form { display: inline-block; margin: 2px 0; }
 textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; font-family: inherit; }
+.tabela-contagem .qtd { width: 80px; }
+.tabela-contagem td:nth-child(2) select { margin-top: 4px; }
+@media (max-width: 600px) {
+    .tabela-contagem tr { grid-template-columns: 28px 1fr 90px; }
+    .tabela-contagem td:nth-child(2) { grid-column: 2 / 4; }
+    .tabela-contagem .qtd { width: 100%; font-size: 16px; }
+}
