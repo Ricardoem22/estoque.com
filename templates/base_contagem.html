@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titulo %}Contagem de Estoque{% endblock %} - La Barca</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <nav class="menu">
+            <a href="{{ url_for('contagem.contagens') }}">📋 Contagens</a>
+            <a href="{{ url_for('contagem.insumos') }}">🧾 Insumos</a>
+            <a href="{{ url_for('index') }}">📦 Produtos</a>
+        </nav>
+        {% block conteudo %}{% endblock %}
+    </div>
+</body>
+</html>

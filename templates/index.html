@@ -14,6 +14,7 @@
                 <input type="text" name="busca" placeholder="Buscar produto..." value="{{ busca }}">
                 <button class="btn" type="submit">Buscar</button>
             </form>
+            <a class="btn btn-edit" href="{{ url_for('contagem.contagens') }}">📋 Contagem de Estoque</a>
             <a class="btn" href="{{ url_for('adicionar') }}">+ Adicionar Produto</a>
         </div>
 

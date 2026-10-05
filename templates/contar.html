@@ -1,0 +1,109 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Contagem {{ contagem['data']|data_br }}{% endblock %}
+{% block conteudo %}
+<h1>📋 Contagem de Estoque</h1>
+<p class="sub">
+    <strong>Data:</strong> {{ contagem['data']|data_br }} &nbsp;·&nbsp;
+    <strong>Responsável:</strong> {{ contagem['responsavel'] }}
+    {% if contagem['finalizada'] %}&nbsp;·&nbsp;<span class="tag tag-ok">Finalizada</span>{% endif %}
+</p>
+
+{% if salvo %}<div class="sucesso">Contagem salva.</div>{% endif %}
+{% for e in erros %}<div class="erro">{{ e }}</div>{% endfor %}
+
+<div class="contagem-topo">
+    <input type="text" id="filtro" placeholder="🔍 Buscar insumo...">
+    <div class="progresso"><div class="barra" id="barra"></div></div>
+    <span id="progresso-texto" class="sub"></span>
+</div>
+
+<form method="post" id="form-contagem">
+    {% for categoria, itens in grupos %}
+    <section class="categoria">
+        <h2>{{ categoria }}</h2>
+        <div class="itens">
+            {% for item in itens %}
+            <div class="item" data-nome="{{ item['nome']|lower }}">
+                <label class="item-nome" for="qtd_{{ item['id'] }}">{{ item['nome'] }}</label>
+                <div class="item-campos">
+                    <input class="qtd" type="text" inputmode="decimal" id="qtd_{{ item['id'] }}"
+                           name="qtd_{{ item['id'] }}" value="{{ item['quantidade']|qtd }}" placeholder="Qtd.">
+                    <select name="un_{{ item['id'] }}">
+                        {% for u in unidades %}
+                        <option value="{{ u }}" {% if u == item['unidade'] %}selected{% endif %}>{{ u }}</option>
+                        {% endfor %}
+                        {% if item['unidade'] not in unidades %}
+                        <option value="{{ item['unidade'] }}" selected>{{ item['unidade'] }}</option>
+                        {% endif %}
+                    </select>
+                    <input class="obs" type="text" name="obs_{{ item['id'] }}" value="{{ item['observacao'] }}"
+                           placeholder="Obs. / validade">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+
+    <div class="barra-acoes">
+        <button class="btn" type="submit" name="acao" value="salvar">💾 Salvar</button>
+        <button class="btn btn-edit" type="submit" name="acao" value="finalizar"
+                onclick="return confirm('Finalizar a contagem?')">✅ Finalizar</button>
+    </div>
+</form>
+
+<script>
+(function () {
+    var qtds = document.querySelectorAll('.qtd');
+    var barra = document.getElementById('barra');
+    var texto = document.getElementById('progresso-texto');
+    var form = document.getElementById('form-contagem');
+    var alterado = false;
+
+    function atualizar() {
+        var feitos = 0;
+        qtds.forEach(function (i) {
+            var ok = i.value.trim() !== '';
+            i.closest('.item').classList.toggle('contado', ok);
+            if (ok) feitos++;
+        });
+        barra.style.width = (qtds.length ? feitos / qtds.length * 100 : 0) + '%';
+        texto.textContent = feitos + ' de ' + qtds.length + ' contados';
+    }
+
+    form.addEventListener('input', function (e) {
+        alterado = true;
+        if (e.target.classList.contains('qtd')) atualizar();
+    });
+    form.addEventListener('submit', function () { alterado = false; });
+    window.addEventListener('beforeunload', function (e) {
+        if (alterado) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    // Enter pula para a próxima quantidade em vez de enviar o formulário
+    form.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+            e.preventDefault();
+            var lista = Array.prototype.filter.call(qtds, function (i) { return i.offsetParent !== null; });
+            var idx = lista.indexOf(e.target);
+            if (idx >= 0 && idx + 1 < lista.length) lista[idx + 1].focus();
+        }
+    });
+
+    document.getElementById('filtro').addEventListener('input', function () {
+        var termo = this.value.trim().toLowerCase();
+        document.querySelectorAll('.categoria').forEach(function (sec) {
+            var visiveis = 0;
+            sec.querySelectorAll('.item').forEach(function (item) {
+                var mostra = item.dataset.nome.indexOf(termo) !== -1;
+                item.style.display = mostra ? '' : 'none';
+                if (mostra) visiveis++;
+            });
+            sec.style.display = visiveis ? '' : 'none';
+        });
+    });
+
+    atualizar();
+})();
+</script>
+{% endblock %}

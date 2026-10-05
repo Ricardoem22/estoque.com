@@ -1,0 +1,45 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Contagens{% endblock %}
+{% block conteudo %}
+<h1>📋 Contagens de Estoque</h1>
+
+<div class="top-bar">
+    <span class="sub">{{ total_insumos }} insumos cadastrados</span>
+    <a class="btn" href="{{ url_for('contagem.nova_contagem') }}">+ Nova Contagem</a>
+</div>
+
+{% if contagens %}
+<table>
+    <thead>
+        <tr><th>Data</th><th>Responsável</th><th>Progresso</th><th>Status</th><th>Ações</th></tr>
+    </thead>
+    <tbody>
+        {% for c in contagens %}
+        <tr>
+            <td>{{ c['data']|data_br }}</td>
+            <td>{{ c['responsavel'] }}</td>
+            <td>{{ c['contados'] }} / {{ total_insumos }}</td>
+            <td>
+                {% if c['finalizada'] %}<span class="tag tag-ok">Finalizada</span>
+                {% else %}<span class="tag tag-aberta">Em andamento</span>{% endif %}
+            </td>
+            <td class="acoes">
+                {% if c['finalizada'] %}
+                <a class="btn btn-edit" href="{{ url_for('contagem.ver_contagem', id=c['id']) }}">Ver</a>
+                {% else %}
+                <a class="btn btn-edit" href="{{ url_for('contagem.contar', id=c['id']) }}">Continuar</a>
+                {% endif %}
+                <a class="btn" href="{{ url_for('contagem.exportar_csv', id=c['id']) }}">CSV</a>
+                <form class="inline" method="post" action="{{ url_for('contagem.excluir_contagem', id=c['id']) }}"
+                      onsubmit="return confirm('Excluir esta contagem?')">
+                    <button class="btn btn-delete" type="submit">Excluir</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhuma contagem ainda. Clique em "Nova Contagem" para começar.</p>
+{% endif %}
+{% endblock %}

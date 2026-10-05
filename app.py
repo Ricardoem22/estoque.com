@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
 
+from contagem import bp as contagem_bp, init_db as init_db_contagem
+
 app = Flask(__name__)
+app.register_blueprint(contagem_bp)
 DB_NAME = "estoque.db"
 
 def get_connection():
@@ -116,8 +119,11 @@ def excluir(id):
     conn.close()
     return redirect(url_for("index"))
 
+# Cria as tabelas também quando rodando via gunicorn
+init_db()
+init_db_contagem()
+
 if __name__ == "__main__":
-    init_db()
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
