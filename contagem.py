@@ -9,6 +9,7 @@ from itertools import groupby
 from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
 
 import config
+from importador import EXTENSOES, extrair_itens, ler_arquivo, sem_acento
 from insumos_iniciais import CATEGORIAS, UNIDADES
 
 DB_NAME = config.DB_PATH
@@ -301,11 +302,87 @@ def insumos():
 
     grupos = agrupar_por_categoria(conn.execute("SELECT * FROM insumos").fetchall())
     conn.close()
-    categorias = [c for c, _, _ in CATEGORIAS]
-    categorias += [c for c, _ in grupos if c not in categorias]
+    categorias = lista_categorias(grupos)
     return render_template(
         "insumos.html", grupos=grupos, categorias=categorias, unidades=UNIDADES, erro=erro,
+        importados=request.args.get("importados"),
     )
+
+
+def lista_categorias(grupos):
+    categorias = [c for c, _, _ in CATEGORIAS]
+    return categorias + [c for c, _ in grupos if c not in categorias]
+
+
+def unidade_padrao(categoria):
+    for nome, unidade, _ in CATEGORIAS:
+        if nome == categoria:
+            return unidade
+    return "un"
+
+
+@bp.route("/insumos/importar", methods=["GET", "POST"])
+def importar_insumos():
+    conn = get_connection()
+    existentes = conn.execute("SELECT * FROM insumos").fetchall()
+    conn.close()
+    categorias = lista_categorias(agrupar_por_categoria(existentes))
+    erro = None
+    itens = None
+    padrao = request.form.get("categoria_padrao") or categorias[0]
+
+    if request.method == "POST":
+        arquivo = request.files.get("arquivo")
+        if not arquivo or not arquivo.filename:
+            erro = "Escolha um arquivo."
+        else:
+            try:
+                linhas = ler_arquivo(arquivo.filename, arquivo.read())
+                itens = extrair_itens(linhas, categorias)
+                if not itens:
+                    erro = ("Não encontrei nenhum insumo nesse arquivo. Se for um PDF escaneado (foto de papel), "
+                            "ele não tem texto para ler.")
+                    itens = None
+            except ValueError as e:
+                erro = str(e)
+            except Exception:
+                erro = "Não consegui ler esse arquivo. Confira se ele não está corrompido ou protegido por senha."
+
+    if itens:
+        nomes = {sem_acento(i["nome"]) for i in existentes}
+        for item in itens:
+            item["existe"] = sem_acento(item["nome"]) in nomes
+            if not item["categoria"]:
+                item["categoria"] = padrao
+            item["unidade"] = item["unidade"] or unidade_padrao(item["categoria"])
+        novas = sorted({i["categoria"] for i in itens if i["categoria"] not in categorias})
+        categorias = categorias + novas
+
+    return render_template(
+        "importar_insumos.html", erro=erro, itens=itens, categorias=categorias, unidades=UNIDADES,
+        padrao=padrao, extensoes=", ".join(sorted("." + e for e in EXTENSOES)),
+    )
+
+
+@bp.route("/insumos/importar/confirmar", methods=["POST"])
+def confirmar_importacao():
+    conn = get_connection()
+    nomes = {sem_acento(r["nome"]) for r in conn.execute("SELECT nome FROM insumos")}
+    adicionados = 0
+    for i in range(request.form.get("total", 0, type=int)):
+        if not request.form.get(f"incluir_{i}"):
+            continue
+        nome = request.form.get(f"nome_{i}", "").strip()
+        categoria = request.form.get(f"categoria_{i}", "").strip()
+        unidade = request.form.get(f"unidade_{i}", "").strip() or "un"
+        if not nome or not categoria or sem_acento(nome) in nomes:
+            continue
+        conn.execute("INSERT INTO insumos (nome, categoria, unidade) VALUES (?, ?, ?)", (nome, categoria, unidade))
+        nomes.add(sem_acento(nome))
+        adicionados += 1
+    conn.commit()
+    conn.close()
+    return redirect(url_for("contagem.insumos", importados=adicionados))
 
 
 @bp.route("/insumos/<int:id>/excluir", methods=["POST"])

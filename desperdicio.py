@@ -6,7 +6,7 @@ import os
 import uuid
 from datetime import date, datetime
 
-from flask import Blueprint, Response, abort, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, Response, abort, redirect, render_template, request, send_from_directory, session, url_for
 
 import config
 
@@ -40,10 +40,14 @@ def init_db():
             criado_em TEXT NOT NULL
         )
     """)
-    # Bancos criados antes da foto ser obrigatória
+    # Colunas adicionadas depois da primeira versão
     colunas = [c["name"] for c in conn.execute("PRAGMA table_info(desperdicios)")]
-    if "foto" not in colunas:
-        conn.execute("ALTER TABLE desperdicios ADD COLUMN foto TEXT NOT NULL DEFAULT ''")
+    for coluna, tipo in [("foto", "TEXT NOT NULL DEFAULT ''"),
+                         ("status", "TEXT NOT NULL DEFAULT 'pendente'"),
+                         ("aprovado_por", "TEXT NOT NULL DEFAULT ''"),
+                         ("aprovado_em", "TEXT NOT NULL DEFAULT ''")]:
+        if coluna not in colunas:
+            conn.execute(f"ALTER TABLE desperdicios ADD COLUMN {coluna} {tipo}")
     conn.commit()
     conn.close()
 
@@ -84,9 +88,11 @@ def registros_do_mes(conn, mes):
 
 
 def resumo(registros):
-    """Total por insumo e unidade, do maior para o menor."""
+    """Total aprovado por insumo e unidade, do mais frequente para o menos."""
     totais = {}
     for r in registros:
+        if r["status"] != "aprovado":
+            continue
         chave = (r["insumo_nome"], r["unidade"])
         total = totais.setdefault(chave, {"nome": r["insumo_nome"], "unidade": r["unidade"], "quantidade": 0, "vezes": 0})
         total["quantidade"] += r["quantidade"]
@@ -147,16 +153,43 @@ def desperdicio():
     grupos = agrupar_por_categoria(conn.execute("SELECT * FROM insumos").fetchall())
     conn.close()
     return render_template(
-        "desperdicio.html", grupos=grupos, unidades=UNIDADES, motivos=MOTIVOS,
+        "desperdicio.html", gerente=session.get("gerente"),
+        pendentes=sum(1 for r in registros if r["status"] == "pendente"), grupos=grupos, unidades=UNIDADES, motivos=MOTIVOS,
         registros=registros, resumo=resumo(registros), mes=mes, erro=erro, form=form,
         hoje=date.today().isoformat(), salvo=request.args.get("salvo"),
     )
 
 
+def exigir_gerente():
+    if not session.get("gerente"):
+        return redirect(url_for("gerencia", proximo=url_for("desperdicio.desperdicio", mes=request.form.get("mes", ""))))
+    return None
+
+
+@bp.route("/desperdicio/<int:id>/<any(aprovar, recusar):acao>", methods=["POST"])
+def decidir_desperdicio(id, acao):
+    bloqueio = exigir_gerente()
+    if bloqueio:
+        return bloqueio
+    conn = get_connection()
+    conn.execute(
+        "UPDATE desperdicios SET status = ?, aprovado_por = ?, aprovado_em = ? WHERE id = ?",
+        ("aprovado" if acao == "aprovar" else "recusado", session["gerente"],
+         datetime.now().strftime("%Y-%m-%d %H:%M:%S"), id),
+    )
+    conn.commit()
+    conn.close()
+    return redirect(url_for("desperdicio.desperdicio", mes=request.form.get("mes", "")))
+
+
 @bp.route("/desperdicio/<int:id>/excluir", methods=["POST"])
 def excluir_desperdicio(id):
     conn = get_connection()
-    registro = conn.execute("SELECT foto FROM desperdicios WHERE id = ?", (id,)).fetchone()
+    registro = conn.execute("SELECT foto, status FROM desperdicios WHERE id = ?", (id,)).fetchone()
+    # Depois de aprovado ou recusado, só a gerência pode excluir
+    if registro and registro["status"] != "pendente" and not session.get("gerente"):
+        conn.close()
+        return exigir_gerente()
     if registro:
         apagar_foto(registro["foto"])
     conn.execute("DELETE FROM desperdicios WHERE id = ?", (id,))
@@ -181,11 +214,11 @@ def exportar_csv():
 
     saida = io.StringIO()
     writer = csv.writer(saida, delimiter=";")
-    writer.writerow(["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Motivo", "Responsável", "Observação", "Foto"])
+    writer.writerow(["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Motivo", "Responsável", "Observação", "Status", "Aprovado por", "Foto"])
     for r in registros:
         writer.writerow([
             data_br_filter(r["data"]), r["categoria"], r["insumo_nome"], formatar_quantidade(r["quantidade"]),
-            r["unidade"], r["motivo"], r["responsavel"], r["observacao"],
+            r["unidade"], r["motivo"], r["responsavel"], r["observacao"], r["status"].capitalize(), r["aprovado_por"],
             url_for("desperdicio.foto", nome=r["foto"], _external=True) if r["foto"] else "",
         ])
 

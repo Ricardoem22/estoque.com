@@ -56,6 +56,31 @@ def login():
     return render_template("login.html", erro=erro, proximo=proximo)
 
 
+@app.route("/gerencia", methods=["GET", "POST"])
+def gerencia():
+    erro = None
+    proximo = request.values.get("proximo", "")
+    nome = request.form.get("nome", "").strip()
+    if not config.GERENCIA_PASSWORD:
+        erro = "Senha da gerência não configurada. Defina a variável GERENCIA_PASSWORD no servidor."
+    elif request.method == "POST":
+        senha = request.form.get("senha", "")
+        if not nome:
+            erro = "Informe seu nome."
+        elif hmac.compare_digest(senha.encode(), config.GERENCIA_PASSWORD.encode()):
+            session["gerente"] = nome
+            return redirect(destino_seguro(proximo or url_for("desperdicio.desperdicio")))
+        else:
+            erro = "Senha da gerência incorreta."
+    return render_template("gerencia.html", erro=erro, proximo=proximo, nome=nome)
+
+
+@app.route("/gerencia/sair")
+def sair_gerencia():
+    session.pop("gerente", None)
+    return redirect(url_for("desperdicio.desperdicio"))
+
+
 @app.route("/sair")
 def sair():
     session.clear()

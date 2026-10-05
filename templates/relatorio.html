@@ -11,7 +11,10 @@
             {% endfor %}
         </select>
     </label>
-    <button class="btn btn-edit" type="button" onclick="window.print()">🖨️ Imprimir lista</button>
+    <div>
+        <a class="btn" href="{{ url_for('relatorio.comparar') }}">🔍 Comparar lista do WhatsApp</a>
+        <button class="btn btn-edit" type="button" onclick="window.print()">🖨️ Imprimir lista</button>
+    </div>
 </form>
 
 <h2>🛒 Comprar</h2>
@@ -66,7 +69,8 @@
 
 <p class="sub">
     Como é calculado: consumo = contagem anterior + compras registradas − contagem seguinte, com a média das últimas
-    4 contagens de cada insumo. O estoque é a última contagem mais as compras registradas depois dela.
+    4 contagens de cada insumo. O estoque é a última contagem mais as compras registradas depois dela, menos o desperdício
+    aprovado pela gerência depois dela.
     Compras com a mesma data de uma contagem contam como chegadas depois da contagem.
 </p>
 {% endblock %}

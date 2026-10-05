@@ -30,6 +30,7 @@ persistente (Render/Heroku no plano grátis) os dados seriam apagados.
 
    os.environ["APP_PASSWORD"] = "troque-por-uma-senha-forte"
    os.environ["SECRET_KEY"] = "cole-aqui-o-codigo-gerado-no-passo-1"
+   os.environ["GERENCIA_PASSWORD"] = "senha-da-gerencia-diferente-da-equipe"
 
    sys.path.insert(0, "/home/SEU_USUARIO/estoque.com")
    from app import app as application
@@ -42,6 +43,7 @@ persistente (Render/Heroku no plano grátis) os dados seriam apagados.
 
 ```bash
 cd ~/estoque.com && git pull
+pip install --user -r requirements.txt
 ```
 
 Depois clique em **Reload** na aba Web.
@@ -51,6 +53,7 @@ Depois clique em **Reload** na aba Web.
 | Variável | Para que serve |
 | --- | --- |
 | `APP_PASSWORD` | Senha da equipe. **Sem ela ninguém consegue entrar.** |
+| `GERENCIA_PASSWORD` | Senha da gerência, para aprovar ou recusar desperdícios. |
 | `SECRET_KEY` | Chave do cookie de login. Sem ela, todos precisam entrar de novo a cada Reload. |
 | `DATABASE_PATH` | Opcional. Caminho do banco; o padrão é `estoque.db` na pasta do projeto. |
 | `UPLOAD_DIR` | Opcional. Pasta das fotos de desperdício; o padrão é `fotos/` na pasta do projeto. |

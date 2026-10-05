@@ -292,3 +292,27 @@ h3 { font-size: 15px; margin: 18px 0 4px; color: #555; }
     .miniatura { width: 44px; height: 44px; }
     .tabela-registros .btn { padding: 6px 10px; font-size: 13px; }
 }
+
+/* ---------- Importar ---------- */
+.top-bar h1 { margin: 0; }
+input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; background: #fff; }
+.tabela-importar td { padding: 6px; }
+.tabela-importar select { width: 100%; max-width: 220px; }
+.tabela-importar td:nth-child(4) select { width: 70px; }
+button.btn:disabled { background: #aaa; cursor: not-allowed; }
+@media (max-width: 600px) {
+    .tabela-importar thead { display: none; }
+    .tabela-importar tr { display: grid; grid-template-columns: 28px 1fr 80px; gap: 6px; padding: 8px 0; border-bottom: 1px solid #e0e0e0; }
+    .tabela-importar td { border: none; padding: 0; }
+    .tabela-importar td:nth-child(1) { grid-row: span 2; align-self: center; }
+    .tabela-importar td:nth-child(2) { grid-column: 2 / 4; }
+    .tabela-importar select { max-width: none; font-size: 14px; }
+    .tabela-importar td:nth-child(4) select { width: 100%; }
+}
+
+/* ---------- Gerência ---------- */
+.login-gerencia { max-width: 380px; }
+.tag-recusado { background: #fdecea; color: #c0392b; }
+.aviso { background: #fff4e0; color: #8a5a00; padding: 10px; border-radius: 6px; margin: 15px 0; }
+.tabela-registros .acoes form { display: inline-block; margin: 2px 0; }
+textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; font-family: inherit; }

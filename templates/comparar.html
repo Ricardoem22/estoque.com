@@ -1,0 +1,69 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Comparar Lista{% endblock %}
+{% block conteudo %}
+<h1>🔍 Comparar lista com o app</h1>
+<p class="sub">
+    Cole a lista de estoque que chegou pelo WhatsApp, ou anexe o arquivo (Excel, CSV, Word ou PDF). O app compara
+    cada insumo com o estoque calculado: última contagem + compras − desperdício aprovado.
+</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="form-desperdicio nao-imprimir">
+    <label for="texto">Colar mensagem do WhatsApp</label>
+    <textarea id="texto" name="texto" rows="8" placeholder="Bacon 2 kg&#10;Alface 3 un&#10;Tomate 4,5 kg">{{ texto }}</textarea>
+
+    <label for="arquivo">ou anexar arquivo</label>
+    <input type="file" id="arquivo" name="arquivo"
+           accept=".xlsx,.xlsm,.csv,.txt,.docx,.pdf,.doc,.xls,application/pdf,text/plain">
+
+    <div class="form-actions">
+        <button class="btn" type="submit">Comparar</button>
+        <a class="btn btn-edit" href="{{ url_for('relatorio.relatorio') }}">Voltar ao relatório</a>
+    </div>
+</form>
+
+{% if resultado %}
+<div class="top-bar">
+    <h2>Resultado</h2>
+    <button class="btn btn-edit nao-imprimir" type="button" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+{% if resultado.divergentes %}
+<div class="aviso">⚠️ {{ resultado.divergentes }} insumo(s) com diferença entre a lista e o app.</div>
+{% else %}
+<div class="sucesso">Nenhuma diferença nos insumos que deu para comparar.</div>
+{% endif %}
+
+<table class="tabela-registros">
+    <thead><tr><th>Insumo</th><th>Lista</th><th>App</th><th>Diferença</th></tr></thead>
+    <tbody>
+        {% for l in resultado.linhas %}
+        <tr>
+            <td>{{ l.nome }}</td>
+            <td>{{ l.lista|qtd }} {{ l.unidade_lista }}</td>
+            <td>{% if l.app is none %}—{% else %}{{ l.app|qtd }} {{ l.unidade }}{% endif %}</td>
+            <td>
+                {% if l.situacao == 'ok' %}<span class="tag tag-ok">Confere</span>
+                {% elif l.situacao == 'falta' %}<span class="tag tag-recusado">Falta {{ (-l.diferenca)|qtd }} {{ l.unidade }}</span>
+                {% elif l.situacao == 'sobra' %}<span class="tag tag-aberta">Sobra {{ l.diferenca|qtd }} {{ l.unidade }}</span>
+                {% elif l.situacao == 'unidade' %}<span class="sub">Unidade diferente</span>
+                {% else %}<span class="sub">Sem contagem no app</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="sub">"Falta" quer dizer que a lista tem menos que o app esperava, o que pode indicar consumo ou perda não registrados.</p>
+
+{% if resultado.nao_encontrados %}
+<h2>Não encontrados no app <span class="sub">({{ resultado.nao_encontrados|length }})</span></h2>
+<p class="sem-dados">{% for i in resultado.nao_encontrados %}{{ i.nome }} ({{ i.quantidade|qtd }}{% if i.unidade %} {{ i.unidade }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+<p class="sub">Confira se o nome está igual ao da aba Insumos.</p>
+{% endif %}
+
+{% if resultado.faltando_na_lista %}
+<h2>Têm estoque no app, mas não vieram na lista <span class="sub">({{ resultado.faltando_na_lista|length }})</span></h2>
+<p class="sem-dados">{{ resultado.faltando_na_lista|join(', ') }}</p>
+{% endif %}
+{% endif %}
+{% endblock %}
