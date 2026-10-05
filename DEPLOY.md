@@ -53,6 +53,7 @@ Depois clique em **Reload** na aba Web.
 | `APP_PASSWORD` | Senha da equipe. **Sem ela ninguém consegue entrar.** |
 | `SECRET_KEY` | Chave do cookie de login. Sem ela, todos precisam entrar de novo a cada Reload. |
 | `DATABASE_PATH` | Opcional. Caminho do banco; o padrão é `estoque.db` na pasta do projeto. |
+| `UPLOAD_DIR` | Opcional. Pasta das fotos de desperdício; o padrão é `fotos/` na pasta do projeto. |
 
 ## Rodar no seu computador
 
@@ -70,3 +71,5 @@ Abra http://localhost:5000.
 - No plano grátis, entre na aba **Web** a cada 3 meses e clique em
   "Run until 3 months from today" para o site não ser desligado.
 - Faça cópias do `estoque.db` de vez em quando (aba **Files**, botão de download).
+- As fotos de desperdício ficam na pasta `fotos/` (fora do GitHub). Cada foto é reduzida no
+  celular antes do envio; o plano grátis tem 512 MB de disco, então acompanhe o uso na aba **Files**.

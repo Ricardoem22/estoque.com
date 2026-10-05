@@ -6,7 +6,7 @@
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 {% if salvo %}<div class="sucesso">Desperdício registrado.</div>{% endif %}
 
-<form method="post" class="form-desperdicio">
+<form method="post" class="form-desperdicio" enctype="multipart/form-data">
     <label for="insumo_id">Insumo</label>
     <select id="insumo_id" name="insumo_id" required>
         <option value="">Escolha...</option>
@@ -48,6 +48,13 @@
         </div>
     </div>
 
+    <label for="foto">Foto do desperdício</label>
+    <label class="foto-campo" for="foto">
+        <img id="foto-previa" alt="" hidden>
+        <span id="foto-texto">📷 Toque para tirar a foto</span>
+    </label>
+    <input type="file" id="foto" name="foto" accept="image/*" capture="environment" required>
+
     <label for="responsavel">Responsável</label>
     <input type="text" id="responsavel" name="responsavel" value="{{ form.get('responsavel', '') }}">
 
@@ -79,20 +86,23 @@
 </table>
 
 <h2>Todos os registros <span class="sub">({{ registros|length }})</span></h2>
-<table>
-    <thead><tr><th>Data</th><th>Insumo</th><th>Qtd.</th><th>Motivo</th><th></th></tr></thead>
+<table class="tabela-registros">
+    <thead><tr><th>Foto</th><th>Insumo</th><th>Qtd. / Motivo</th><th></th></tr></thead>
     <tbody>
         {% for r in registros %}
         <tr>
-            <td>{{ r['data']|data_br }}</td>
+            <td>
+                {% if r['foto'] %}
+                <a href="{{ url_for('desperdicio.foto', nome=r['foto']) }}" target="_blank">
+                    <img class="miniatura" src="{{ url_for('desperdicio.foto', nome=r['foto']) }}" alt="Foto" loading="lazy">
+                </a>
+                {% else %}<span class="sub">sem foto</span>{% endif %}
+            </td>
             <td>
                 {{ r['insumo_nome'] }}
-                {% if r['responsavel'] or r['observacao'] %}
-                <br><span class="sub">{{ r['responsavel'] }}{% if r['responsavel'] and r['observacao'] %} · {% endif %}{{ r['observacao'] }}</span>
-                {% endif %}
+                <br><span class="sub">{{ r['data']|data_br }}{% if r['responsavel'] %} · {{ r['responsavel'] }}{% endif %}{% if r['observacao'] %} · {{ r['observacao'] }}{% endif %}</span>
             </td>
-            <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}</td>
-            <td>{{ r['motivo'] }}</td>
+            <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}<br><span class="sub">{{ r['motivo'] }}</span></td>
             <td class="acoes">
                 <form class="inline" method="post" action="{{ url_for('desperdicio.excluir_desperdicio', id=r['id']) }}"
                       onsubmit="return confirm('Excluir este registro?')">
@@ -109,6 +119,35 @@
 {% endif %}
 
 <script>
+    // Mostra a foto escolhida e reduz o tamanho antes de enviar (fotos de celular são grandes)
+    var campoFoto = document.getElementById("foto");
+    campoFoto.addEventListener("change", function () {
+        var arquivo = campoFoto.files[0];
+        if (!arquivo) return;
+        var previa = document.getElementById("foto-previa");
+        var url = URL.createObjectURL(arquivo);
+        previa.src = url;
+        previa.hidden = false;
+        document.getElementById("foto-texto").textContent = "📷 Trocar foto";
+        if (!window.DataTransfer || !HTMLCanvasElement.prototype.toBlob) return;
+        var img = new Image();
+        img.onload = function () {
+            var max = 1280, escala = Math.min(1, max / Math.max(img.width, img.height));
+            if (escala === 1 && arquivo.size < 800 * 1024) return;
+            var canvas = document.createElement("canvas");
+            canvas.width = Math.round(img.width * escala);
+            canvas.height = Math.round(img.height * escala);
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(function (blob) {
+                if (!blob || blob.size >= arquivo.size) return;
+                var dt = new DataTransfer();
+                dt.items.add(new File([blob], "foto.jpg", { type: "image/jpeg" }));
+                campoFoto.files = dt.files;
+            }, "image/jpeg", 0.75);
+        };
+        img.src = url;
+    });
+
     // Ao escolher o insumo, já seleciona a unidade padrão dele
     document.getElementById("insumo_id").addEventListener("change", function () {
         var opcao = this.selectedOptions[0];

@@ -7,6 +7,8 @@ from flask import Flask, render_template, request, redirect, session, url_for
 import config
 from contagem import bp as contagem_bp, init_db as init_db_contagem
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
+from compras import bp as compras_bp, init_db as init_db_compras
+from relatorio import bp as relatorio_bp
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -14,9 +16,12 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+    MAX_CONTENT_LENGTH=20 * 1024 * 1024,  # fotos de celular
 )
 app.register_blueprint(contagem_bp)
 app.register_blueprint(desperdicio_bp)
+app.register_blueprint(compras_bp)
+app.register_blueprint(relatorio_bp)
 DB_NAME = config.DB_PATH
 
 
@@ -172,6 +177,7 @@ def excluir(id):
 init_db()
 init_db_contagem()
 init_db_desperdicio()
+init_db_compras()
 
 if __name__ == "__main__":
     import os

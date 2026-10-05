@@ -1,0 +1,72 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Relatório de Compras{% endblock %}
+{% block conteudo %}
+<h1>📊 Estoque e Sugestão de Compra</h1>
+
+<form method="get" class="top-bar nao-imprimir">
+    <label class="inline-label">Comprar para
+        <select name="semanas" onchange="this.form.submit()">
+            {% for s, nome in [(1, "1 semana"), (1.5, "10 dias"), (2, "2 semanas"), (3, "3 semanas"), (4, "4 semanas")] %}
+            <option value="{{ s }}" {% if semanas == s %}selected{% endif %}>{{ nome }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button class="btn btn-edit" type="button" onclick="window.print()">🖨️ Imprimir lista</button>
+</form>
+
+<h2>🛒 Comprar</h2>
+{% if comprar %}
+{% for categoria, itens in comprar %}
+<h3>{{ categoria }}</h3>
+<table>
+    <thead><tr><th>Insumo</th><th>Estoque</th><th>Consumo/semana</th><th>Sugestão</th></tr></thead>
+    <tbody>
+        {% for l in itens %}
+        <tr>
+            <td>{{ l.nome }}</td>
+            <td>{{ l.estoque|qtd }} {{ l.unidade }}</td>
+            <td>{{ l.consumo_semanal|round(2)|qtd }} {{ l.unidade }}</td>
+            <td><strong>{{ l.sugestao|qtd }} {{ l.unidade }}</strong></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endfor %}
+{% else %}
+<p class="vazio">Nada para comprar no período escolhido.</p>
+{% endif %}
+
+<h2>✅ Estoque bom <span class="sub">(não precisa comprar)</span></h2>
+{% if bons %}
+<table>
+    <thead><tr><th>Insumo</th><th>Estoque</th><th>Consumo/semana</th><th>Dura cerca de</th></tr></thead>
+    <tbody>
+        {% for l in bons %}
+        <tr>
+            <td>{{ l.nome }}</td>
+            <td>{{ l.estoque|qtd }} {{ l.unidade }}</td>
+            <td>{{ l.consumo_semanal|round(2)|qtd }} {{ l.unidade }}</td>
+            <td>{% if l.dias_cobertura is none %}sem consumo{% else %}{{ l.dias_cobertura|round|int }} dias{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhum insumo com estoque sobrando no período escolhido.</p>
+{% endif %}
+
+<h2 class="nao-imprimir">❔ Sem dados suficientes <span class="sub">({{ sem_dados|length }})</span></h2>
+<p class="sub nao-imprimir">
+    Para calcular o consumo, o insumo precisa aparecer em pelo menos duas contagens finalizadas em dias diferentes.
+    Se o estoque subiu entre duas contagens sem compra registrada, esse período é ignorado.
+</p>
+{% if sem_dados %}
+<p class="nao-imprimir sem-dados">{% for l in sem_dados %}{{ l.nome }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+{% endif %}
+
+<p class="sub">
+    Como é calculado: consumo = contagem anterior + compras registradas − contagem seguinte, com a média das últimas
+    4 contagens de cada insumo. O estoque é a última contagem mais as compras registradas depois dela.
+    Compras com a mesma data de uma contagem contam como chegadas depois da contagem.
+</p>
+{% endblock %}
