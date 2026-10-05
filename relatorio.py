@@ -10,7 +10,7 @@ from datetime import date
 from flask import Blueprint, render_template, request
 
 from contagem import agrupar_por_categoria, get_connection
-from importador import extrair_itens, ler_arquivo, ler_texto, sem_acento
+from importador import chave_nome, extrair_itens, ler_arquivo, ler_texto, sem_acento
 
 bp = Blueprint("relatorio", __name__)
 
@@ -141,12 +141,6 @@ def relatorio():
         bons=sorted([l for l in linhas if l["status"] == "bom"], key=lambda l: -(l["dias_cobertura"] or 10**9)),
         sem_dados=sorted([l for l in linhas if l["status"] == "sem_dados"], key=lambda l: sem_acento(l["nome"])),
     )
-
-
-def chave_nome(nome):
-    """Nome sem acento e sem plural simples, para casar 'Tomates' com 'Tomate'."""
-    chave = sem_acento(nome)
-    return " ".join(p[:-1] if len(p) > 3 and p.endswith("s") else p for p in chave.split(" "))
 
 
 @bp.route("/relatorio/comparar", methods=["GET", "POST"])
