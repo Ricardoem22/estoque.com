@@ -236,3 +236,14 @@ tr.nao-contado td { color: #aaa; }
     .container { box-shadow: none; padding: 0; }
     .menu, .nao-imprimir { display: none; }
 }
+
+/* ---------- Login ---------- */
+.container.login { max-width: 380px; }
+input[type="password"] {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    width: 100%;
+    font-size: 16px;
+}
+.menu .sair { margin-left: auto; color: #c0392b; }

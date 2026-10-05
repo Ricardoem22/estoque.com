@@ -1,11 +1,58 @@
-from flask import Flask, render_template, request, redirect, url_for
+from datetime import timedelta
+import hmac
 import sqlite3
 
+from flask import Flask, render_template, request, redirect, session, url_for
+
+import config
 from contagem import bp as contagem_bp, init_db as init_db_contagem
 
 app = Flask(__name__)
+app.secret_key = config.SECRET_KEY
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+)
 app.register_blueprint(contagem_bp)
-DB_NAME = "estoque.db"
+DB_NAME = config.DB_PATH
+
+
+@app.before_request
+def exigir_login():
+    if request.endpoint in ("login", "static") or session.get("logado"):
+        return None
+    return redirect(url_for("login", proximo=request.full_path.rstrip("?")))
+
+
+def destino_seguro(proximo):
+    # Só redireciona para caminhos internos do próprio site
+    if proximo.startswith("/") and not proximo.startswith(("//", "/\\")):
+        return proximo
+    return url_for("index")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    erro = None
+    proximo = request.values.get("proximo", "")
+    if not config.APP_PASSWORD:
+        erro = "Senha de acesso não configurada. Defina a variável APP_PASSWORD no servidor."
+    elif request.method == "POST":
+        senha = request.form.get("senha", "")
+        if hmac.compare_digest(senha.encode(), config.APP_PASSWORD.encode()):
+            session.clear()
+            session.permanent = True
+            session["logado"] = True
+            return redirect(destino_seguro(proximo))
+        erro = "Senha incorreta."
+    return render_template("login.html", erro=erro, proximo=proximo)
+
+
+@app.route("/sair")
+def sair():
+    session.clear()
+    return redirect(url_for("login"))
 
 def get_connection():
     conn = sqlite3.connect(DB_NAME)
