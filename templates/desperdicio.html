@@ -1,0 +1,120 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Desperdício{% endblock %}
+{% block conteudo %}
+<h1>🗑️ Desperdício</h1>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if salvo %}<div class="sucesso">Desperdício registrado.</div>{% endif %}
+
+<form method="post" class="form-desperdicio">
+    <label for="insumo_id">Insumo</label>
+    <select id="insumo_id" name="insumo_id" required>
+        <option value="">Escolha...</option>
+        {% for categoria, itens in grupos %}
+        <optgroup label="{{ categoria }}">
+            {% for item in itens %}
+            <option value="{{ item['id'] }}" data-unidade="{{ item['unidade'] }}"
+                    {% if form.get('insumo_id') == item['id']|string %}selected{% endif %}>{{ item['nome'] }}</option>
+            {% endfor %}
+        </optgroup>
+        {% endfor %}
+    </select>
+
+    <div class="linha">
+        <div>
+            <label for="quantidade">Quantidade</label>
+            <input type="text" id="quantidade" name="quantidade" inputmode="decimal" placeholder="Ex.: 1,5"
+                   value="{{ form.get('quantidade', '') }}" required>
+        </div>
+        <div>
+            <label for="unidade">Unidade</label>
+            <select id="unidade" name="unidade">
+                {% for u in unidades %}<option value="{{ u }}" {% if form.get('unidade') == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="linha">
+        <div>
+            <label for="motivo">Motivo</label>
+            <select id="motivo" name="motivo" required>
+                <option value="">Escolha...</option>
+                {% for m in motivos %}<option value="{{ m }}" {% if form.get('motivo') == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="data">Data</label>
+            <input type="date" id="data" name="data" value="{{ form.get('data', hoje) }}" required>
+        </div>
+    </div>
+
+    <label for="responsavel">Responsável</label>
+    <input type="text" id="responsavel" name="responsavel" value="{{ form.get('responsavel', '') }}">
+
+    <label for="observacao">Observação</label>
+    <input type="text" id="observacao" name="observacao" placeholder="Opcional" value="{{ form.get('observacao', '') }}">
+
+    <div class="form-actions">
+        <button class="btn" type="submit">Registrar desperdício</button>
+    </div>
+</form>
+
+<form method="get" class="top-bar filtro-mes">
+    <h2>Registros do mês</h2>
+    <div>
+        <input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()">
+        <a class="btn" href="{{ url_for('desperdicio.exportar_csv', mes=mes) }}">CSV</a>
+    </div>
+</form>
+
+{% if registros %}
+<h2>Resumo por insumo</h2>
+<table>
+    <thead><tr><th>Insumo</th><th>Total</th><th>Vezes</th></tr></thead>
+    <tbody>
+        {% for t in resumo %}
+        <tr><td>{{ t.nome }}</td><td>{{ t.quantidade|qtd }} {{ t.unidade }}</td><td>{{ t.vezes }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2>Todos os registros <span class="sub">({{ registros|length }})</span></h2>
+<table>
+    <thead><tr><th>Data</th><th>Insumo</th><th>Qtd.</th><th>Motivo</th><th></th></tr></thead>
+    <tbody>
+        {% for r in registros %}
+        <tr>
+            <td>{{ r['data']|data_br }}</td>
+            <td>
+                {{ r['insumo_nome'] }}
+                {% if r['responsavel'] or r['observacao'] %}
+                <br><span class="sub">{{ r['responsavel'] }}{% if r['responsavel'] and r['observacao'] %} · {% endif %}{{ r['observacao'] }}</span>
+                {% endif %}
+            </td>
+            <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}</td>
+            <td>{{ r['motivo'] }}</td>
+            <td class="acoes">
+                <form class="inline" method="post" action="{{ url_for('desperdicio.excluir_desperdicio', id=r['id']) }}"
+                      onsubmit="return confirm('Excluir este registro?')">
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <button class="btn btn-delete" type="submit">Excluir</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhum desperdício registrado neste mês.</p>
+{% endif %}
+
+<script>
+    // Ao escolher o insumo, já seleciona a unidade padrão dele
+    document.getElementById("insumo_id").addEventListener("change", function () {
+        var opcao = this.selectedOptions[0];
+        if (opcao && opcao.dataset.unidade) {
+            document.getElementById("unidade").value = opcao.dataset.unidade;
+        }
+    });
+</script>
+{% endblock %}

@@ -247,3 +247,20 @@ input[type="password"] {
     font-size: 16px;
 }
 .menu .sair { margin-left: auto; color: #c0392b; }
+
+/* ---------- Desperdício ---------- */
+.form-desperdicio select { width: 100%; }
+.form-desperdicio .linha { display: flex; gap: 10px; }
+.form-desperdicio .linha > div { flex: 1; min-width: 0; }
+.filtro-mes { margin-top: 30px; margin-bottom: 0; }
+.filtro-mes h2 { margin: 0; }
+.filtro-mes div { display: flex; gap: 8px; }
+input[type="month"] {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+}
+@media (max-width: 600px) {
+    .form-desperdicio input, .form-desperdicio select { font-size: 16px; }
+}
