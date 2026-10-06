@@ -124,6 +124,14 @@ def desperdicio():
             erro = "Informe uma quantidade maior que zero."
         elif motivo not in MOTIVOS:
             erro = "Escolha o motivo."
+        elif form.get("unidade", "").strip():
+            # Unidade sem conversão para a do estoque faria o desperdício não descontar nada
+            from insumo_cadastro import carregar_conversoes
+            from unidades import converter
+            unidade = form.get("unidade").strip()
+            if converter(1, unidade, insumo["unidade"], carregar_conversoes(conn).get(insumo["id"], [])) is None:
+                erro = (f"{unidade} não converte para {insumo['unidade']} (a unidade do estoque de "
+                        f"{insumo['nome']}). Use {insumo['unidade']} ou cadastre a medida na ficha do insumo.")
         foto = request.files.get("foto")
         ext = extensao_foto(foto)
         if not erro and ext is None:
@@ -133,20 +141,23 @@ def desperdicio():
             os.makedirs(config.UPLOAD_DIR, exist_ok=True)
             nome_foto = f"{uuid.uuid4().hex}.{ext}"
             foto.save(os.path.join(config.UPLOAD_DIR, nome_foto))
+            agora = config.agora().strftime("%Y-%m-%d %H:%M:%S")
+            # Quem é da gerência já aprova ao lançar: o estoque baixa na hora
+            gerente = session.get("gerente") or ""
             conn.execute("""
                 INSERT INTO desperdicios
                     (data, insumo_id, insumo_nome, categoria, quantidade, unidade, motivo, responsavel, observacao,
-                     foto, criado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     foto, criado_em, status, aprovado_por, aprovado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data, insumo["id"], insumo["nome"], insumo["categoria"], quantidade,
                 form.get("unidade", "").strip() or insumo["unidade"], motivo,
                 form.get("responsavel", "").strip(), form.get("observacao", "").strip(),
-                nome_foto, config.agora().strftime("%Y-%m-%d %H:%M:%S"),
+                nome_foto, agora, "aprovado" if gerente else "pendente", gerente, agora if gerente else "",
             ))
             conn.commit()
             conn.close()
-            return redirect(url_for("desperdicio.desperdicio", mes=data[:7], salvo=1))
+            return redirect(url_for("desperdicio.desperdicio", mes=data[:7], salvo="aprovado" if gerente else 1))
 
     mes = mes_selecionado()
     registros = registros_do_mes(conn, mes)

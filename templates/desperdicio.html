@@ -10,7 +10,8 @@
 <p class="sub">O desperdício só é descontado do estoque depois que a gerência aprova.</p>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
-{% if salvo %}<div class="sucesso">Desperdício registrado.</div>{% endif %}
+{% if salvo == 'aprovado' %}<div class="sucesso">Desperdício registrado e aprovado: já saiu do estoque.</div>
+{% elif salvo %}<div class="sucesso">Desperdício registrado. Ele sai do estoque quando a gerência aprovar.</div>{% endif %}
 
 <form method="post" class="form-desperdicio" enctype="multipart/form-data">
     <label for="insumo_id">Insumo</label>

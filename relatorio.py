@@ -481,14 +481,29 @@ def estoque():
                    d.insumo_id FROM desperdicios d WHERE d.status = 'aprovado'
         ) ORDER BY data DESC, id DESC LIMIT 5
     """).fetchall()
+    # Desperdício lançado pela equipe que ainda espera a gerência: ainda não saiu do estoque
+    pendentes = conn.execute("""
+        SELECT insumo_id, quantidade, unidade, data FROM desperdicios
+        WHERE status = 'pendente' AND insumo_id IS NOT NULL
+    """).fetchall()
     conn.close()
+    por_id = {l["id"]: l for l in linhas}
+    total_pendentes = 0
+    for d in pendentes:
+        linha = por_id.get(d["insumo_id"])
+        if linha is None or (linha["ultima_contagem"] and d["data"] < linha["ultima_contagem"]):
+            continue
+        quantidade = converter(d["quantidade"], d["unidade"], linha["unidade"], linha["conversoes"])
+        if quantidade:
+            linha["pendente"] = linha.get("pendente", 0) + quantidade
+            total_pendentes += 1
     from movimentos import TIPOS
     locais = sorted({l["local"] for l in linhas if l["local"]})
     return render_template(
         "estoque.html", categorias=categorias, total=valor["total"], total_medio=valor["total_medio"],
         itens=len(linhas), sem_preco=len(valor["sem_preco"]), sem_contagem=valor["sem_contagem"],
         alertas=alertas, ultima_contagem=ultima_contagem, ultimas_entradas=ultimas_entradas,
-        ultimas_saidas=ultimas_saidas, tipos=TIPOS, locais=locais,
+        ultimas_saidas=ultimas_saidas, tipos=TIPOS, locais=locais, total_pendentes=total_pendentes,
     )
 
 
