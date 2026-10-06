@@ -21,23 +21,18 @@
         </div>
     </div>
     <nav class="menu">
-        <a href="{{ url_for('relatorio.estoque') }}" {% if aba == 'estoque' %}class="ativo"{% endif %}>🏪 Estoque</a>
-        <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}>📋 Contagens</a>
-        <a href="{{ url_for('mural.mural') }}" {% if aba == 'mural' %}class="ativo"{% endif %}>💬 Mural</a>
-        <a href="{{ url_for('contagem.insumos') }}" {% if aba == 'insumos' %}class="ativo"{% endif %}>🧾 Insumos</a>
-        <a href="{{ url_for('compras.compras') }}" {% if aba == 'compras' %}class="ativo"{% endif %}>🛒 Compras</a>
-        <a href="{{ url_for('movimentos.movimentacoes') }}" {% if aba == 'movimentos' %}class="ativo"{% endif %}>🔄 Movimentações</a>
-        <a href="{{ url_for('desperdicio.desperdicio') }}" {% if aba == 'desperdicio' %}class="ativo"{% endif %}>🗑️ Desperdício</a>
-        <a href="{{ url_for('relatorio.relatorio') }}" {% if aba == 'relatorio' %}class="ativo"{% endif %}>📊 Relatório</a>
-        {% if session.get('gerente') %}<a href="{{ url_for('funcionarios.cadastro') }}" {% if aba == 'funcionarios' %}class="ativo"{% endif %}>👥 Funcionários</a>{% endif %}
+        <div class="menu-linha">
+            <a href="{{ url_for('relatorio.estoque') }}" {% if aba == 'estoque' %}class="ativo"{% endif %}><i>🏪</i> Estoque</a>
+            <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}><i>📋</i> Contagem</a>
+            <a href="{{ url_for('contagem.insumos') }}" {% if aba == 'insumos' %}class="ativo"{% endif %}><i>🧾</i> Insumos</a>
+            <a href="{{ url_for('compras.compras') }}" {% if aba == 'compras' %}class="ativo"{% endif %}><i>🛒</i> Compras</a>
+            <a href="{{ url_for('desperdicio.desperdicio') }}" {% if aba == 'desperdicio' %}class="ativo"{% endif %}><i>🗑️</i> Desperdício</a>
+        </div>
+        <div class="menu-linha">
+            <a href="{{ url_for('movimentos.movimentacoes') }}" {% if aba == 'movimentos' %}class="ativo"{% endif %}><i>🔄</i> Movimentações</a>
+            <a href="{{ url_for('relatorio.relatorio') }}" {% if aba == 'relatorio' %}class="ativo"{% endif %}><i>📊</i> Relatório</a>
+            <a href="{{ url_for('mural.mural') }}" {% if aba == 'mural' %}class="ativo"{% endif %}><i>💬</i> Mural</a>
+            {% if session.get('gerente') %}<a href="{{ url_for('funcionarios.cadastro') }}" {% if aba == 'funcionarios' %}class="ativo"{% endif %}><i>👥</i> Funcionários</a>{% endif %}
+        </div>
     </nav>
 </header>
-<script>
-    // No celular o menu rola de lado: mostra a aba atual
-    (function () {
-        var menu = document.querySelector('.menu'), ativo = menu && menu.querySelector('.ativo');
-        if (ativo && menu.scrollWidth > menu.clientWidth) {
-            menu.scrollLeft = ativo.offsetLeft - (menu.clientWidth - ativo.offsetWidth) / 2;
-        }
-    })();
-</script>

@@ -212,22 +212,25 @@ form label {
 .menu {
     max-width: 960px;
     margin: 0 auto;
-    padding: 4px 14px 0;
+    padding: 4px 14px 10px;
     display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
+    flex-direction: column;
+    gap: 6px;
     font-size: 14px;
 }
-.menu::-webkit-scrollbar { display: none; }
+.menu-linha { display: flex; gap: 6px; }
 .menu a {
+    flex: 1;
     color: #fff;
     text-decoration: none;
     font-weight: 600;
-    padding: 9px 12px 11px;
-    border-radius: 8px 8px 0 0;
+    padding: 8px 6px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.12);
+    text-align: center;
     white-space: nowrap;
 }
+.menu a i { font-style: normal; }
 .menu a:hover { background: rgba(255,255,255,0.14); }
 .menu a.ativo { background: var(--amarelo); color: var(--texto); }
 
@@ -338,8 +341,11 @@ tr.nao-contado td { color: #aaa; }
     .topo { margin-bottom: 0; }
     .topo-interno { padding: 10px 14px 4px; }
     .marca-texto strong { font-size: 18px; }
-    .menu { padding: 4px 8px 0; }
-    .menu a { padding: 8px 10px 10px; }
+    .menu { padding: 4px 8px 8px; gap: 4px; font-size: 11px; }
+    .menu-linha { gap: 4px; }
+    /* No celular o ícone fica em cima do nome, para caber tudo na largura */
+    .menu a { padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+    .menu a i { font-size: 18px; line-height: 1; }
     h1 { font-size: 24px; }
     body.pagina-login { padding: 0; }
     .pagina-login .container.login { max-width: none; margin: 0; min-height: 100vh; padding-top: 12vh; }
