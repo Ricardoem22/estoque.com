@@ -18,12 +18,16 @@
 
         <form method="post">
             <input type="hidden" name="proximo" value="{{ proximo }}">
-            <label for="senha">Senha da equipe</label>
-            <input type="password" id="senha" name="senha" required autofocus autocomplete="current-password">
+            <label for="usuario">Usuário</label>
+            <input type="text" id="usuario" name="usuario" value="{{ usuario }}" required autofocus
+                   autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username">
+            <label for="senha">Senha</label>
+            <input type="password" id="senha" name="senha" required autocomplete="current-password">
             <div class="form-actions">
                 <button class="btn btn-grande" type="submit">Entrar</button>
             </div>
         </form>
+        <p class="login-link"><a href="{{ url_for('funcionarios.esqueci_senha') }}">Esqueci a senha</a></p>
     </div>
 </body>
 </html>

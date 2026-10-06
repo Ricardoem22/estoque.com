@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Esqueci a senha - Gestor Full</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="pagina-login">
+    <div class="container login">
+        <div class="login-marca">
+            <span class="marca-icone">GF</span>
+            <h1>Esqueci a senha</h1>
+        </div>
+        <ol class="passos">
+            <li>Avise alguém da <strong>gerência</strong>.</li>
+            <li>Na tela <strong>Funcionários</strong>, a gerência toca em <strong>Nova senha</strong> no seu nome e te passa a senha temporária.</li>
+            <li>Entre com ela. O sistema vai pedir para você criar uma senha nova.</li>
+        </ol>
+        <div class="form-actions">
+            <a class="btn btn-grande" href="{{ url_for('login') }}">Voltar para entrar</a>
+        </div>
+    </div>
+</body>
+</html>

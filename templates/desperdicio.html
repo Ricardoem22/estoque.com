@@ -4,9 +4,7 @@
 <div class="top-bar">
     <h1>🗑️ Desperdício</h1>
     {% if gerente %}
-    <span class="sub">🔑 Gerência: {{ gerente }} · <a href="{{ url_for('sair_gerencia') }}">sair</a></span>
-    {% else %}
-    <a class="btn btn-edit" href="{{ url_for('gerencia', proximo=url_for('desperdicio.desperdicio', mes=mes)) }}">🔑 Entrar como gerência</a>
+    <span class="sub">🔑 Gerência: {{ gerente }}</span>
     {% endif %}
 </div>
 <p class="sub">O desperdício só é descontado do estoque depois que a gerência aprova.</p>

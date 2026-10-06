@@ -1,0 +1,88 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Funcionários{% endblock %}
+{% block conteudo %}
+<h1>👥 Funcionários</h1>
+<p class="sub">Cada funcionário entra com o próprio usuário e senha. Só a gerência vê esta tela.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if nova_senha %}
+<div class="senha-nova">
+    <p>Passe estes dados para <strong>{{ nova_senha.nome }}</strong>. A senha aparece só agora.</p>
+    <p>Usuário: <code>{{ nova_senha.usuario }}</code><br>Senha temporária: <code>{{ nova_senha.senha }}</code></p>
+    <p class="sub">No primeiro acesso o sistema pede para criar uma senha nova.</p>
+</div>
+{% endif %}
+
+<h2>Cadastrar funcionário</h2>
+<form method="post" class="form-funcionario">
+    <div>
+        <label for="nome">Nome</label>
+        <input type="text" id="nome" name="nome" value="{{ form.get('nome', '') }}" required placeholder="Ex.: João Silva">
+    </div>
+    <div>
+        <label for="usuario">Usuário para entrar</label>
+        <input type="text" id="usuario" name="usuario" value="{{ form.get('usuario', '') }}" required
+               autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Ex.: joao">
+    </div>
+    <div>
+        <label for="papel">Perfil</label>
+        <select id="papel" name="papel">
+            {% for valor, rotulo in papeis.items() %}
+            <option value="{{ valor }}" {% if form.get('papel') == valor %}selected{% endif %}>{{ rotulo }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">+ Cadastrar</button></div>
+</form>
+<p class="sub">Gerência aprova desperdícios e cadastra funcionários. Equipe faz o resto.</p>
+
+<h2>Cadastrados</h2>
+{% if funcionarios %}
+<table class="tabela-funcionarios">
+    <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th>Ações</th></tr></thead>
+    <tbody>
+    {% for f in funcionarios %}
+    <tr class="{% if not f['ativo'] %}inativo{% endif %}">
+        <td><strong>{{ f['nome'] }}</strong>{% if f['id'] == eu %} <span class="sub">(você)</span>{% endif %}</td>
+        <td><code>{{ f['usuario'] }}</code></td>
+        <td>
+            {% if f['id'] == eu %}{{ papeis[f['papel']] }}{% else %}
+            <form class="inline" method="post" action="{{ url_for('funcionarios.cadastro_acao', id=f['id'], acao='perfil') }}">
+                <select name="papel" onchange="this.form.submit()" aria-label="Perfil de {{ f['nome'] }}">
+                    {% for valor, rotulo in papeis.items() %}
+                    <option value="{{ valor }}" {% if f['papel'] == valor %}selected{% endif %}>{{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+        </td>
+        <td>
+            {% if f['ativo'] %}<span class="tag tag-ok">Ativo</span>{% else %}<span class="tag tag-recusado">Desativado</span>{% endif %}
+            {% if f['ativo'] and f['trocar_senha'] %}<br><span class="sub">senha temporária</span>{% endif %}
+        </td>
+        <td class="acoes">
+            <form class="inline" method="post" action="{{ url_for('funcionarios.cadastro_acao', id=f['id'], acao='senha') }}"
+                  onsubmit="return confirm('Gerar uma senha nova? A senha atual deixa de valer.')">
+                <button class="btn btn-edit" type="submit">Nova senha</button>
+            </form>
+            {% if f['id'] != eu %}
+            {% if f['ativo'] %}
+            <form class="inline" method="post" action="{{ url_for('funcionarios.cadastro_acao', id=f['id'], acao='desativar') }}"
+                  onsubmit="return confirm('Desativar este funcionário? O acesso será bloqueado.')">
+                <button class="btn btn-delete" type="submit">Desativar</button>
+            </form>
+            {% else %}
+            <form class="inline" method="post" action="{{ url_for('funcionarios.cadastro_acao', id=f['id'], acao='ativar') }}">
+                <button class="btn" type="submit">Reativar</button>
+            </form>
+            {% endif %}
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhum funcionário cadastrado ainda. Comece cadastrando você mesmo com o perfil Gerência.</p>
+{% endif %}
+{% endblock %}
