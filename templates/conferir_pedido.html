@@ -86,15 +86,14 @@
 
 {% if resultado.nao_encontrados %}
 <h2>Não encontrados no app <span class="sub">({{ resultado.nao_encontrados|length }})</span></h2>
-<p class="sub">Não são insumos da contagem. Quando estão cadastrados na aba Produtos, aparece o estoque de lá.</p>
+<p class="sub">Não são insumos cadastrados. Para conferir estes itens, cadastre-os em Insumos.</p>
 <table class="tabela-faltou">
-    <thead><tr><th>Item do pedido</th><th>Pedido</th><th>Estoque (Produtos)</th></tr></thead>
+    <thead><tr><th>Item do pedido</th><th>Pedido</th></tr></thead>
     <tbody>
     {% for i in resultado.nao_encontrados %}
     <tr>
-        <td>{{ i.nome }}{% if i.produto and i.produto['nome']|lower != i.nome|lower %}<br><span class="sub">produto: {{ i.produto['nome'] }}</span>{% endif %}</td>
+        <td>{{ i.nome }}</td>
         <td>{{ i.quantidade|qtd }}{% if i.unidade %} {{ i.unidade }}{% endif %}</td>
-        <td>{% if i.produto %}<strong class="{% if (i.produto['quantidade'] or 0) <= 0 %}estoque-zerado{% endif %}">{{ (i.produto['quantidade'] or 0)|round(2)|qtd }} {{ i.produto['unidade'] }}</strong>{% else %}<span class="sub">não cadastrado</span>{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>

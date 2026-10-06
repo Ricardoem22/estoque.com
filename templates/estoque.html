@@ -34,6 +34,11 @@
         <span>última contagem{% if ultima_contagem %} · {{ ultima_contagem['responsavel'] }}{% endif %}</span></div>
 </div>
 
+{% if total_pendentes %}
+<a class="aviso aviso-link" href="{{ url_for('desperdicio.desperdicio') }}">⏳ {{ total_pendentes }} desperdício{{ 's' if total_pendentes != 1 }}
+    aguardando aprovação da gerência: ainda não sa{{ 'íram' if total_pendentes != 1 else 'iu' }} do estoque. Toque para aprovar.</a>
+{% endif %}
+
 {% if alertas.abaixo_minimo or alertas.sem_saldo %}
 <div class="lista-alertas">
     {% for l in alertas.sem_saldo %}<a class="tag tag-recusado" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}: acabou</a>{% endfor %}
@@ -80,6 +85,7 @@
                 {%- if l.compras_desde %} · + {{ l.compras_desde|round(2)|qtd }} comprado{% endif %}
                 {%- if l.movimentos and l.movimentos < 0 %} · − {{ (-l.movimentos)|round(2)|qtd }} saídas/ajustes{% elif l.movimentos and l.movimentos > 0 %} · + {{ l.movimentos|round(2)|qtd }} ajuste{% endif %}
                 {%- if l.desperdicio %} · − {{ l.desperdicio|round(2)|qtd }} desperdício{% endif %}
+                {%- if l.pendente %} · ⏳ {{ l.pendente|round(2)|qtd }} de desperdício esperando aprovação{% endif %}
             </span>
         </td>
         <td>{% if l.preco is defined %}{{ l.preco|brl }}/{{ l.unidade }}{% if l.preco_referencia %}<br><span class="sub">custo de referência</span>{% elif l.preco_medio|round(2) != l.preco|round(2) %}<br><span class="sub">médio {{ l.preco_medio|brl }}</span>{% endif %}{% else %}<span class="sub">—</span>{% endif %}</td>

@@ -9,7 +9,7 @@ import io
 import math
 from datetime import date
 
-from flask import Blueprint, Response, render_template, request
+from flask import Blueprint, Response, redirect, render_template, request, url_for
 
 from contagem import agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection
 from importador import chave_nome, extrair_itens, ler_arquivo, ler_texto, sem_acento
@@ -439,7 +439,8 @@ def calcular_valor_estoque():
 
 @bp.route("/relatorio/valor")
 def valor_estoque():
-    return render_template("valor_estoque.html", **calcular_valor_estoque())
+    # O valor do estoque agora fica no painel do Estoque
+    return redirect(url_for("relatorio.estoque"))
 
 
 def montar_estoque():
@@ -481,14 +482,29 @@ def estoque():
                    d.insumo_id FROM desperdicios d WHERE d.status = 'aprovado'
         ) ORDER BY data DESC, id DESC LIMIT 5
     """).fetchall()
+    # Desperdício lançado pela equipe que ainda espera a gerência: ainda não saiu do estoque
+    pendentes = conn.execute("""
+        SELECT insumo_id, quantidade, unidade, data FROM desperdicios
+        WHERE status = 'pendente' AND insumo_id IS NOT NULL
+    """).fetchall()
     conn.close()
+    por_id = {l["id"]: l for l in linhas}
+    total_pendentes = 0
+    for d in pendentes:
+        linha = por_id.get(d["insumo_id"])
+        if linha is None or (linha["ultima_contagem"] and d["data"] < linha["ultima_contagem"]):
+            continue
+        quantidade = converter(d["quantidade"], d["unidade"], linha["unidade"], linha["conversoes"])
+        if quantidade:
+            linha["pendente"] = linha.get("pendente", 0) + quantidade
+            total_pendentes += 1
     from movimentos import TIPOS
     locais = sorted({l["local"] for l in linhas if l["local"]})
     return render_template(
         "estoque.html", categorias=categorias, total=valor["total"], total_medio=valor["total_medio"],
         itens=len(linhas), sem_preco=len(valor["sem_preco"]), sem_contagem=valor["sem_contagem"],
         alertas=alertas, ultima_contagem=ultima_contagem, ultimas_entradas=ultimas_entradas,
-        ultimas_saidas=ultimas_saidas, tipos=TIPOS, locais=locais,
+        ultimas_saidas=ultimas_saidas, tipos=TIPOS, locais=locais, total_pendentes=total_pendentes,
     )
 
 
@@ -517,27 +533,17 @@ def estoque_csv():
 
 # ---------- Conferir pedido de compra ----------
 
-def estoque_produtos():
-    """Produtos da aba Produtos, para mostrar o estoque de itens que não são insumos da contagem."""
-    conn = get_connection()
-    produtos = [dict(p) for p in conn.execute("SELECT id, nome, quantidade, unidade FROM produtos")]
-    conn.close()
-    return produtos
-
-
-def montar_conferencia(itens, linhas_app, produtos=()):
+def montar_conferencia(itens, linhas_app):
     """Compara cada item do pedido com a sugestão de compra do relatório."""
     from notas import achar_insumo
     por_id = {l["id"]: l for l in linhas_app}
-    produto_por_id = {p["id"]: p for p in produtos}
     resultado = {"linhas": [], "nao_encontrados": [], "faltou_pedir": []}
     usados = set()
     for item in itens:
         insumo_id = achar_insumo(item["nome"], linhas_app, {})
         app = por_id.get(insumo_id)
         if app is None:
-            produto = produto_por_id.get(achar_insumo(item["nome"], produtos, {}))
-            resultado["nao_encontrados"].append({**item, "produto": produto})
+            resultado["nao_encontrados"].append(item)
             continue
         usados.add(app["id"])
         unidade_pedido = item["unidade"] or app["unidade"]
@@ -605,7 +611,7 @@ def conferir_pedido():
                     erro = ("Não encontrei itens com quantidade no pedido. Use uma linha por item, por exemplo "
                             "\"Bacon 2 kg\". Foto de papel escrito à mão não dá para ler.")
                 else:
-                    resultado = montar_conferencia(itens, app, estoque_produtos())
+                    resultado = montar_conferencia(itens, app)
         except ValueError as e:
             erro = str(e)
         except Exception:

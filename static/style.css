@@ -549,17 +549,10 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
 .valor-total span { font-size: 14px; font-weight: 600; opacity: 0.9; }
 .valor-total strong { font-size: 34px; font-weight: 800; color: var(--amarelo); }
 .valor-total small { font-size: 13px; opacity: 0.9; }
-.barra-pct { display: inline-block; width: 70px; height: 8px; background: var(--amarelo-claro); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 6px; }
-.barra-pct span { display: block; height: 100%; background: var(--vermelho); }
-.tabela-categorias a { color: var(--texto); font-weight: 600; }
-.tabela-categorias strong, .tabela-valor strong { white-space: nowrap; }
 .dica { margin: 4px 0 0; font-size: 13px; }
 @media (max-width: 600px) {
     .valor-total strong { font-size: 28px; }
-    .barra-pct { display: none; }
     .tabela-compras th:nth-child(5), .tabela-compras td:nth-child(5) { display: none; }
-    .tabela-valor th:nth-child(4), .tabela-valor td:nth-child(4) { display: none; }
-    .tabela-valor th, .tabela-valor td { padding: 8px 4px; }
 }
 @media print {
     .valor-total { background: #fff; color: var(--texto); border: 2px solid var(--texto); }
@@ -617,26 +610,9 @@ input.busca { width: 100%; padding: 10px 12px; border: 1px solid #D3CBBB; border
     .tabela-estoque th, .tabela-estoque td { padding: 8px 4px; }
 }
 
-/* ---------- Produtos: campos e importação pela nota ---------- */
-.linha-campos { display: flex; gap: 10px; flex-wrap: wrap; }
-.linha-campos > div { flex: 1; min-width: 140px; }
-.opcoes-nota { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 12px; }
-.opcoes-nota label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; }
-.tabela-produtos-nota .ncm { width: 105px; }
-.tabela-produtos-nota .un { width: 60px; }
 
-.so-celular { display: none; }
-@media (max-width: 600px) {
-    .tabela-produtos-nota tr { grid-template-columns: 28px minmax(108px, 1.4fr) 1fr minmax(60px, 0.7fr) 1fr; }
-    .tabela-produtos-nota td:nth-child(1) { grid-row: span 3; }
-    .tabela-produtos-nota td:nth-child(2), .tabela-produtos-nota td:nth-child(3) { grid-column: 2 / 6; }
-    .tabela-produtos-nota .un, .tabela-produtos-nota .ncm { padding-left: 6px; padding-right: 6px; }
-    .col-ncm { display: none; }
-    .so-celular { display: inline; }
-}
 .estoque-zerado { color: var(--vermelho); }
-.titulo-busca { margin-top: 18px; }
-.titulo-busca[hidden], table[hidden], .vazio[hidden], section[hidden], tr[hidden] { display: none; }
+table[hidden], .vazio[hidden], section[hidden], tr[hidden] { display: none; }
 input[type="search"] { padding: 8px; border: 1px solid #ccc; border-radius: 6px; width: 100%; }
 .valor-travado { white-space: nowrap; }
 
@@ -701,3 +677,6 @@ tr.inativo td { opacity: 0.6; }
     .tabela-historico th, .tabela-historico td { padding: 8px 4px; }
 }
 @media print { .atalhos, .filtros-estoque { display: none; } }
+.aviso-link { display: block; text-decoration: none; font-weight: 600; }
+.btn-mini { padding: 4px 8px; font-size: 0.8rem; margin-top: 4px; }
+.aviso form.inline { display: block; margin-top: 8px; }
