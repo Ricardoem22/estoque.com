@@ -8,7 +8,7 @@
 {%- elif ep.startswith('relatorio.') %}{% set aba = 'relatorio' -%}
 {%- elif ep.startswith('mural.') %}{% set aba = 'mural' -%}
 {%- elif ep.startswith('funcionarios.') %}{% set aba = 'funcionarios' -%}
-{%- else %}{% set aba = 'produtos' %}{% endif -%}
+{%- else %}{% set aba = '' %}{% endif -%}
 <header class="topo">
     <div class="topo-interno">
         <a class="marca" href="{{ url_for('relatorio.estoque') }}">
@@ -29,7 +29,6 @@
         <a href="{{ url_for('movimentos.movimentacoes') }}" {% if aba == 'movimentos' %}class="ativo"{% endif %}>🔄 Movimentações</a>
         <a href="{{ url_for('desperdicio.desperdicio') }}" {% if aba == 'desperdicio' %}class="ativo"{% endif %}>🗑️ Desperdício</a>
         <a href="{{ url_for('relatorio.relatorio') }}" {% if aba == 'relatorio' %}class="ativo"{% endif %}>📊 Relatório</a>
-        <a href="{{ url_for('index') }}" {% if aba == 'produtos' %}class="ativo"{% endif %}>📦 Produtos</a>
         {% if session.get('gerente') %}<a href="{{ url_for('funcionarios.cadastro') }}" {% if aba == 'funcionarios' %}class="ativo"{% endif %}>👥 Funcionários</a>{% endif %}
     </nav>
 </header>

@@ -1,17 +1,13 @@
 from datetime import timedelta
-import sqlite3
 
 from flask import Flask, render_template, request, redirect, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
-from insumos_iniciais import UNIDADES
-from contagem import bp as contagem_bp, init_db as init_db_contagem, parse_quantidade
+from contagem import bp as contagem_bp, init_db as init_db_contagem
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
-from compras import bp as compras_bp, init_db as init_db_compras, parse_valor
-from produtos_nota import bp as produtos_nota_bp, init_db as init_db_produtos_nota
-from importador import sem_acento
-from relatorio import bp as relatorio_bp, calcular_linhas
+from compras import bp as compras_bp, init_db as init_db_compras
+from relatorio import bp as relatorio_bp
 from mural import bp as mural_bp, init_db as init_db_mural
 from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
 from insumo_cadastro import bp as insumo_bp
@@ -33,10 +29,8 @@ app.register_blueprint(compras_bp)
 app.register_blueprint(relatorio_bp)
 app.register_blueprint(funcionarios_bp)
 app.register_blueprint(mural_bp)
-app.register_blueprint(produtos_nota_bp)
 app.register_blueprint(insumo_bp)
 app.register_blueprint(movimentos_bp)
-DB_NAME = config.DB_PATH
 
 
 @app.before_request
@@ -83,148 +77,18 @@ def sair():
     session.clear()
     return redirect(url_for("login"))
 
-def get_connection():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_connection()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS produtos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            quantidade INTEGER NOT NULL,
-            preco REAL NOT NULL
-        )
-    """)
-    # Características que vêm da nota fiscal
-    colunas = {c["name"] for c in conn.execute("PRAGMA table_info(produtos)")}
-    for coluna in ("ncm", "codigo", "ean", "unidade", "fornecedor"):
-        if coluna not in colunas:
-            conn.execute(f"ALTER TABLE produtos ADD COLUMN {coluna} TEXT NOT NULL DEFAULT ''")
-    conn.commit()
-    conn.close()
-
-
-CAMPOS_TEXTO = ("ncm", "codigo", "ean", "unidade", "fornecedor")
-
-
-def ler_form_produto(form):
-    """Valida o formulário de produto. Retorna (dados, erro)."""
-    dados = {"nome": form.get("nome", "").strip()}
-    for campo in CAMPOS_TEXTO:
-        dados[campo] = form.get(campo, "").strip()
-    dados["ncm"] = "".join(c for c in dados["ncm"] if c.isdigit())
-    if not dados["nome"]:
-        return dados, "O nome do produto é obrigatório."
-    if dados["ncm"] and len(dados["ncm"]) != 8:
-        return dados, "O NCM tem 8 números (ex.: 0402.10.10)."
-    try:
-        dados["quantidade"] = parse_quantidade(form.get("quantidade", ""))
-    except ValueError:
-        dados["quantidade"] = None
-    if dados["quantidade"] is None:
-        return dados, "A quantidade deve ser um número maior ou igual a zero (ex.: 2,5)."
-    try:
-        dados["preco"] = parse_valor(form.get("preco", ""))
-    except ValueError:
-        dados["preco"] = None
-    if dados["preco"] is None:
-        return dados, "O preço deve ser um número válido, maior ou igual a zero (ex.: 12,90)."
-    return dados, None
-
-def texto_busca(*partes):
-    """Texto sem acento e em minúsculas usado para filtrar a lista (no servidor e no navegador)."""
-    return sem_acento(" ".join(str(p or "") for p in partes))
-
-
 @app.route("/")
 def index():
-    busca = request.args.get("busca", "").strip()
-    termo = sem_acento(busca)
-    conn = get_connection()
-    produtos = []
-    for p in conn.execute("SELECT * FROM produtos ORDER BY nome COLLATE NOCASE"):
-        p = dict(p)
-        ncm = p["ncm"] or ""
-        ncm_formatado = f"{ncm[:4]}.{ncm[4:6]}.{ncm[6:]}" if len(ncm) == 8 else ""
-        p["busca"] = texto_busca(p["nome"], ncm, ncm_formatado, p["codigo"], p["ean"], p["fornecedor"])
-        produtos.append(p)
-    conn.close()
-    # Insumos da contagem também aparecem na busca, com o estoque atual
-    insumos = []
-    for linha in sorted(calcular_linhas(), key=lambda l: sem_acento(l["nome"])):
-        linha["busca"] = texto_busca(linha["nome"], linha["categoria"])
-        insumos.append(linha)
-    return render_template(
-        "index.html", produtos=produtos, insumos=insumos, busca=busca, termo=termo,
-        produtos_achados=sum(1 for p in produtos if termo in p["busca"]),
-        insumos_achados=sum(1 for i in insumos if termo in i["busca"]) if termo else 0,
-    )
+    # A antiga aba Produtos virou o painel do Estoque (um estoque só, o dos insumos)
+    return redirect(url_for("relatorio.estoque"))
 
-@app.route("/adicionar", methods=["GET", "POST"])
-def adicionar():
-    erro = None
-    dados = {}
-    if request.method == "POST":
-        dados, erro = ler_form_produto(request.form)
-        if not erro:
-            conn = get_connection()
-            conn.execute(
-                "INSERT INTO produtos (nome, quantidade, preco, ncm, codigo, ean, unidade, fornecedor)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (dados["nome"], dados["quantidade"], dados["preco"], *(dados[c] for c in CAMPOS_TEXTO))
-            )
-            conn.commit()
-            conn.close()
-            return redirect(url_for("index"))
-
-    return render_template("adicionar.html", erro=erro, produto=dados, unidades=UNIDADES)
-
-@app.route("/editar/<int:id>", methods=["GET", "POST"])
-def editar(id):
-    conn = get_connection()
-    produto = conn.execute("SELECT * FROM produtos WHERE id = ?", (id,)).fetchone()
-
-    if produto is None:
-        conn.close()
-        return "Produto não encontrado", 404
-
-    produto = dict(produto)
-    erro = None
-    if request.method == "POST":
-        dados, erro = ler_form_produto(request.form)
-        if not erro:
-            conn.execute(
-                "UPDATE produtos SET nome = ?, quantidade = ?, preco = ?, ncm = ?, codigo = ?, ean = ?,"
-                " unidade = ?, fornecedor = ? WHERE id = ?",
-                (dados["nome"], dados["quantidade"], dados["preco"], *(dados[c] for c in CAMPOS_TEXTO), id)
-            )
-            conn.commit()
-            conn.close()
-            return redirect(url_for("index"))
-        produto.update(dados)
-
-    conn.close()
-    return render_template("editar.html", produto=produto, erro=erro, unidades=UNIDADES)
-
-@app.route("/excluir/<int:id>")
-def excluir(id):
-    conn = get_connection()
-    conn.execute("DELETE FROM produtos WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-    return redirect(url_for("index"))
 
 # Cria as tabelas também quando rodando via gunicorn
-init_db()
 init_db_contagem()
 init_db_desperdicio()
 init_db_compras()
 init_db_funcionarios()
 init_db_mural()
-init_db_produtos_nota()
 init_db_movimentos()
 
 if __name__ == "__main__":

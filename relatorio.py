@@ -9,7 +9,7 @@ import io
 import math
 from datetime import date
 
-from flask import Blueprint, Response, render_template, request
+from flask import Blueprint, Response, redirect, render_template, request, url_for
 
 from contagem import agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection
 from importador import chave_nome, extrair_itens, ler_arquivo, ler_texto, sem_acento
@@ -439,7 +439,8 @@ def calcular_valor_estoque():
 
 @bp.route("/relatorio/valor")
 def valor_estoque():
-    return render_template("valor_estoque.html", **calcular_valor_estoque())
+    # O valor do estoque agora fica no painel do Estoque
+    return redirect(url_for("relatorio.estoque"))
 
 
 def montar_estoque():
@@ -532,27 +533,17 @@ def estoque_csv():
 
 # ---------- Conferir pedido de compra ----------
 
-def estoque_produtos():
-    """Produtos da aba Produtos, para mostrar o estoque de itens que não são insumos da contagem."""
-    conn = get_connection()
-    produtos = [dict(p) for p in conn.execute("SELECT id, nome, quantidade, unidade FROM produtos")]
-    conn.close()
-    return produtos
-
-
-def montar_conferencia(itens, linhas_app, produtos=()):
+def montar_conferencia(itens, linhas_app):
     """Compara cada item do pedido com a sugestão de compra do relatório."""
     from notas import achar_insumo
     por_id = {l["id"]: l for l in linhas_app}
-    produto_por_id = {p["id"]: p for p in produtos}
     resultado = {"linhas": [], "nao_encontrados": [], "faltou_pedir": []}
     usados = set()
     for item in itens:
         insumo_id = achar_insumo(item["nome"], linhas_app, {})
         app = por_id.get(insumo_id)
         if app is None:
-            produto = produto_por_id.get(achar_insumo(item["nome"], produtos, {}))
-            resultado["nao_encontrados"].append({**item, "produto": produto})
+            resultado["nao_encontrados"].append(item)
             continue
         usados.add(app["id"])
         unidade_pedido = item["unidade"] or app["unidade"]
@@ -620,7 +611,7 @@ def conferir_pedido():
                     erro = ("Não encontrei itens com quantidade no pedido. Use uma linha por item, por exemplo "
                             "\"Bacon 2 kg\". Foto de papel escrito à mão não dá para ler.")
                 else:
-                    resultado = montar_conferencia(itens, app, estoque_produtos())
+                    resultado = montar_conferencia(itens, app)
         except ValueError as e:
             erro = str(e)
         except Exception:

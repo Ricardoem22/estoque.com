@@ -11,7 +11,7 @@ _VOLUME = {"ml": 1, "L": 1000, "lt": 1000}
 
 # Medidas oferecidas nos formulários, além das personalizadas de cada insumo
 UNIDADES_COMUNS = ["kg", "g", "mg", "L", "ml", "un", "pct", "cx", "dz", "bandeja", "fardo", "garrafa", "lata",
-                   "saco", "peça", "fd", "gf", "mç"]
+                   "saco", "peça", "fd", "gf", "mç", "lt"]
 
 
 def converter_fixo(quantidade, de, para):

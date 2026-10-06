@@ -38,4 +38,6 @@ CATEGORIAS = [
     ]),
 ]
 
-UNIDADES = ["un", "kg", "g", "L", "ml", "cx", "pct", "fd", "gf", "lt", "mç", "dz"]
+# Uma lista só de medidas para o app inteiro
+from unidades import UNIDADES_COMUNS  # noqa: E402
+UNIDADES = UNIDADES_COMUNS
