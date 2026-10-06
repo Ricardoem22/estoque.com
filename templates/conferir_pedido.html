@@ -1,0 +1,85 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Conferir pedido{% endblock %}
+{% block conteudo %}
+<h1>✅ Conferir pedido de compra</h1>
+<p class="sub">Digite o pedido ou anexe o arquivo. O app confere cada item com o estoque atual e com o consumo das últimas
+    semanas, e diz se a compra é necessária, se está pedindo demais ou se faltou pedir algo.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="form-desperdicio nao-imprimir">
+    <label for="texto">Digite o pedido (um item por linha, com a quantidade)</label>
+    <textarea id="texto" name="texto" rows="8" autofocus placeholder="Bacon 5 kg&#10;Tomate 10 kg&#10;Alface 12 un">{{ texto }}</textarea>
+    <p class="sub dica">Pode digitar aqui ou colar a lista do WhatsApp.</p>
+
+    <label for="arquivo">ou anexe o pedido (Excel, CSV, Word ou PDF)</label>
+    <input type="file" id="arquivo" name="arquivo" accept=".xlsx,.xlsm,.csv,.txt,.docx,.pdf,application/pdf,text/plain">
+
+    <label for="semanas">O pedido é para</label>
+    <select id="semanas" name="semanas">
+        {% for s, nome in [(1, "1 semana"), (1.5, "10 dias"), (2, "2 semanas"), (3, "3 semanas"), (4, "4 semanas")] %}
+        <option value="{{ s }}" {% if semanas == s %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+    </select>
+
+    <div class="form-actions">
+        <button class="btn" type="submit">Conferir pedido</button>
+        <a class="btn btn-edit" href="{{ url_for('relatorio.relatorio') }}">Voltar ao relatório</a>
+    </div>
+</form>
+
+{% if resultado %}
+{% set c = resultado.contagem %}
+<div class="top-bar">
+    <h2>Resultado</h2>
+    <button class="btn btn-edit nao-imprimir" type="button" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+<div class="resumo-pedido">
+    <div class="r-ok"><strong>{{ c.get('ok', 0) }}</strong><span>na medida</span></div>
+    <div class="r-demais"><strong>{{ c.get('demais', 0) + c.get('desnecessario', 0) }}</strong><span>demais ou sem necessidade</span></div>
+    <div class="r-pouco"><strong>{{ c.get('pouco', 0) + resultado.faltou_pedir|length }}</strong><span>pouco ou faltou pedir</span></div>
+</div>
+
+<table class="tabela-pedido">
+    <thead><tr><th>Insumo</th><th>Pedido</th><th>Estoque</th><th>Sugestão</th><th>Avaliação</th></tr></thead>
+    <tbody>
+    {% for l in resultado.linhas %}
+    <tr>
+        <td><strong>{{ l.nome }}</strong>{% if l.nome_pedido|lower != l.nome|lower %}<br><span class="sub">no pedido: {{ l.nome_pedido }}</span>{% endif %}</td>
+        <td>{{ l.pedido|round(2)|qtd }} {{ l.unidade_pedido }}</td>
+        <td>{% if l.estoque is none %}—{% else %}{{ l.estoque|round(2)|qtd }} {{ l.unidade }}{% endif %}</td>
+        <td>{% if l.consumo is none %}—{% else %}{{ l.sugestao|qtd }} {{ l.unidade }}{% endif %}</td>
+        <td>
+            {% if l.situacao == 'ok' %}<span class="tag tag-ok">Compra necessária</span>
+            {% elif l.situacao == 'desnecessario' %}<span class="tag tag-recusado">Não precisa</span><br><span class="sub">estoque dura {% if l.dias is none %}bastante{% else %}~{{ l.dias|round|int }} dias{% endif %}</span>
+            {% elif l.situacao == 'demais' %}<span class="tag tag-aberta">Pedindo demais</span><br><span class="sub">{{ l.diferenca|round(1)|qtd }} {{ l.unidade }} a mais</span>
+            {% elif l.situacao == 'pouco' %}<span class="tag tag-aberta">Pedindo pouco</span><br><span class="sub">faltam {{ l.diferenca|round(1)|qtd }} {{ l.unidade }}</span>
+            {% elif l.situacao == 'unidade' %}<span class="sub">Unidade diferente da contagem ({{ l.unidade }})</span>
+            {% elif l.situacao == 'sem_historico' %}<span class="sub">Sem histórico de consumo ainda</span>
+            {% else %}<span class="sub">Sem contagem no app</span>{% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<p class="sub">Sugestão = consumo médio por semana × período escolhido − estoque atual. "Compra necessária" aceita até 30% de diferença.</p>
+
+{% if resultado.faltou_pedir %}
+<h2>⚠️ Faltou pedir <span class="sub">({{ resultado.faltou_pedir|length }})</span></h2>
+<p class="sub">Estão baixos pelo consumo e não aparecem no pedido.</p>
+<table class="tabela-faltou">
+    <thead><tr><th>Insumo</th><th>Estoque</th><th>Sugestão</th></tr></thead>
+    <tbody>
+    {% for l in resultado.faltou_pedir %}
+    <tr><td>{{ l.nome }}</td><td>{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</td><td><strong>{{ l.sugestao|qtd }} {{ l.unidade }}</strong></td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if resultado.nao_encontrados %}
+<h2>Não encontrados no app <span class="sub">({{ resultado.nao_encontrados|length }})</span></h2>
+<p class="sem-dados">{% for i in resultado.nao_encontrados %}{{ i.nome }} ({{ i.quantidade|qtd }}{% if i.unidade %} {{ i.unidade }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+{% endif %}
+{% endif %}
+{% endblock %}

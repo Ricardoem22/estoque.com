@@ -2,6 +2,7 @@ from datetime import timedelta
 import sqlite3
 
 from flask import Flask, render_template, request, redirect, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
 from contagem import bp as contagem_bp, init_db as init_db_contagem
@@ -12,6 +13,8 @@ from mural import bp as mural_bp, init_db as init_db_mural
 from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
 
 app = Flask(__name__)
+# O PythonAnywhere atende por HTTPS na frente do app; assim os links por e-mail saem com https
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 app.secret_key = config.SECRET_KEY
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -30,7 +33,7 @@ DB_NAME = config.DB_PATH
 
 @app.before_request
 def exigir_login():
-    if request.endpoint in ("login", "static", "funcionarios.esqueci_senha"):
+    if request.endpoint in ("login", "static", "funcionarios.esqueci_senha", "funcionarios.redefinir_senha"):
         return None
     if not session.get("logado"):
         return redirect(url_for("login", proximo=request.full_path.rstrip("?")))

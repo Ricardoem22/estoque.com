@@ -390,3 +390,91 @@ def calcular_valor_estoque():
 @bp.route("/relatorio/valor")
 def valor_estoque():
     return render_template("valor_estoque.html", **calcular_valor_estoque())
+
+
+# ---------- Conferir pedido de compra ----------
+
+def montar_conferencia(itens, linhas_app):
+    """Compara cada item do pedido com a sugestão de compra do relatório."""
+    from notas import achar_insumo
+    por_id = {l["id"]: l for l in linhas_app}
+    resultado = {"linhas": [], "nao_encontrados": [], "faltou_pedir": []}
+    usados = set()
+    for item in itens:
+        insumo_id = achar_insumo(item["nome"], linhas_app, {})
+        app = por_id.get(insumo_id)
+        if app is None:
+            resultado["nao_encontrados"].append(item)
+            continue
+        usados.add(app["id"])
+        unidade_pedido = item["unidade"] or app["unidade"]
+        linha = {"nome": app["nome"], "nome_pedido": item["nome"], "pedido": item["quantidade"],
+                 "unidade_pedido": unidade_pedido, "unidade": app["unidade"], "estoque": app["estoque"],
+                 "consumo": app["consumo_semanal"], "sugestao": app["sugestao"], "dias": app["dias_cobertura"]}
+        convertido = converter(item["quantidade"], unidade_pedido, app["unidade"])
+        if app["estoque"] is None:
+            linha["situacao"] = "sem_contagem"
+        elif convertido is None:
+            linha["situacao"] = "unidade"
+        elif app["consumo_semanal"] is None:
+            linha["situacao"] = "sem_historico"
+        else:
+            linha["pedido"], linha["unidade_pedido"] = convertido, app["unidade"]
+            sugestao = app["sugestao"]
+            folga = max(0.1, sugestao * 0.3)
+            if sugestao <= 0:
+                linha["situacao"] = "desnecessario"
+            elif convertido > sugestao + folga:
+                linha["situacao"] = "demais"
+                linha["diferenca"] = convertido - sugestao
+            elif convertido < sugestao - folga:
+                linha["situacao"] = "pouco"
+                linha["diferenca"] = sugestao - convertido
+            else:
+                linha["situacao"] = "ok"
+        resultado["linhas"].append(linha)
+    ordem = {"desnecessario": 0, "demais": 1, "pouco": 2, "unidade": 3, "sem_historico": 4, "sem_contagem": 5, "ok": 6}
+    resultado["linhas"].sort(key=lambda l: (ordem[l["situacao"]], sem_acento(l["nome"])))
+    resultado["faltou_pedir"] = sorted(
+        (l for l in linhas_app if l["status"] == "comprar" and l["id"] not in usados), key=lambda l: sem_acento(l["nome"]))
+    contagem = {}
+    for l in resultado["linhas"]:
+        contagem[l["situacao"]] = contagem.get(l["situacao"], 0) + 1
+    resultado["contagem"] = contagem
+    return resultado
+
+
+@bp.route("/relatorio/pedido", methods=["GET", "POST"])
+def conferir_pedido():
+    erro = None
+    resultado = None
+    texto = request.form.get("texto", "")
+    semanas = request.values.get("semanas", 1, type=float)
+    if semanas not in (1, 1.5, 2, 3, 4):
+        semanas = 1
+
+    if request.method == "POST":
+        arquivo = request.files.get("arquivo")
+        try:
+            if texto.strip():
+                linhas_arquivo = ler_texto(texto)
+            elif arquivo and arquivo.filename:
+                linhas_arquivo = ler_arquivo(arquivo.filename, arquivo.read())
+            else:
+                linhas_arquivo = None
+                erro = "Digite o pedido ou anexe o arquivo."
+            if linhas_arquivo is not None:
+                app = calcular_linhas(semanas)
+                itens = extrair_itens(linhas_arquivo, sorted({l["categoria"] for l in app}))
+                itens = [i for i in itens if i["quantidade"] is not None]
+                if not itens:
+                    erro = ("Não encontrei itens com quantidade no pedido. Use uma linha por item, por exemplo "
+                            "\"Bacon 2 kg\". Foto de papel escrito à mão não dá para ler.")
+                else:
+                    resultado = montar_conferencia(itens, app)
+        except ValueError as e:
+            erro = str(e)
+        except Exception:
+            erro = "Não consegui ler esse arquivo. Confira se ele não está corrompido ou protegido por senha."
+
+    return render_template("conferir_pedido.html", erro=erro, resultado=resultado, texto=texto, semanas=semanas)

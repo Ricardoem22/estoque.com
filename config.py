@@ -34,3 +34,10 @@ def agora():
 
 def hoje():
     return agora().date()
+
+# E-mail para a recuperação de senha. No PythonAnywhere grátis só o SMTP do
+# Gmail é liberado; use uma "senha de app" do Google, nunca a senha da conta.
+EMAIL_USUARIO = os.environ.get("EMAIL_USUARIO", "")
+EMAIL_SENHA = os.environ.get("EMAIL_SENHA", "")
+EMAIL_SMTP = os.environ.get("EMAIL_SMTP", "smtp.gmail.com")
+EMAIL_PORTA = int(os.environ.get("EMAIL_PORTA", "587"))

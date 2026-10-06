@@ -585,3 +585,23 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
     .tabela-nota select, .tabela-nota input { max-width: none; width: 100% !important; font-size: 16px; }
 }
 .valor-total small b { color: var(--amarelo); }
+input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8px; width: 100%; }
+.form-email { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.form-email input { padding: 5px 8px; font-size: 13px; min-width: 0; }
+@media (max-width: 600px) {
+    .form-email input { font-size: 16px; }
+    .form-funcionario input[type="email"] { font-size: 16px; }
+}
+
+/* ---------- Conferir pedido ---------- */
+.resumo-pedido { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 16px; }
+.resumo-pedido > div { border-radius: 10px; padding: 10px; text-align: center; display: flex; flex-direction: column; }
+.resumo-pedido strong { font-size: 26px; font-weight: 800; }
+.resumo-pedido span { font-size: 12px; font-weight: 600; }
+.r-ok { background: var(--verde-claro); color: var(--verde); }
+.r-demais { background: var(--vermelho-claro); color: var(--vermelho-escuro); }
+.r-pouco { background: var(--laranja-claro); color: #7a4f00; }
+@media (max-width: 600px) {
+    .tabela-pedido th:nth-child(3), .tabela-pedido td:nth-child(3) { display: none; }
+    .tabela-pedido th, .tabela-pedido td { padding: 8px 4px; }
+}

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nova senha - Gestor Full</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="pagina-login">
+    <div class="container login">
+        <div class="login-marca">
+            <span class="marca-icone">GF</span>
+            <h1>Nova senha</h1>
+        </div>
+        {% if invalido %}
+        <div class="erro">Este link expirou ou já foi usado. Peça um novo em "Esqueci a senha".</div>
+        <p class="login-link"><a href="{{ url_for('funcionarios.esqueci_senha') }}">Pedir novo link</a></p>
+        {% else %}
+        <p class="sub">Olá, <strong>{{ funcionario['nome'] }}</strong>. Seu usuário é <strong>{{ funcionario['usuario'] }}</strong>.</p>
+        {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+        <form method="post">
+            <label for="nova">Nova senha (pelo menos 6 caracteres)</label>
+            <input type="password" id="nova" name="nova" required minlength="6" autocomplete="new-password" autofocus>
+            <label for="confirmar">Repita a nova senha</label>
+            <input type="password" id="confirmar" name="confirmar" required minlength="6" autocomplete="new-password">
+            <div class="form-actions"><button class="btn btn-grande" type="submit">Salvar e entrar</button></div>
+        </form>
+        {% endif %}
+    </div>
+</body>
+</html>

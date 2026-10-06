@@ -25,6 +25,11 @@
                autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Ex.: joao">
     </div>
     <div>
+        <label for="email">E-mail (para recuperar a senha)</label>
+        <input type="email" id="email" name="email" value="{{ form.get('email', '') }}" placeholder="Opcional"
+               autocapitalize="none" autocorrect="off" spellcheck="false">
+    </div>
+    <div>
         <label for="papel">Perfil</label>
         <select id="papel" name="papel">
             {% for valor, rotulo in papeis.items() %}
@@ -34,17 +39,23 @@
     </div>
     <div class="form-actions"><button class="btn" type="submit">+ Cadastrar</button></div>
 </form>
-<p class="sub">Gerência aprova desperdícios e cadastra funcionários. Equipe faz o resto.</p>
+<p class="sub">Gerência aprova desperdícios e cadastra funcionários. Equipe faz o resto.
+{% if email_ativo %}Com e-mail cadastrado, a pessoa recupera a senha sozinha pelo link "Esqueci a senha".{% else %}O envio de e-mail ainda não está configurado no servidor, então "Esqueci a senha" passa pela gerência.{% endif %}</p>
 
 <h2>Cadastrados</h2>
 {% if funcionarios %}
 <table class="tabela-funcionarios">
-    <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Usuário e e-mail</th><th>Perfil</th><th>Situação</th><th>Ações</th></tr></thead>
     <tbody>
     {% for f in funcionarios %}
     <tr class="{% if not f['ativo'] %}inativo{% endif %}">
         <td><strong>{{ f['nome'] }}</strong>{% if f['id'] == eu %} <span class="sub">(você)</span>{% endif %}</td>
-        <td><code>{{ f['usuario'] }}</code></td>
+        <td><code>{{ f['usuario'] }}</code>
+            <form class="form-email" method="post" action="{{ url_for('funcionarios.cadastro_acao', id=f['id'], acao='email') }}">
+                <input type="email" name="email" value="{{ f['email'] }}" placeholder="sem e-mail" aria-label="E-mail de {{ f['nome'] }}">
+                <button type="submit" class="link-botao">Salvar</button>
+            </form>
+        </td>
         <td>
             {% if f['id'] == eu %}{{ papeis[f['papel']] }}{% else %}
             <form class="inline" method="post" action="{{ url_for('funcionarios.cadastro_acao', id=f['id'], acao='perfil') }}">
