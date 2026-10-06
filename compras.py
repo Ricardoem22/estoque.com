@@ -3,7 +3,10 @@
 from datetime import datetime
 import re
 
-from flask import Blueprint, redirect, render_template, request, url_for
+import os
+import uuid
+
+from flask import Blueprint, abort, redirect, render_template, request, send_from_directory, session, url_for
 
 from contagem import agrupar_por_categoria, get_connection, lista_categorias, parse_quantidade, unidade_padrao
 import config
@@ -34,6 +37,10 @@ def init_db():
     # Chave de acesso (ou número) da nota fiscal de onde a compra veio
     if "nota" not in colunas:
         conn.execute("ALTER TABLE compras ADD COLUMN nota TEXT")
+    # Observação, quem lançou e o arquivo da nota/comprovante guardado com a compra
+    for coluna in ("observacao", "registrado_por", "anexo"):
+        if coluna not in colunas:
+            conn.execute(f"ALTER TABLE compras ADD COLUMN {coluna} TEXT NOT NULL DEFAULT ''")
     # Como cada produto da nota foi ligado a um insumo, para a próxima nota já vir ligada
     conn.execute("""
         CREATE TABLE IF NOT EXISTS nota_apelidos (
@@ -77,6 +84,28 @@ def mes_selecionado():
         return config.hoje().strftime("%Y-%m")
 
 
+EXTENSOES_ANEXO = {"pdf", "xml", "xlsx", "xlsm", "csv", "docx", "jpg", "jpeg", "png", "webp", "heic", "heif"}
+
+
+def salvar_anexo(nome_arquivo, dados):
+    """Guarda o arquivo da compra na pasta de uploads e devolve o nome salvo ('' se não der)."""
+    ext = nome_arquivo.rsplit(".", 1)[-1].lower() if "." in nome_arquivo else ""
+    if ext not in EXTENSOES_ANEXO or not dados:
+        return ""
+    os.makedirs(config.UPLOAD_DIR, exist_ok=True)
+    nome = f"compra_{uuid.uuid4().hex}.{ext}"
+    with open(os.path.join(config.UPLOAD_DIR, nome), "wb") as f:
+        f.write(dados)
+    return nome
+
+
+@bp.route("/compras/anexo/<nome>")
+def ver_anexo(nome):
+    if not nome.startswith("compra_") or "/" in nome or "\\" in nome:
+        abort(404)
+    return send_from_directory(config.UPLOAD_DIR, nome)
+
+
 @bp.route("/compras", methods=["GET", "POST"])
 def compras():
     conn = get_connection()
@@ -104,14 +133,32 @@ def compras():
             erro = "Informe uma quantidade maior que zero."
         elif valor_total == -1:
             erro = "Valor pago inválido. Use só números, ex.: 45,90."
+        else:
+            from insumo_cadastro import carregar_conversoes
+            from unidades import converter
+            unidade = form.get("unidade", "").strip() or insumo["unidade"]
+            if converter(1, unidade, insumo["unidade"], carregar_conversoes(conn).get(insumo["id"], [])) is None:
+                erro = (f"{unidade} não converte para {insumo['unidade']} (a unidade do estoque de "
+                        f"{insumo['nome']}). Cadastre a medida na ficha do insumo, ex.: 1 {unidade} = 5 "
+                        f"{insumo['unidade']}.")
+        arquivo = request.files.get("anexo")
+        if not erro and arquivo and arquivo.filename:
+            anexo = salvar_anexo(arquivo.filename, arquivo.read())
+            if not anexo:
+                erro = "Arquivo não aceito. Use PDF, foto (JPG/PNG), planilha (Excel/CSV), Word ou XML."
+        else:
+            anexo = ""
 
         if not erro:
             conn.execute("""
-                INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total,
+                                     nota, observacao, registrado_por, anexo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data, insumo["id"], quantidade, form.get("unidade", "").strip() or insumo["unidade"],
                 form.get("fornecedor", "").strip(), config.agora().strftime("%Y-%m-%d %H:%M:%S"), valor_total,
+                None, form.get("observacao", "").strip(), session.get("nome", ""),
+                anexo,
             ))
             conn.commit()
             conn.close()
@@ -126,7 +173,8 @@ def compras():
         WHERE substr(c.data, 1, 7) = ?
         ORDER BY c.data DESC, c.id DESC
     """, (mes,)).fetchall()
-    grupos = agrupar_por_categoria(conn.execute("SELECT * FROM insumos").fetchall())
+    from insumo_cadastro import insumos_para_formulario
+    grupos = insumos_para_formulario(conn)
     conn.close()
     return render_template(
         "compras.html", grupos=grupos, unidades=UNIDADES, registros=registros, mes=mes, erro=erro, form=form,
@@ -140,7 +188,15 @@ def compras():
 @bp.route("/compras/<int:id>/excluir", methods=["POST"])
 def excluir_compra(id):
     conn = get_connection()
+    compra = conn.execute("SELECT anexo FROM compras WHERE id = ?", (id,)).fetchone()
     conn.execute("DELETE FROM compras WHERE id = ?", (id,))
+    # O arquivo só sai da pasta quando nenhuma outra compra (da mesma nota) usa
+    if compra and compra["anexo"] and not conn.execute("SELECT 1 FROM compras WHERE anexo = ?",
+                                                       (compra["anexo"],)).fetchone():
+        try:
+            os.remove(os.path.join(config.UPLOAD_DIR, compra["anexo"]))
+        except OSError:
+            pass
     conn.commit()
     conn.close()
     return redirect(url_for("compras.compras", mes=request.form.get("mes", "")))
@@ -163,7 +219,8 @@ def importar_nota():
             erro = "Escolha o arquivo da nota."
         else:
             try:
-                nota = ler_nota(arquivo.filename, arquivo.read())
+                dados = arquivo.read()
+                nota = ler_nota(arquivo.filename, dados)
                 if not nota["itens"]:
                     erro = "Não encontrei itens nessa nota."
             except ValueError as e:
@@ -178,6 +235,7 @@ def importar_nota():
             for item in nota["itens"]:
                 item["insumo_id"] = achar_insumo(item["nome"], insumos, apelidos)
                 item["unidade"] = unidade_do_item(item) or unidade_insumo.get(item["insumo_id"]) or "un"
+            nota["anexo"] = salvar_anexo(arquivo.filename, dados)
             if nota["chave"]:
                 ja_lancada = conn.execute("SELECT MIN(data) AS data FROM compras WHERE nota = ?",
                                           (nota["chave"],)).fetchone()["data"]
@@ -199,6 +257,9 @@ def confirmar_nota():
         data = config.hoje().isoformat()
     fornecedor = form.get("fornecedor", "").strip()
     nota = form.get("nota", "").strip() or None
+    anexo = form.get("anexo", "").strip()
+    if not (anexo.startswith("compra_") and os.path.exists(os.path.join(config.UPLOAD_DIR, anexo))):
+        anexo = ""
     agora = config.agora().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_connection()
     lancados = 0
@@ -229,9 +290,10 @@ def confirmar_nota():
             if not insumo_id or not conn.execute("SELECT 1 FROM insumos WHERE id = ?", (insumo_id,)).fetchone():
                 continue
         conn.execute("""
-            INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total, nota)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (data, insumo_id, quantidade, unidade, fornecedor, agora, valor, nota))
+            INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total, nota,
+                                 registrado_por, anexo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (data, insumo_id, quantidade, unidade, fornecedor, agora, valor, nota, session.get("nome", ""), anexo))
         if nome_nota:
             conn.execute("INSERT OR REPLACE INTO nota_apelidos (chave, insumo_id) VALUES (?, ?)",
                          (chave_nome(nome_nota), insumo_id))

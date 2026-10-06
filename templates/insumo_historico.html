@@ -1,0 +1,41 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Histórico · {{ insumo['nome'] }}{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>📜 {{ insumo['nome'] }}</h1>
+    <div class="nao-imprimir">
+        <a class="btn btn-edit" href="{{ url_for('insumo.editar', id=insumo['id']) }}">Ficha</a>
+        <a class="btn btn-edit" href="{{ url_for('insumo.historico_csv', id=insumo['id']) }}">⬇️ Exportar (Excel/CSV)</a>
+    </div>
+</div>
+
+{% if linha and linha.estoque is not none %}
+<div class="resumo-insumo">
+    <div><span>Estoque agora</span><strong>{{ linha.estoque|round(2)|qtd }} {{ linha.unidade }}</strong></div>
+    {% if linha.minimo is not none %}<div><span>Mínimo</span><strong>{{ linha.minimo|qtd }} {{ insumo['unidade'] }}</strong></div>{% endif %}
+    {% if linha.ultima_contagem %}<div><span>Última contagem</span><strong>{{ linha.ultima_contagem|data_br }}</strong></div>{% endif %}
+    {% if insumo['local'] %}<div><span>Local</span><strong>{{ insumo['local'] }}</strong></div>{% endif %}
+</div>
+{% endif %}
+
+<p class="sub">Tudo que mexeu no estoque deste insumo, do mais recente para o mais antigo. Nada é apagado quando uma
+    contagem nova é feita: ela só vira o novo ponto de partida.</p>
+
+{% if eventos %}
+<table class="tabela-historico">
+    <thead><tr><th>Data</th><th>Movimentação</th><th>Qtd.</th><th>Quem / detalhe</th></tr></thead>
+    <tbody>
+    {% for e in eventos %}
+    <tr>
+        <td>{{ e.data|data_br }}</td>
+        <td>{{ e.tipo }}</td>
+        <td><strong>{{ e.sinal }} {{ e.quantidade|qtd }} {{ e.unidade }}</strong>{% if e.valor %}<br><span class="sub">{{ e.valor|brl }}</span>{% endif %}</td>
+        <td>{{ e.quem }}{% if e.detalhe %}<br><span class="sub">{{ e.detalhe }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhuma movimentação ainda.</p>
+{% endif %}
+{% endblock %}

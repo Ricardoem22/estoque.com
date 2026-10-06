@@ -6,6 +6,8 @@
     <a class="btn btn-edit" href="{{ url_for('contagem.importar_insumos') }}">📥 Importar de arquivo</a>
 </div>
 
+<p class="sub">Toque no nome para abrir a ficha: estoque mínimo, local, código, fornecedor, medidas de compra (saco, peça, fardo) e ativo/inativo.</p>
+
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 {% if importados is not none %}<div class="sucesso">{{ importados }} insumo(s) importado(s).</div>{% endif %}
 
@@ -25,10 +27,16 @@
 <table>
     <tbody>
         {% for item in itens %}
-        <tr>
-            <td>{{ item['nome'] }}</td>
+        <tr{% if not item['ativo'] %} class="inativo"{% endif %}>
+            <td><a class="nome-insumo" href="{{ url_for('insumo.editar', id=item['id']) }}">{{ item['nome'] }}</a>
+                {% if not item['ativo'] %}<span class="tag tag-recusado">inativo</span>{% endif %}
+                {% if item['local'] or item['minimo'] is not none %}<br><span class="sub">
+                    {%- if item['local'] %}📍 {{ item['local'] }}{% endif %}
+                    {%- if item['local'] and item['minimo'] is not none %} · {% endif %}
+                    {%- if item['minimo'] is not none %}mínimo {{ item['minimo']|qtd }}{% endif %}</span>{% endif %}</td>
             <td>{{ item['unidade'] }}</td>
             <td class="acoes">
+                <a class="btn btn-edit" href="{{ url_for('insumo.editar', id=item['id']) }}">Ficha</a>
                 <form class="inline" method="post" action="{{ url_for('contagem.excluir_insumo', id=item['id']) }}"
                       onsubmit='return confirm({{ ("Excluir " ~ item["nome"] ~ "? Ele sai também das contagens antigas.")|tojson }})'>
                     <button class="btn btn-delete" type="submit">Excluir</button>

@@ -1,0 +1,142 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Movimentações{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>🔄 Movimentações</h1>
+    <a class="btn btn-edit" href="{{ url_for('desperdicio.desperdicio') }}">🗑️ Perda / desperdício</a>
+</div>
+<p class="sub">Saídas, devoluções e ajustes descontam ou somam no estoque na hora. Perdas e descartes ficam na aba
+    Desperdício, com foto e aprovação da gerência.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if salvo %}<div class="sucesso">Movimentação registrada.</div>{% endif %}
+
+<form method="post" class="form-desperdicio">
+    <label>Tipo</label>
+    <div class="tipos-mov">
+        {% for chave, t in tipos.items() %}
+        <label class="tipo-mov"><input type="radio" name="tipo" value="{{ chave }}" {% if tipo_padrao == chave %}checked{% endif %}>
+            <span>{{ t.sinal }} {{ t.nome }}</span></label>
+        {% endfor %}
+    </div>
+
+    <label for="insumo_id">Insumo</label>
+    <select id="insumo_id" name="insumo_id" required>
+        <option value="">Escolha...</option>
+        {% for categoria, itens in grupos %}
+        <optgroup label="{{ categoria }}">
+            {% for item in itens %}
+            <option value="{{ item['id'] }}" data-unidade="{{ item['unidade'] }}" data-unidades="{{ item['unidades_json'] }}"
+                    data-conv="{{ item['conv_json'] }}" data-local="{{ item['local'] }}"
+                    {% if form.get('insumo_id') == item['id']|string %}selected{% endif %}>{{ item['nome'] }}</option>
+            {% endfor %}
+        </optgroup>
+        {% endfor %}
+    </select>
+
+    <div class="linha">
+        <div>
+            <label for="quantidade">Quantidade</label>
+            <input type="text" id="quantidade" name="quantidade" inputmode="decimal" placeholder="Ex.: 2"
+                   value="{{ form.get('quantidade', '') }}" required>
+        </div>
+        <div>
+            <label for="unidade">Unidade</label>
+            <select id="unidade" name="unidade">
+                {% for u in unidades %}<option value="{{ u }}" {% if form.get('unidade') == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+            </select>
+        </div>
+    </div>
+    <p id="previa-unidade" class="previa-unidade" aria-live="polite"></p>
+
+    <div id="campos-transferencia" class="linha" hidden>
+        <div>
+            <label for="local_origem">De (local)</label>
+            <input type="text" id="local_origem" name="local_origem" list="lista-locais" value="{{ form.get('local_origem', '') }}">
+        </div>
+        <div>
+            <label for="local_destino">Para (local)</label>
+            <input type="text" id="local_destino" name="local_destino" list="lista-locais" value="{{ form.get('local_destino', '') }}">
+        </div>
+    </div>
+    <label id="campo-mudar-local" class="check" hidden><input type="checkbox" name="mudar_local" value="1" checked>
+        Passar a guardar este insumo no novo local</label>
+    <datalist id="lista-locais">{% for l in locais %}<option value="{{ l }}">{% endfor %}</datalist>
+
+    <label for="motivo" id="rotulo-motivo">Motivo / observação</label>
+    <input type="text" id="motivo" name="motivo" placeholder="Ex.: usado no evento de sábado" value="{{ form.get('motivo', '') }}">
+
+    <label for="data">Data</label>
+    <input type="date" id="data" name="data" value="{{ data_padrao }}" required>
+
+    <div class="form-actions">
+        <button class="btn" type="submit">Registrar movimentação</button>
+    </div>
+</form>
+
+<form method="get" class="top-bar filtro-mes">
+    <h2>Movimentações do mês</h2>
+    <div class="filtros-linha">
+        <select name="filtro" onchange="this.form.submit()" aria-label="Tipo">
+            <option value="">Todos os tipos</option>
+            {% for chave, t in tipos.items() %}<option value="{{ chave }}" {% if filtro == chave %}selected{% endif %}>{{ t.nome }}</option>{% endfor %}
+        </select>
+        <input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()">
+    </div>
+</form>
+
+{% if registros %}
+<table class="tabela-compras tabela-mov">
+    <thead><tr><th>Data</th><th>Insumo</th><th>Qtd.</th><th>Tipo</th><th>Quem</th><th></th></tr></thead>
+    <tbody>
+    {% for r in registros %}
+    {% set t = tipos.get(r['tipo'], {'nome': r['tipo'], 'sinal': ''}) %}
+    <tr>
+        <td>{{ r['data']|data_br }}</td>
+        <td>{{ r['insumo_nome'] }}{% if r['motivo'] %}<br><span class="sub">{{ r['motivo'] }}</span>{% endif %}</td>
+        <td><strong>{{ t.sinal }} {{ r['quantidade']|qtd }} {{ r['unidade'] }}</strong></td>
+        <td>{{ t.nome }}{% if r['tipo'] == 'transferencia' %}<br><span class="sub">{{ r['local_origem'] or '?' }} → {{ r['local_destino'] }}</span>{% endif %}</td>
+        <td>{{ r['responsavel'] }}</td>
+        <td class="acoes">
+            {% if session.get('gerente') %}
+            <form class="inline" method="post" action="{{ url_for('movimentos.excluir', id=r['id']) }}"
+                  onsubmit="return confirm('Excluir esta movimentação? O estoque volta a ficar como antes dela.')">
+                <input type="hidden" name="mes" value="{{ mes }}">
+                <button class="btn btn-delete" type="submit">Excluir</button>
+            </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhuma movimentação neste mês.</p>
+{% endif %}
+
+<script src="{{ url_for('static', filename='unidades.js') }}"></script>
+<script>
+    ligarUnidades("insumo_id", "unidade", "quantidade", "previa-unidade");
+    (function () {
+        var justificar = {ajuste_mais: true, ajuste_menos: true};
+        function atualizar() {
+            var marcado = document.querySelector("input[name=tipo]:checked");
+            var tipo = marcado ? marcado.value : "";
+            var transf = tipo === "transferencia";
+            document.getElementById("campos-transferencia").hidden = !transf;
+            document.getElementById("campo-mudar-local").hidden = !transf;
+            var motivo = document.getElementById("motivo");
+            motivo.required = !!justificar[tipo];
+            document.getElementById("rotulo-motivo").textContent = justificar[tipo] ? "Justificativa (obrigatória)" : "Motivo / observação";
+            if (transf) {
+                var op = document.getElementById("insumo_id").selectedOptions[0];
+                var origem = document.getElementById("local_origem");
+                if (op && op.dataset.local && !origem.value) origem.value = op.dataset.local;
+            }
+        }
+        document.querySelectorAll("input[name=tipo]").forEach(function (r) { r.addEventListener("change", atualizar); });
+        document.getElementById("insumo_id").addEventListener("change", atualizar);
+        atualizar();
+    })();
+</script>
+{% endblock %}

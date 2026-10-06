@@ -1,0 +1,122 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}{{ insumo['nome'] }}{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>🧾 {{ insumo['nome'] }}</h1>
+    <div>
+        <a class="btn btn-edit" href="{{ url_for('insumo.historico', id=insumo['id']) }}">📜 Histórico</a>
+        <a class="btn btn-edit" href="{{ url_for('contagem.insumos') }}">← Insumos</a>
+    </div>
+</div>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if salvo %}<div class="sucesso">Ficha salva.</div>{% endif %}
+
+<form method="post" class="form-desperdicio form-ficha">
+    <label for="nome">Nome</label>
+    <input type="text" id="nome" name="nome" value="{{ form['nome'] }}" required>
+
+    <div class="linha">
+        <div>
+            <label for="categoria">Categoria</label>
+            <select id="categoria" name="categoria">
+                {% for c in categorias %}<option value="{{ c }}" {% if form['categoria'] == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="unidade">Unidade do estoque</label>
+            <select id="unidade" name="unidade">
+                {% for u in ([insumo['unidade']] + unidades)|unique %}<option value="{{ u }}" {% if form['unidade'] == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+            </select>
+        </div>
+    </div>
+    <p class="sub dica">É a medida em que você conta e vê o saldo. Mudar a unidade não converte contagens antigas.</p>
+
+    <div class="linha">
+        <div>
+            <label for="minimo">Estoque mínimo ({{ insumo['unidade'] }})</label>
+            <input type="text" id="minimo" name="minimo" inputmode="decimal" placeholder="Ex.: 5"
+                   value="{{ form['minimo'] }}">
+        </div>
+        <div>
+            <label for="ideal">Estoque ideal ({{ insumo['unidade'] }})</label>
+            <input type="text" id="ideal" name="ideal" inputmode="decimal" placeholder="Opcional"
+                   value="{{ form['ideal'] }}">
+        </div>
+    </div>
+    <p class="sub dica">Abaixo do mínimo, o insumo aparece em alerta no painel do Estoque.</p>
+
+    <div class="linha">
+        <div>
+            <label for="local">Local de armazenamento</label>
+            <input type="text" id="local" name="local" list="lista-locais" placeholder="Ex.: Freezer" value="{{ form['local'] or '' }}">
+            <datalist id="lista-locais">{% for l in locais %}<option value="{{ l }}">{% endfor %}</datalist>
+        </div>
+        <div>
+            <label for="codigo">Código interno ou de barras</label>
+            <input type="text" id="codigo" name="codigo" inputmode="numeric" value="{{ form['codigo'] or '' }}">
+        </div>
+    </div>
+
+    <div class="linha">
+        <div>
+            <label for="marca">Marca</label>
+            <input type="text" id="marca" name="marca" placeholder="Opcional" value="{{ form['marca'] or '' }}">
+        </div>
+        <div>
+            <label for="fornecedor">Fornecedor preferencial</label>
+            <input type="text" id="fornecedor" name="fornecedor" placeholder="Opcional" value="{{ form['fornecedor'] or '' }}">
+        </div>
+    </div>
+
+    <label for="custo">Custo de referência (R$ por {{ insumo['unidade'] }})</label>
+    <input type="text" id="custo" name="custo" inputmode="decimal" placeholder="Opcional. Ex.: 32,90"
+           value="{{ form['custo'] }}">
+    <p class="sub dica">Usado no valor do estoque só quando ainda não há compra com valor lançada.</p>
+
+    <label for="observacao">Observações</label>
+    <input type="text" id="observacao" name="observacao" placeholder="Ex.: validade curta, manter abaixo de 4 °C" value="{{ form['observacao'] or '' }}">
+
+    <label class="check"><input type="checkbox" name="ativo" value="1" {% if form['ativo'] in (1, '1') %}checked{% endif %}>
+        Ativo (desmarque para esconder das compras, saídas e contagens novas, sem apagar o histórico)</label>
+
+    <div class="form-actions">
+        <button class="btn" type="submit">Salvar ficha</button>
+    </div>
+</form>
+
+<h2 id="medidas">📏 Medidas de compra</h2>
+<p class="sub">Para comprar em saco, peça, fardo ou caixa e o estoque somar certo em {{ insumo['unidade'] }}.
+    Peso (kg, g, mg) e volume (L, ml) já convertem sozinhos.</p>
+{% if erro_conversao %}<div class="erro">{{ erro_conversao }}</div>{% endif %}
+
+{% if conversoes %}
+<table class="tabela-medidas">
+    <tbody>
+    {% for c in conversoes %}
+    <tr>
+        <td><strong>1 {{ c['unidade'] }}</strong> = {{ c['fator']|qtd }} {{ c['unidade_base'] }}</td>
+        <td class="acoes">
+            <form class="inline" method="post" action="{{ url_for('insumo.excluir_conversao', id=insumo['id'], conversao_id=c['id']) }}"
+                  onsubmit="return confirm('Remover esta medida?')">
+                <button class="btn btn-delete" type="submit">Remover</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<form method="post" action="{{ url_for('insumo.adicionar_conversao', id=insumo['id']) }}" class="form-medida">
+    <span>1</span>
+    <input type="text" name="unidade" list="lista-unidades" placeholder="saco" required aria-label="Medida de compra">
+    <datalist id="lista-unidades">{% for u in unidades %}<option value="{{ u }}">{% endfor %}</datalist>
+    <span>=</span>
+    <input type="text" name="fator" inputmode="decimal" placeholder="5" required aria-label="Quantidade">
+    <select name="unidade_base" aria-label="Unidade">
+        {% for u in [insumo['unidade'], 'kg', 'g', 'L', 'ml', 'un']|unique %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
+    </select>
+    <button class="btn" type="submit">+ Adicionar</button>
+</form>
+{% endblock %}

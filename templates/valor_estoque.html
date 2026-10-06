@@ -43,8 +43,8 @@
     <tr>
         <td>{{ l.nome }}</td>
         <td>{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</td>
-        <td>{{ l.preco|brl }}/{{ l.unidade }}<br><span class="sub">{{ l.preco_data|data_br }}</span></td>
-        <td>{{ l.preco_medio|brl }}/{{ l.unidade }}<br><span class="sub">{{ l.compras_com_valor }} compra{{ 's' if l.compras_com_valor != 1 }}</span></td>
+        <td>{{ l.preco|brl }}/{{ l.unidade }}<br><span class="sub">{% if l.preco_referencia %}custo de referência{% else %}{{ l.preco_data|data_br }}{% endif %}</span></td>
+        <td>{{ l.preco_medio|brl }}/{{ l.unidade }}<br><span class="sub">{% if l.preco_referencia %}da ficha{% else %}{{ l.compras_com_valor }} compra{{ 's' if l.compras_com_valor != 1 }}{% endif %}</span></td>
         <td><strong>{{ l.valor|brl }}</strong></td>
     </tr>
     {% endfor %}

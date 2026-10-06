@@ -33,6 +33,7 @@
 <form method="post" action="{{ url_for('compras.confirmar_nota') }}">
     <input type="hidden" name="total" value="{{ nota.itens|length }}">
     <input type="hidden" name="nota" value="{{ nota.chave or nota.numero }}">
+    <input type="hidden" name="anexo" value="{{ nota.anexo }}">
     <div class="linha-nota">
         <div>
             <label for="data">Data da entrega</label>

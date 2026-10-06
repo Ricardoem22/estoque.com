@@ -150,7 +150,7 @@ def desperdicio():
 
     mes = mes_selecionado()
     registros = registros_do_mes(conn, mes)
-    grupos = agrupar_por_categoria(conn.execute("SELECT * FROM insumos").fetchall())
+    grupos = agrupar_por_categoria(conn.execute("SELECT * FROM insumos WHERE ativo = 1").fetchall())
     conn.close()
     return render_template(
         "desperdicio.html", gerente=session.get("gerente"),

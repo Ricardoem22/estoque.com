@@ -50,6 +50,25 @@ def init_db():
             PRIMARY KEY (contagem_id, insumo_id)
         );
     """)
+    # Cadastro completo do insumo (requisitos do restaurante)
+    colunas = {c["name"] for c in conn.execute("PRAGMA table_info(insumos)")}
+    for coluna, tipo in (("codigo", "TEXT NOT NULL DEFAULT ''"), ("marca", "TEXT NOT NULL DEFAULT ''"),
+                         ("fornecedor", "TEXT NOT NULL DEFAULT ''"), ("local", "TEXT NOT NULL DEFAULT ''"),
+                         ("minimo", "REAL"), ("ideal", "REAL"), ("custo", "REAL"),
+                         ("observacao", "TEXT NOT NULL DEFAULT ''"), ("ativo", "INTEGER NOT NULL DEFAULT 1")):
+        if coluna not in colunas:
+            conn.execute(f"ALTER TABLE insumos ADD COLUMN {coluna} {tipo}")
+    # Medidas de compra de cada insumo: 1 <unidade> = <fator> <unidade_base>
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS insumo_conversoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            insumo_id INTEGER NOT NULL REFERENCES insumos(id) ON DELETE CASCADE,
+            unidade TEXT NOT NULL,
+            fator REAL NOT NULL,
+            unidade_base TEXT NOT NULL,
+            UNIQUE (insumo_id, unidade)
+        )
+    """)
     # Popula os insumos da planilha na primeira execução
     if conn.execute("SELECT COUNT(*) FROM insumos").fetchone()[0] == 0:
         ordem = 0
@@ -108,6 +127,7 @@ def itens_da_contagem(conn, contagem_id):
                ci.quantidade, COALESCE(ci.observacao, '') AS observacao
         FROM insumos i
         LEFT JOIN contagem_itens ci ON ci.insumo_id = i.id AND ci.contagem_id = ?
+        WHERE i.ativo = 1 OR ci.quantidade IS NOT NULL
     """, (contagem_id,)).fetchall()
 
 
@@ -136,7 +156,7 @@ def contagens():
         FROM contagens c
         ORDER BY c.data DESC, c.id DESC
     """).fetchall()
-    total_insumos = conn.execute("SELECT COUNT(*) FROM insumos").fetchone()[0]
+    total_insumos = conn.execute("SELECT COUNT(*) FROM insumos WHERE ativo = 1").fetchone()[0]
     conn.close()
     return render_template("contagens.html", contagens=lista, total_insumos=total_insumos)
 

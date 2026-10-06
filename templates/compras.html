@@ -11,14 +11,15 @@
 {% if salvo %}<div class="sucesso">Compra registrada.</div>{% endif %}
 {% if lancados is not none %}<div class="sucesso">Nota lançada: {{ lancados }} ite{{ 'ns' if lancados != 1 else 'm' }} entr{{ 'aram' if lancados != 1 else 'ou' }} nas compras.</div>{% endif %}
 
-<form method="post" class="form-desperdicio">
+<form method="post" class="form-desperdicio" enctype="multipart/form-data">
     <label for="insumo_id">Insumo</label>
     <select id="insumo_id" name="insumo_id" required autofocus>
         <option value="">Escolha...</option>
         {% for categoria, itens in grupos %}
         <optgroup label="{{ categoria }}">
             {% for item in itens %}
-            <option value="{{ item['id'] }}" data-unidade="{{ item['unidade'] }}"
+            <option value="{{ item['id'] }}" data-unidade="{{ item['unidade'] }}" data-unidades="{{ item['unidades_json'] }}"
+                    data-conv="{{ item['conv_json'] }}"
                     {% if form.get('insumo_id') == item['id']|string %}selected{% endif %}>{{ item['nome'] }}</option>
             {% endfor %}
         </optgroup>
@@ -38,6 +39,7 @@
             </select>
         </div>
     </div>
+    <p id="previa-unidade" class="previa-unidade" aria-live="polite"></p>
 
     <label for="valor_total">Valor pago (R$) — só para compra sem nota</label>
     <input type="text" id="valor_total" name="valor_total" inputmode="decimal" placeholder="Opcional. Ex.: 45,90"
@@ -56,6 +58,13 @@
         </div>
     </div>
 
+    <label for="observacao">Observação</label>
+    <input type="text" id="observacao" name="observacao" placeholder="Opcional. Ex.: recibo 123, faltou 1 caixa"
+           value="{{ form.get('observacao', '') }}">
+
+    <label for="anexo">Anexar comprovante (foto, PDF, planilha)</label>
+    <input type="file" id="anexo" name="anexo" accept="image/*,.pdf,.xml,.xlsx,.xlsm,.csv,.docx">
+
     <div class="form-actions">
         <button class="btn" type="submit">Registrar compra</button>
     </div>
@@ -73,10 +82,10 @@
         {% for r in registros %}
         <tr>
             <td>{{ r['data']|data_br }}</td>
-            <td>{{ r['insumo_nome'] }}</td>
+            <td>{{ r['insumo_nome'] }}{% if r['observacao'] %}<br><span class="sub">{{ r['observacao'] }}</span>{% endif %}{% if r['anexo'] %}<br><a class="sub" href="{{ url_for('compras.ver_anexo', nome=r['anexo']) }}" target="_blank">📎 ver arquivo</a>{% endif %}</td>
             <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}</td>
             <td>{% if r['valor_total'] is not none %}{{ r['valor_total']|brl }}<br><span class="sub">{{ (r['valor_total'] / r['quantidade'])|brl }}/{{ r['unidade'] }}</span>{% else %}<span class="sub">sem valor</span>{% endif %}{% if r['nota'] %}<br><span class="sub" title="Valor tirado da nota fiscal">📄 da nota</span>{% endif %}</td>
-            <td>{{ r['fornecedor'] }}</td>
+            <td>{{ r['fornecedor'] }}{% if r['registrado_por'] %}<br><span class="sub">lançado por {{ r['registrado_por'] }}</span>{% endif %}</td>
             <td class="acoes">
                 <form class="inline" method="post" action="{{ url_for('compras.excluir_compra', id=r['id']) }}"
                       onsubmit="return confirm('Excluir esta compra?')">
@@ -92,12 +101,6 @@
 <p class="vazio">Nenhuma compra registrada neste mês.</p>
 {% endif %}
 
-<script>
-    document.getElementById("insumo_id").addEventListener("change", function () {
-        var opcao = this.selectedOptions[0];
-        if (opcao && opcao.dataset.unidade) {
-            document.getElementById("unidade").value = opcao.dataset.unidade;
-        }
-    });
-</script>
+<script src="{{ url_for('static', filename='unidades.js') }}"></script>
+<script>ligarUnidades("insumo_id", "unidade", "quantidade", "previa-unidade");</script>
 {% endblock %}
