@@ -8,6 +8,7 @@ from contagem import bp as contagem_bp, init_db as init_db_contagem
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
 from compras import bp as compras_bp, init_db as init_db_compras
 from relatorio import bp as relatorio_bp
+from mural import bp as mural_bp, init_db as init_db_mural
 from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
 
 app = Flask(__name__)
@@ -23,6 +24,7 @@ app.register_blueprint(desperdicio_bp)
 app.register_blueprint(compras_bp)
 app.register_blueprint(relatorio_bp)
 app.register_blueprint(funcionarios_bp)
+app.register_blueprint(mural_bp)
 DB_NAME = config.DB_PATH
 
 
@@ -187,6 +189,7 @@ init_db_contagem()
 init_db_desperdicio()
 init_db_compras()
 init_db_funcionarios()
+init_db_mural()
 
 if __name__ == "__main__":
     import os

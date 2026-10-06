@@ -4,6 +4,7 @@
 {%- elif ep.startswith('compras.') %}{% set aba = 'compras' -%}
 {%- elif ep.startswith('desperdicio.') or ep.startswith('gerencia') %}{% set aba = 'desperdicio' -%}
 {%- elif ep.startswith('relatorio.') %}{% set aba = 'relatorio' -%}
+{%- elif ep.startswith('mural.') %}{% set aba = 'mural' -%}
 {%- elif ep.startswith('funcionarios.') %}{% set aba = 'funcionarios' -%}
 {%- else %}{% set aba = 'produtos' %}{% endif -%}
 <header class="topo">
@@ -19,6 +20,7 @@
     </div>
     <nav class="menu">
         <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}>📋 Contagens</a>
+        <a href="{{ url_for('mural.mural') }}" {% if aba == 'mural' %}class="ativo"{% endif %}>💬 Mural</a>
         <a href="{{ url_for('contagem.insumos') }}" {% if aba == 'insumos' %}class="ativo"{% endif %}>🧾 Insumos</a>
         <a href="{{ url_for('compras.compras') }}" {% if aba == 'compras' %}class="ativo"{% endif %}>🛒 Compras</a>
         <a href="{{ url_for('desperdicio.desperdicio') }}" {% if aba == 'desperdicio' %}class="ativo"{% endif %}>🗑️ Desperdício</a>

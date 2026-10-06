@@ -507,3 +507,35 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
     .tabela-funcionarios td:nth-child(3) { grid-column: 2; grid-row: 2; text-align: right; }
     .tabela-funcionarios td:nth-child(5) { grid-column: 1 / 3; grid-row: 3; }
 }
+
+/* ---------- Mural ---------- */
+.recados { display: flex; flex-direction: column; gap: 8px; }
+.conversa {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 60vh; overflow-y: auto;
+    background: var(--fundo); border-radius: 10px; padding: 12px;
+}
+.msg {
+    align-self: flex-start; max-width: 85%;
+    background: #fff; border: 1px solid var(--borda); border-radius: 12px 12px 12px 4px;
+    padding: 8px 12px;
+}
+.msg.minha { align-self: flex-end; background: var(--amarelo-claro); border-color: var(--amarelo); border-radius: 12px 12px 4px 12px; }
+.recados .msg { align-self: stretch; max-width: none; border-left: 4px solid var(--vermelho); border-radius: 8px; background: #fff; }
+.msg-topo { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.msg-hora { color: var(--texto-suave); font-size: 12px; }
+.msg-texto { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 2px; }
+.msg-acoes { display: flex; gap: 12px; margin-top: 4px; }
+.link-botao { background: none; border: none; padding: 0; color: var(--texto-suave); font-size: 12px; font-weight: 600; cursor: pointer; }
+.link-botao:hover { color: var(--texto); text-decoration: underline; }
+.link-botao.apagar:hover { color: var(--vermelho); }
+.form-mensagem { margin-top: 12px; }
+.form-mensagem textarea { resize: vertical; }
+.form-mensagem-acoes { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.form-mensagem-acoes .inline-label { font-weight: 600; font-size: 14px; margin-right: auto; }
+@media (max-width: 600px) {
+    .conversa { max-height: 55vh; padding: 8px; }
+    .msg { max-width: 92%; }
+    .form-mensagem textarea { font-size: 16px; }
+    .form-mensagem-acoes .btn { flex: 1; padding: 12px; }
+}

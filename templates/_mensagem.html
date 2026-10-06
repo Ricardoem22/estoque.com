@@ -1,0 +1,23 @@
+<div class="msg{% if m['autor_id'] and m['autor_id'] == eu %} minha{% endif %}{% if m['fixada'] %} fixada{% endif %}" data-id="{{ m['id'] }}">
+    <div class="msg-topo">
+        <strong>{{ m['autor_nome'] }}</strong>
+        <span class="msg-hora">{{ m['criada_em'][8:10] }}/{{ m['criada_em'][5:7] }} {{ m['criada_em'][11:16] }}</span>
+        {% if m['fixada'] %}<span class="msg-pino" title="Recado fixado">📌</span>{% endif %}
+    </div>
+    <div class="msg-texto">{{ m['texto'] }}</div>
+    {% if gerente or pode_apagar(m) %}
+    <div class="msg-acoes">
+        {% if gerente %}
+        <form class="inline" method="post" action="{{ url_for('mural.acao', id=m['id'], acao='desafixar' if m['fixada'] else 'fixar') }}">
+            <button type="submit" class="link-botao">{{ 'Desafixar' if m['fixada'] else '📌 Fixar' }}</button>
+        </form>
+        {% endif %}
+        {% if pode_apagar(m) %}
+        <form class="inline" method="post" action="{{ url_for('mural.acao', id=m['id'], acao='apagar') }}"
+              onsubmit="return confirm('Apagar esta mensagem?')">
+            <button type="submit" class="link-botao apagar">Apagar</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
