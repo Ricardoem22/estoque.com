@@ -707,3 +707,4 @@ tr.inativo td { opacity: 0.6; }
     .tabela-precos th, .tabela-precos td { padding: 6px 3px; white-space: normal; }
     .tabela-precos select { max-width: 52vw; }
 }
+.valor-total .ver-sem-preco { color: var(--amarelo); font-weight: 700; }
