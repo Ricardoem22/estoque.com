@@ -20,6 +20,17 @@
         <button class="btn btn-grande" type="submit">Salvar nova senha</button>
     </div>
 </form>
+{% if not obrigatoria %}
+<h2>📧 Meu e-mail</h2>
+<p class="sub">Usado para recuperar a senha pelo link "Esqueci a senha".</p>
+{% if email_salvo %}<div class="sucesso">E-mail salvo.</div>{% endif %}
+{% if email_erro %}<div class="erro">O e-mail parece errado. Confira (ex.: joao@gmail.com).</div>{% endif %}
+<form method="post" action="{{ url_for('funcionarios.meu_email') }}">
+    <input type="email" name="email" value="{{ email }}" placeholder="seu@email.com" aria-label="Meu e-mail"
+           autocapitalize="none" autocorrect="off" spellcheck="false">
+    <div class="form-actions"><button class="btn" type="submit">Salvar e-mail</button></div>
+</form>
+{% endif %}
 {% endif %}
 </div>
 {% endblock %}

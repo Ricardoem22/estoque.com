@@ -585,3 +585,10 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
     .tabela-nota select, .tabela-nota input { max-width: none; width: 100% !important; font-size: 16px; }
 }
 .valor-total small b { color: var(--amarelo); }
+input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8px; width: 100%; }
+.form-email { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.form-email input { padding: 5px 8px; font-size: 13px; min-width: 0; }
+@media (max-width: 600px) {
+    .form-email input { font-size: 16px; }
+    .form-funcionario input[type="email"] { font-size: 16px; }
+}

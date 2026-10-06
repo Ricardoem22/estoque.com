@@ -5,11 +5,14 @@ import hmac
 import re
 import secrets
 import sqlite3
+import time
 
-from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, redirect, render_template, request, session, url_for
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import config
+from email_envio import email_configurado, enviar_email
 
 bp = Blueprint("funcionarios", __name__)
 
@@ -20,6 +23,10 @@ USUARIO_MESTRE = "gerencia"
 USUARIO_EQUIPE = "equipe"
 # Sem letras e números parecidos (l/1, o/0), para ditar a senha sem confusão
 LETRAS_SENHA = "abcdefghjkmnpqrstuvwxyz23456789"
+VALIDADE_LINK = 60 * 60  # o link de nova senha vale 1 hora
+INTERVALO_EMAIL = 120  # no máximo um e-mail a cada 2 minutos por pessoa
+ultimo_envio = {}
+EMAIL_VALIDO = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
 def get_connection():
@@ -42,8 +49,43 @@ def init_db():
             criado_em TEXT NOT NULL
         )
     """)
+    colunas = {c["name"] for c in conn.execute("PRAGMA table_info(funcionarios)")}
+    if "email" not in colunas:
+        conn.execute("ALTER TABLE funcionarios ADD COLUMN email TEXT NOT NULL DEFAULT ''")
     conn.commit()
     conn.close()
+
+
+def normalizar_email(texto):
+    return (texto or "").strip().lower()
+
+
+def email_invalido(email):
+    return bool(email) and not EMAIL_VALIDO.fullmatch(email)
+
+
+# ---------- Link de nova senha por e-mail ----------
+
+def assinador():
+    return URLSafeTimedSerializer(current_app.secret_key, salt="redefinir-senha")
+
+
+def gerar_token(funcionario):
+    # O final do hash da senha entra no token: depois de trocar a senha, o link deixa de valer
+    return assinador().dumps({"id": funcionario["id"], "h": funcionario["senha_hash"][-12:]})
+
+
+def ler_token(token):
+    try:
+        dados = assinador().loads(token, max_age=VALIDADE_LINK)
+    except (SignatureExpired, BadSignature):
+        return None
+    conn = get_connection()
+    funcionario = conn.execute("SELECT * FROM funcionarios WHERE id = ?", (dados.get("id"),)).fetchone()
+    conn.close()
+    if not funcionario or not funcionario["ativo"] or funcionario["senha_hash"][-12:] != dados.get("h"):
+        return None
+    return funcionario
 
 
 def normalizar_usuario(texto):
@@ -118,9 +160,75 @@ def conferir_sessao():
     return None
 
 
-@bp.route("/esqueci-senha")
+@bp.route("/esqueci-senha", methods=["GET", "POST"])
 def esqueci_senha():
-    return render_template("esqueci_senha.html")
+    enviado = False
+    erro = None
+    if request.method == "POST":
+        busca = request.form.get("usuario", "").strip().lower()
+        if not busca:
+            erro = "Digite seu usuário ou e-mail."
+        else:
+            conn = get_connection()
+            funcionario = conn.execute(
+                "SELECT * FROM funcionarios WHERE ativo = 1 AND email != '' AND (usuario = ? OR email = ?)",
+                (busca, busca),
+            ).fetchone()
+            conn.close()
+            agora = time.time()
+            if funcionario and agora - ultimo_envio.get(funcionario["id"], 0) > INTERVALO_EMAIL:
+                link = url_for("funcionarios.redefinir_senha", token=gerar_token(funcionario), _external=True)
+                try:
+                    enviar_email(
+                        funcionario["email"], "Nova senha - Gestor Full de Restaurante",
+                        f"Olá, {funcionario['nome']}.\n\n"
+                        f"Para criar uma nova senha, abra o link abaixo (vale por 1 hora):\n{link}\n\n"
+                        f"Seu usuário é: {funcionario['usuario']}\n\n"
+                        "Se você não pediu isso, ignore este e-mail. Sua senha continua a mesma.",
+                    )
+                    ultimo_envio[funcionario["id"]] = agora
+                except Exception:
+                    current_app.logger.exception("Falha ao enviar e-mail de nova senha")
+                    erro = "Não consegui enviar o e-mail agora. Tente de novo em alguns minutos ou fale com a gerência."
+            # A mesma resposta com ou sem cadastro, para não revelar quem tem conta
+            enviado = not erro
+    return render_template("esqueci_senha.html", email_ativo=email_configurado(), enviado=enviado, erro=erro)
+
+
+@bp.route("/redefinir-senha/<token>", methods=["GET", "POST"])
+def redefinir_senha(token):
+    funcionario = ler_token(token)
+    if not funcionario:
+        return render_template("redefinir_senha.html", invalido=True)
+    erro = None
+    if request.method == "POST":
+        nova = request.form.get("nova", "")
+        if len(nova) < SENHA_MINIMA:
+            erro = f"A nova senha precisa ter pelo menos {SENHA_MINIMA} caracteres."
+        elif nova != request.form.get("confirmar", ""):
+            erro = "A confirmação não é igual à nova senha."
+        else:
+            conn = get_connection()
+            conn.execute("UPDATE funcionarios SET senha_hash = ?, trocar_senha = 0 WHERE id = ?",
+                         (generate_password_hash(nova), funcionario["id"]))
+            conn.commit()
+            conn.close()
+            entrar(funcionario["nome"], funcionario["papel"], funcionario["id"])
+            return redirect(url_for("contagem.contagens"))
+    return render_template("redefinir_senha.html", funcionario=funcionario, erro=erro)
+
+
+@bp.route("/meu-email", methods=["POST"])
+def meu_email():
+    funcionario_id = session.get("funcionario_id")
+    email = normalizar_email(request.form.get("email"))
+    if not funcionario_id or email_invalido(email):
+        return redirect(url_for("funcionarios.trocar_senha", email_erro=1))
+    conn = get_connection()
+    conn.execute("UPDATE funcionarios SET email = ? WHERE id = ?", (email, funcionario_id))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("funcionarios.trocar_senha", email_salvo=1))
 
 
 @bp.route("/trocar-senha", methods=["GET", "POST"])
@@ -155,7 +263,13 @@ def trocar_senha():
         if not erro:
             return redirect(url_for("contagem.contagens"))
 
-    return render_template("trocar_senha.html", erro=erro, obrigatoria=session.get("trocar_senha"))
+    conn = get_connection()
+    meu = conn.execute("SELECT email FROM funcionarios WHERE id = ?", (funcionario_id,)).fetchone()
+    conn.close()
+    return render_template(
+        "trocar_senha.html", erro=erro, obrigatoria=session.get("trocar_senha"), email=meu["email"] if meu else "",
+        email_salvo=request.args.get("email_salvo"), email_erro=request.args.get("email_erro"),
+    )
 
 
 # ---------- Cadastro (só gerência) ----------
@@ -183,6 +297,7 @@ def cadastro():
         nome = form.get("nome", "").strip()
         usuario = normalizar_usuario(form.get("usuario"))
         papel = form.get("papel", "equipe")
+        email = normalizar_email(form.get("email"))
         if not nome:
             erro = "Informe o nome do funcionário."
         elif not re.fullmatch(r"[a-z0-9._-]{3,30}", usuario):
@@ -191,13 +306,16 @@ def cadastro():
             erro = f"O usuário \"{usuario}\" é reservado. Escolha outro."
         elif papel not in PAPEIS:
             erro = "Escolha o perfil."
+        elif email_invalido(email):
+            erro = "O e-mail parece errado. Confira (ex.: joao@gmail.com) ou deixe em branco."
         elif conn.execute("SELECT 1 FROM funcionarios WHERE usuario = ?", (usuario,)).fetchone():
             erro = f"Já existe um funcionário com o usuário \"{usuario}\"."
         if not erro:
             senha = senha_temporaria()
             conn.execute(
-                "INSERT INTO funcionarios (nome, usuario, senha_hash, papel, criado_em) VALUES (?, ?, ?, ?, ?)",
-                (nome, usuario, generate_password_hash(senha), papel, config.agora().strftime("%Y-%m-%d %H:%M:%S")),
+                "INSERT INTO funcionarios (nome, usuario, senha_hash, papel, criado_em, email) VALUES (?, ?, ?, ?, ?, ?)",
+                (nome, usuario, generate_password_hash(senha), papel, config.agora().strftime("%Y-%m-%d %H:%M:%S"),
+                 email),
             )
             conn.commit()
             nova_senha = {"nome": nome, "usuario": usuario, "senha": senha}
@@ -206,11 +324,11 @@ def cadastro():
     conn.close()
     return render_template(
         "funcionarios.html", funcionarios=funcionarios, papeis=PAPEIS, erro=erro,
-        form=form, nova_senha=nova_senha, eu=session.get("funcionario_id"),
+        form=form, nova_senha=nova_senha, eu=session.get("funcionario_id"), email_ativo=email_configurado(),
     )
 
 
-@bp.route("/funcionarios/<int:id>/<any(senha, ativar, desativar, perfil):acao>", methods=["POST"],
+@bp.route("/funcionarios/<int:id>/<any(senha, ativar, desativar, perfil, email):acao>", methods=["POST"],
           endpoint="cadastro_acao")
 def cadastro_acao(id, acao):
     conn = get_connection()
@@ -222,7 +340,13 @@ def cadastro_acao(id, acao):
     nova_senha = None
     proprio = id == session.get("funcionario_id")
 
-    if acao == "senha":
+    if acao == "email":
+        email = normalizar_email(request.form.get("email"))
+        if email_invalido(email):
+            erro = "O e-mail parece errado. Confira (ex.: joao@gmail.com) ou deixe em branco."
+        else:
+            conn.execute("UPDATE funcionarios SET email = ? WHERE id = ?", (email, id))
+    elif acao == "senha":
         senha = senha_temporaria()
         conn.execute(
             "UPDATE funcionarios SET senha_hash = ?, trocar_senha = 1 WHERE id = ?",

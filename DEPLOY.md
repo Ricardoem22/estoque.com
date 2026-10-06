@@ -49,13 +49,34 @@ Cada pessoa entra com o próprio usuário e senha.
    temporária que aparece. Depois cadastre a equipe.
 3. Saia e entre com o seu usuário. No primeiro acesso o sistema pede uma senha nova.
 
-- **Esqueci a senha:** a gerência toca em **Nova senha** no nome da pessoa e passa a senha
-  temporária para ela.
+- **Esqueci a senha:** com o e-mail configurado (abaixo) e o e-mail da pessoa cadastrado, ela
+  pede um link em "Esqueci a senha" e cria a senha sozinha. Sem isso, a gerência toca em
+  **Nova senha** no nome da pessoa e passa a senha temporária para ela.
 - **Funcionário saiu:** toque em **Desativar**. Ele é desconectado na hora.
 - **A gerência esqueceu a senha:** entre com o usuário `gerencia` e a `GERENCIA_PASSWORD`,
   que sempre funcionam, e gere uma nova senha para a sua conta.
 - A senha antiga da equipe (`APP_PASSWORD`, com o usuário `equipe`) só funciona enquanto
   nenhum funcionário estiver cadastrado.
+
+## E-mail para recuperar a senha (Gmail)
+
+O plano grátis do PythonAnywhere só deixa enviar e-mail pelo Gmail.
+
+1. Use uma conta Gmail do restaurante. Ative a **verificação em duas etapas** em
+   https://myaccount.google.com/security.
+2. Abra https://myaccount.google.com/apppasswords, crie uma senha de app com o nome
+   "Gestor Full" e copie o código de 16 letras.
+3. No arquivo WSGI (aba **Web**), junto das outras linhas `os.environ`, cole:
+
+   ```python
+   os.environ["EMAIL_USUARIO"] = "email-do-restaurante@gmail.com"
+   os.environ["EMAIL_SENHA"] = "codigo de 16 letras"
+   ```
+
+4. Salve e clique em **Reload**. Cadastre o e-mail de cada pessoa em **Funcionários**
+   (ou cada um em **👤 → Meu e-mail**).
+
+Nunca use a senha normal da conta Google aqui, só a senha de app.
 
 ## Atualizar depois de mudanças no GitHub
 
@@ -73,6 +94,7 @@ Depois clique em **Reload** na aba Web.
 | `GERENCIA_PASSWORD` | Acesso de emergência da gerência (usuário `gerencia`): primeiro acesso e recuperação. |
 | `APP_PASSWORD` | Opcional. Senha antiga da equipe (usuário `equipe`); vale só enquanto não houver funcionários cadastrados. |
 | `SECRET_KEY` | Chave do cookie de login. Sem ela, todos precisam entrar de novo a cada Reload. |
+| `EMAIL_USUARIO` / `EMAIL_SENHA` | Opcional. Gmail e senha de app para enviar o link de "Esqueci a senha". |
 | `DATABASE_PATH` | Opcional. Caminho do banco; o padrão é `estoque.db` na pasta do projeto. |
 | `UPLOAD_DIR` | Opcional. Pasta das fotos de desperdício; o padrão é `fotos/` na pasta do projeto. |
 

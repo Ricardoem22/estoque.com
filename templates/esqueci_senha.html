@@ -12,14 +12,24 @@
             <span class="marca-icone">GF</span>
             <h1>Esqueci a senha</h1>
         </div>
+        {% if enviado %}
+        <div class="sucesso">Se esse usuário tiver e-mail cadastrado, enviamos um link para criar uma nova senha. Confira a caixa de entrada e o spam. O link vale por 1 hora.</div>
+        {% elif email_ativo %}
+        {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+        <form method="post">
+            <label for="usuario">Seu usuário ou e-mail</label>
+            <input type="text" id="usuario" name="usuario" required autofocus autocapitalize="none" autocorrect="off" spellcheck="false">
+            <div class="form-actions"><button class="btn btn-grande" type="submit">Enviar link por e-mail</button></div>
+        </form>
+        <p class="sub">Não tem e-mail cadastrado? Peça para a gerência gerar uma senha temporária em <strong>Funcionários → Nova senha</strong>.</p>
+        {% else %}
         <ol class="passos">
             <li>Avise alguém da <strong>gerência</strong>.</li>
             <li>Na tela <strong>Funcionários</strong>, a gerência toca em <strong>Nova senha</strong> no seu nome e te passa a senha temporária.</li>
             <li>Entre com ela. O sistema vai pedir para você criar uma senha nova.</li>
         </ol>
-        <div class="form-actions">
-            <a class="btn btn-grande" href="{{ url_for('login') }}">Voltar para entrar</a>
-        </div>
+        {% endif %}
+        <p class="login-link"><a href="{{ url_for('login') }}">Voltar para entrar</a></p>
     </div>
 </body>
 </html>
