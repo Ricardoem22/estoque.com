@@ -137,10 +137,13 @@ def compras():
             from insumo_cadastro import carregar_conversoes
             from unidades import converter
             unidade = form.get("unidade", "").strip() or insumo["unidade"]
-            if converter(1, unidade, insumo["unidade"], carregar_conversoes(conn).get(insumo["id"], [])) is None:
-                erro = (f"{unidade} não converte para {insumo['unidade']} (a unidade do estoque de "
+            # O estoque soma na unidade da última contagem do insumo
+            ultima = ultimas_contagens(conn).get(insumo["id"])
+            destino = ultima["unidade"] if ultima else insumo["unidade"]
+            if converter(1, unidade, destino, carregar_conversoes(conn).get(insumo["id"], [])) is None:
+                erro = (f"{unidade} não converte para {destino} (a unidade do estoque de "
                         f"{insumo['nome']}). Cadastre a medida na ficha do insumo, ex.: 1 {unidade} = 5 "
-                        f"{insumo['unidade']}.")
+                        f"{destino}.")
         arquivo = request.files.get("anexo")
         if not erro and arquivo and arquivo.filename:
             anexo = salvar_anexo(arquivo.filename, arquivo.read())
@@ -150,7 +153,7 @@ def compras():
             anexo = ""
 
         if not erro:
-            conn.execute("""
+            compra_id = conn.execute("""
                 INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total,
                                      nota, observacao, registrado_por, anexo)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -159,11 +162,11 @@ def compras():
                 form.get("fornecedor", "").strip(), config.agora().strftime("%Y-%m-%d %H:%M:%S"), valor_total,
                 None, form.get("observacao", "").strip(), session.get("nome", ""),
                 anexo,
-            ))
+            )).lastrowid
             conn.commit()
             conn.close()
             # Mantém a data e o fornecedor para lançar a nota inteira em sequência
-            return redirect(url_for("compras.compras", mes=data[:7], salvo=1, data=data,
+            return redirect(url_for("compras.compras", mes=data[:7], salvo=compra_id, data=data,
                                     fornecedor=form.get("fornecedor", "").strip()))
 
     mes = mes_selecionado()
@@ -175,14 +178,81 @@ def compras():
     """, (mes,)).fetchall()
     from insumo_cadastro import insumos_para_formulario
     grupos = insumos_para_formulario(conn)
+    fora = fora_do_estoque(conn, registros)
+    salvo = request.args.get("salvo", type=int)
+    resultado = resultado_compra(conn, salvo) if salvo else None
     conn.close()
     return render_template(
         "compras.html", grupos=grupos, unidades=UNIDADES, registros=registros, mes=mes, erro=erro, form=form,
+        fora=fora, resultado=resultado,
         total_mes=sum(r["valor_total"] or 0 for r in registros),
         data_padrao=form.get("data") or request.args.get("data") or config.hoje().isoformat(),
         fornecedor=form.get("fornecedor") or request.args.get("fornecedor", ""),
-        salvo=request.args.get("salvo"), lancados=request.args.get("lancados", type=int),
+        salvo=salvo, lancados=request.args.get("lancados", type=int),
     )
+
+
+def ultimas_contagens(conn):
+    """Última contagem finalizada de cada insumo: {insumo_id: linha com data e unidade}."""
+    ultimas = {}
+    for r in conn.execute("""
+        SELECT ci.insumo_id, ci.unidade, c.data FROM contagem_itens ci
+        JOIN contagens c ON c.id = ci.contagem_id
+        WHERE c.finalizada = 1 AND ci.quantidade IS NOT NULL ORDER BY c.data, c.id
+    """):
+        ultimas[r["insumo_id"]] = r
+    return ultimas
+
+
+def fora_do_estoque(conn, registros):
+    """Compras que não somam no estoque, com o motivo. Segue a mesma regra do painel:
+    só entra o que tem data a partir da última contagem e unidade que converte."""
+    from insumo_cadastro import carregar_conversoes
+    from unidades import converter
+    ultimas = ultimas_contagens(conn)
+    conversoes = carregar_conversoes(conn)
+    unidades = {i["id"]: i["unidade"] for i in conn.execute("SELECT id, unidade FROM insumos")}
+    fora = {}
+    for r in registros:
+        ultima = ultimas.get(r["insumo_id"])
+        if ultima and r["data"] < ultima["data"]:
+            fora[r["id"]] = {"motivo": "data", "contagem": ultima["data"]}
+            continue
+        destino = ultima["unidade"] if ultima else unidades.get(r["insumo_id"])
+        if converter(1, r["unidade"], destino, conversoes.get(r["insumo_id"], [])) is None:
+            fora[r["id"]] = {"motivo": "unidade", "unidade": destino}
+    return fora
+
+
+def resultado_compra(conn, compra_id):
+    """Depois de registrar: quanto ficou o estoque do insumo, ou por que a compra não somou."""
+    compra = conn.execute("""
+        SELECT c.*, i.nome AS insumo_nome FROM compras c JOIN insumos i ON i.id = c.insumo_id WHERE c.id = ?
+    """, (compra_id,)).fetchone()
+    if compra is None:
+        return None
+    from relatorio import calcular_linhas
+    linha = next((l for l in calcular_linhas() if l["id"] == compra["insumo_id"]), None)
+    return {"compra": compra, "linha": linha, "fora": fora_do_estoque(conn, [compra]).get(compra_id)}
+
+
+@bp.route("/compras/<int:id>/data-da-contagem", methods=["POST"])
+def mover_para_contagem(id):
+    """A mercadoria chegou depois da contagem, mas a compra ficou com data anterior: passa para o dia da contagem."""
+    conn = get_connection()
+    compra = conn.execute("SELECT * FROM compras WHERE id = ?", (id,)).fetchone()
+    if compra is None:
+        conn.close()
+        abort(404)
+    ultima = ultimas_contagens(conn).get(compra["insumo_id"])
+    if ultima and compra["data"] < ultima["data"]:
+        conn.execute("UPDATE compras SET data = ? WHERE id = ?", (ultima["data"], id))
+        conn.commit()
+        data = ultima["data"]
+    else:
+        data = compra["data"]
+    conn.close()
+    return redirect(url_for("compras.compras", mes=data[:7], salvo=id, data=data))
 
 
 @bp.route("/compras/<int:id>/excluir", methods=["POST"])

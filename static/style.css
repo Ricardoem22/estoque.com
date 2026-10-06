@@ -678,3 +678,5 @@ tr.inativo td { opacity: 0.6; }
 }
 @media print { .atalhos, .filtros-estoque { display: none; } }
 .aviso-link { display: block; text-decoration: none; font-weight: 600; }
+.btn-mini { padding: 4px 8px; font-size: 0.8rem; margin-top: 4px; }
+.aviso form.inline { display: block; margin-top: 8px; }

@@ -8,7 +8,27 @@
 <p class="sub">Registre aqui o que chegou de mercadoria. O relatório usa as compras para calcular quanto foi consumido entre uma contagem e outra.</p>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
-{% if salvo %}<div class="sucesso">Compra registrada.</div>{% endif %}
+{% if resultado %}{% set c = resultado.compra %}{% set l = resultado.linha %}
+{% if resultado.fora %}
+<div class="aviso">
+    ⚠️ Compra registrada, mas <strong>{{ c['insumo_nome'] }}</strong> não somou no estoque.
+    {% if resultado.fora.motivo == 'data' %}
+    A compra está com data de {{ c['data']|data_br }}, antes da última contagem ({{ resultado.fora.contagem|data_br }}).
+    Compra anterior à contagem já está dentro do que foi contado.
+    <form class="inline" method="post" action="{{ url_for('compras.mover_para_contagem', id=c['id']) }}">
+        <button class="btn" type="submit">Chegou depois da contagem: somar no estoque</button>
+    </form>
+    {% else %}
+    {{ c['unidade'] }} não converte para {{ resultado.fora.unidade }}, a unidade do estoque.
+    <a href="{{ url_for('insumo.editar', id=c['insumo_id']) }}">Cadastre a medida na ficha do insumo</a>.
+    {% endif %}
+</div>
+{% else %}
+<div class="sucesso">Compra registrada. <strong>{{ c['insumo_nome'] }}</strong>{% if l and l.estoque is not none %}: estoque agora
+    <strong>{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</strong>{% endif %}.
+    <a href="{{ url_for('insumo.historico', id=c['insumo_id']) }}">Ver histórico</a></div>
+{% endif %}
+{% endif %}
 {% if lancados is not none %}<div class="sucesso">Nota lançada: {{ lancados }} ite{{ 'ns' if lancados != 1 else 'm' }} entr{{ 'aram' if lancados != 1 else 'ou' }} nas compras.</div>{% endif %}
 
 <form method="post" class="form-desperdicio" enctype="multipart/form-data">
@@ -83,7 +103,13 @@
         <tr>
             <td>{{ r['data']|data_br }}</td>
             <td>{{ r['insumo_nome'] }}{% if r['observacao'] %}<br><span class="sub">{{ r['observacao'] }}</span>{% endif %}{% if r['anexo'] %}<br><a class="sub" href="{{ url_for('compras.ver_anexo', nome=r['anexo']) }}" target="_blank">📎 ver arquivo</a>{% endif %}</td>
-            <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}</td>
+            <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}
+                {% set f = fora.get(r['id']) %}
+                {% if f %}<br><span class="tag tag-aberta" title="Não somou no estoque">fora do estoque</span>
+                <br><span class="sub">{% if f.motivo == 'data' %}antes da contagem de {{ f.contagem|data_br }}{% else %}{{ r['unidade'] }} não converte para {{ f.unidade }}{% endif %}</span>
+                {% if f.motivo == 'data' %}<form class="inline" method="post" action="{{ url_for('compras.mover_para_contagem', id=r['id']) }}">
+                    <button class="btn btn-edit btn-mini" type="submit" title="A mercadoria chegou depois da contagem">Somar no estoque</button></form>{% endif %}
+                {% endif %}</td>
             <td>{% if r['valor_total'] is not none %}{{ r['valor_total']|brl }}<br><span class="sub">{{ (r['valor_total'] / r['quantidade'])|brl }}/{{ r['unidade'] }}</span>{% else %}<span class="sub">sem valor</span>{% endif %}{% if r['nota'] %}<br><span class="sub" title="Valor tirado da nota fiscal">📄 da nota</span>{% endif %}</td>
             <td>{{ r['fornecedor'] }}{% if r['registrado_por'] %}<br><span class="sub">lançado por {{ r['registrado_por'] }}</span>{% endif %}</td>
             <td class="acoes">
