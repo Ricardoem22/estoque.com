@@ -700,3 +700,10 @@ tr.inativo td { opacity: 0.6; }
     .tabela-compras .tag { white-space: normal; }
     .tabela-compras td { word-break: break-word; }
 }
+.tabela-precos select { width: 100%; max-width: 100%; font-size: 13px; }
+.tabela-precos td:last-child { min-width: 0; }
+@media (max-width: 600px) {
+    .tabela-precos { font-size: 13px; }
+    .tabela-precos th, .tabela-precos td { padding: 6px 3px; white-space: normal; }
+    .tabela-precos select { max-width: 52vw; }
+}

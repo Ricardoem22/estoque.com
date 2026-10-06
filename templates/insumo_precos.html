@@ -1,0 +1,56 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Preços e NCM por planilha{% endblock %}
+{% block conteudo %}
+<h1>💲 Preços e NCM por planilha</h1>
+<p class="sub">Anexe a planilha com a relação de produtos das notas (colunas Produto, NCM e Preço/kg último ou Preço
+    unitário último). O app procura cada produto nos seus insumos e mostra o que vai mudar antes de salvar.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if atualizados is not none %}<div class="sucesso">{{ atualizados }} insumo{{ 's' if atualizados != 1 }} atualizado{{ 's' if atualizados != 1 }}.
+    <a href="{{ url_for('relatorio.estoque') }}">Ver o valor do estoque</a></div>{% endif %}
+
+{% if not itens %}
+<form method="post" enctype="multipart/form-data" class="form-desperdicio">
+    <label for="arquivo">Planilha (.xlsx)</label>
+    <input type="file" id="arquivo" name="arquivo" accept=".xlsx,.xlsm" required>
+    <div class="form-actions">
+        <button class="btn" type="submit">Conferir planilha</button>
+        <a class="btn btn-edit" href="{{ url_for('contagem.insumos') }}">Voltar</a>
+    </div>
+</form>
+{% else %}
+<form method="post" action="{{ url_for('insumo.confirmar_precos') }}">
+    <p class="sub">{{ itens|length }} insumos encontrados na planilha. Quando vários produtos casam com o mesmo insumo,
+        o app escolhe o que mais se parece com o nome e tem preço na unidade do estoque; troque no seletor se
+        preferir outro, ou escolha "Não mudar". "Só NCM" quer dizer que o produto foi comprado em outra unidade.
+        O preço vira o custo de referência, que entra no valor do estoque enquanto não houver compra com valor lançada.</p>
+    <label class="check"><input type="checkbox" name="atualizar_preco" value="1" checked> Atualizar o custo de referência</label>
+    <label class="check"><input type="checkbox" name="atualizar_ncm" value="1" checked> Atualizar o NCM</label>
+    <table class="tabela-precos">
+        <thead><tr><th>Insumo</th><th>Hoje</th><th>Produto da planilha</th></tr></thead>
+        <tbody>
+        {% for item in itens %}{% set i = item.insumo %}
+        <tr>
+            <td><strong>{{ i['nome'] }}</strong><br><span class="sub">por {{ i['unidade'] }}</span></td>
+            <td>{{ i['custo']|brl if i['custo'] is not none else '—' }}{% if i['ncm'] %}<br><span class="sub">NCM {{ i['ncm'] }}</span>{% endif %}</td>
+            <td>
+                <select name="escolha_{{ i['id'] }}" aria-label="Produto para {{ i['nome'] }}">
+                    {% for c in item.candidatos %}
+                    <option value="{{ item.opcoes[loop.index0] }}" {% if loop.first %}selected{% endif %}>
+                        {% if c.preco_insumo is not none %}{{ c.preco_insumo|brl }}/{{ i['unidade'] }}{% else %}só NCM{% endif %} · {{ c.produto }}{% if c.ncm %} · NCM {{ c.ncm }}{% endif %}{% if c.data %} · {{ c.data|data_br }}{% endif %}
+                    </option>
+                    {% endfor %}
+                    <option value="">Não mudar</option>
+                </select>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="form-actions">
+        <button class="btn" type="submit">Salvar preços e NCM</button>
+        <a class="btn btn-edit" href="{{ url_for('insumo.precos_planilha') }}">Cancelar</a>
+    </div>
+</form>
+{% endif %}
+{% endblock %}

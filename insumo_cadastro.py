@@ -4,6 +4,8 @@
 import csv
 import io
 import json
+import re
+from datetime import date
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
 
@@ -79,13 +81,13 @@ def editar(id):
         if not erro:
             conn.execute("""
                 UPDATE insumos SET nome = ?, categoria = ?, unidade = ?, codigo = ?, marca = ?, fornecedor = ?,
-                       local = ?, minimo = ?, ideal = ?, custo = ?, observacao = ?, ativo = ?
+                       local = ?, minimo = ?, ideal = ?, custo = ?, observacao = ?, ativo = ?, ncm = ?
                 WHERE id = ?
             """, (
                 nome, form.get("categoria").strip(), form.get("unidade", "").strip() or insumo["unidade"],
                 form.get("codigo", "").strip(), form.get("marca", "").strip(), form.get("fornecedor", "").strip(),
                 form.get("local", "").strip(), minimo, ideal, custo, form.get("observacao", "").strip(),
-                1 if form.get("ativo") else 0, id,
+                1 if form.get("ativo") else 0, re.sub(r"\D", "", form.get("ncm", "")), id,
             ))
             conn.commit()
             conn.close()
@@ -186,6 +188,163 @@ def historico_do_insumo(conn, insumo_id):
                         "detalhe": r["motivo"], "ordem": 1})
     eventos.sort(key=lambda e: (e["data"], e["ordem"]), reverse=True)
     return eventos
+
+
+# ---------- Preço e NCM por planilha ----------
+
+def ler_planilha_precos(dados):
+    """Lê a planilha de preços (relação de produtos das notas) e devolve as linhas com produto, NCM e preço.
+    Aceita abas com 'Preço/kg último' (preço por kg) ou 'Preço unitário último' + 'Unidade'."""
+    from openpyxl import load_workbook
+    livro = load_workbook(io.BytesIO(dados), read_only=True, data_only=True)
+    linhas = []
+    for aba in livro.worksheets:
+        cabecalho, colunas = None, {}
+        for valores in aba.iter_rows(values_only=True):
+            if cabecalho is None:
+                nomes = [str(v or "").strip().lower() for v in valores]
+                if "produto" not in nomes:
+                    continue
+                cabecalho = nomes
+                for i, nome in enumerate(nomes):
+                    if nome == "produto":
+                        colunas["produto"] = i
+                    elif nome == "ncm":
+                        colunas["ncm"] = i
+                    elif nome.startswith("preço/kg último") or nome.startswith("preco/kg ultimo"):
+                        colunas["preco_kg"] = i
+                    elif nome.startswith("preço unitário último") or nome.startswith("preco unitario ultimo"):
+                        colunas["preco_un"] = i
+                    elif nome == "unidade":
+                        colunas["unidade"] = i
+                    elif nome.startswith("data"):
+                        colunas.setdefault("data", i)
+                    elif nome.startswith("fornecedor"):
+                        colunas.setdefault("fornecedor", i)
+                if "preco_kg" not in colunas and "preco_un" not in colunas:
+                    break  # aba sem preço (ex.: detalhe das notas)
+                continue
+
+            def campo(nome):
+                i = colunas.get(nome)
+                return valores[i] if i is not None and i < len(valores) else None
+            produto = str(campo("produto") or "").strip()
+            if not produto:
+                continue
+            ncm = re.sub(r"\D", "", str(campo("ncm") or ""))
+            data = campo("data")
+            data = data.isoformat()[:10] if isinstance(data, date) else str(data or "")[:10]
+            linha = {"produto": produto, "ncm": ncm, "data": data, "fornecedor": str(campo("fornecedor") or "")}
+            try:
+                if "preco_kg" in colunas:
+                    linha.update(preco=float(campo("preco_kg")), por="kg")
+                else:
+                    # UN/UN1 = preço da unidade; FD6, CX12 = pacote com 6, 12 unidades
+                    codigo = str(campo("unidade") or "").strip().upper()
+                    pacote = re.fullmatch(r"([A-Z]+)(\d*)", codigo)
+                    quantas = int(pacote.group(2)) if pacote and pacote.group(2) else (1 if codigo == "UN" else 0)
+                    preco = float(campo("preco_un"))
+                    if quantas:
+                        linha.update(preco=preco / quantas, por="un")
+                    else:
+                        linha.update(preco=preco, por=codigo)
+            except (TypeError, ValueError):
+                linha.update(preco=None, por="")
+            linhas.append(linha)
+    return linhas
+
+
+def preco_na_unidade(linha, unidade):
+    """Preço da planilha na unidade do estoque do insumo (kg, g ou un); None se não dá para converter."""
+    if linha.get("preco") is None:
+        return None
+    if linha["por"] == "kg":
+        por_unidade = converter_fixo(1, unidade, "kg")
+        return linha["preco"] * por_unidade if por_unidade is not None else None
+    if linha["por"] == "un" and unidade == "un":
+        return linha["preco"]
+    return None
+
+
+@bp.route("/insumos/precos", methods=["GET", "POST"])
+def precos_planilha():
+    """Atualiza o custo de referência e o NCM dos insumos a partir da planilha de produtos das notas."""
+    erro = None
+    itens = []
+    if request.method == "POST":
+        arquivo = request.files.get("arquivo")
+        if not arquivo or not arquivo.filename:
+            erro = "Escolha a planilha (.xlsx)."
+        elif not arquivo.filename.lower().endswith((".xlsx", ".xlsm")):
+            erro = "Use a planilha em Excel (.xlsx)."
+        else:
+            try:
+                linhas = ler_planilha_precos(arquivo.read())
+            except Exception:
+                linhas = None
+            if not linhas:
+                erro = "Não encontrei produtos com preço nessa planilha. Ela precisa da coluna Produto e de Preço/kg último ou Preço unitário último."
+            else:
+                from notas import achar_insumo, palavras
+                conn = get_connection()
+                insumos = conn.execute("SELECT * FROM insumos WHERE ativo = 1").fetchall()
+                apelidos = {r["chave"]: r["insumo_id"] for r in conn.execute("SELECT * FROM nota_apelidos")}
+                conn.close()
+                por_insumo = {}
+                for linha in linhas:
+                    insumo_id = achar_insumo(linha["produto"], insumos, apelidos)
+                    if insumo_id:
+                        por_insumo.setdefault(insumo_id, []).append(linha)
+                for insumo in sorted(insumos, key=lambda i: i["nome"].lower()):
+                    candidatos = por_insumo.get(insumo["id"])
+                    if not candidatos:
+                        continue
+                    for c in candidatos:
+                        c["preco_insumo"] = preco_na_unidade(c, insumo["unidade"])
+                    # A compra mais recente primeiro; com preço na unidade do estoque antes das outras
+                    # Primeiro o produto com o nome exato do insumo ("ALHO PORO UN"), depois o que tem preço
+                    # na unidade do estoque, depois o com menos palavras a mais ("ALHO KG" antes de
+                    # "ALHO FRITO 500G") e, por fim, a compra mais recente
+                    nome_insumo = palavras(insumo["nome"])
+                    candidatos.sort(key=lambda c: c["data"], reverse=True)
+                    candidatos.sort(key=lambda c: (bool(palavras(c["produto"]) - nome_insumo),
+                                                   c["preco_insumo"] is None,
+                                                   len(palavras(c["produto"]) - nome_insumo)))
+                    itens.append({"insumo": insumo, "candidatos": candidatos,
+                                  "opcoes": [json.dumps({"preco": c["preco_insumo"], "ncm": c["ncm"]})
+                                             for c in candidatos]})
+                if not itens:
+                    erro = "Nenhum produto da planilha casou com os nomes dos insumos cadastrados."
+    return render_template("insumo_precos.html", erro=erro, itens=itens,
+                           atualizados=request.args.get("atualizados", type=int))
+
+
+@bp.route("/insumos/precos/confirmar", methods=["POST"])
+def confirmar_precos():
+    conn = get_connection()
+    atualizados = 0
+    for chave, valor in request.form.items():
+        if not chave.startswith("escolha_") or not valor:
+            continue
+        try:
+            insumo_id = int(chave[len("escolha_"):])
+            escolha = json.loads(valor)
+        except (ValueError, TypeError):
+            continue
+        campos, valores = [], []
+        if request.form.get("atualizar_preco") and isinstance(escolha.get("preco"), (int, float)):
+            campos.append("custo = ?")
+            valores.append(round(escolha["preco"], 4))
+        ncm = re.sub(r"\D", "", str(escolha.get("ncm") or ""))
+        if request.form.get("atualizar_ncm") and ncm:
+            campos.append("ncm = ?")
+            valores.append(ncm)
+        if campos:
+            conn.execute(f"UPDATE insumos SET {', '.join(campos)} WHERE id = ?", valores + [insumo_id])
+            atualizados += 1
+    conn.commit()
+    conn.close()
+    return redirect(url_for("insumo.precos_planilha", atualizados=atualizados))
 
 
 @bp.route("/insumos/<int:id>/historico")

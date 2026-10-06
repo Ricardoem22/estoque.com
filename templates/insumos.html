@@ -3,7 +3,10 @@
 {% block conteudo %}
 <div class="top-bar">
     <h1>🧾 Insumos</h1>
-    <a class="btn btn-edit" href="{{ url_for('contagem.importar_insumos') }}">📥 Importar de arquivo</a>
+    <div>
+        <a class="btn btn-edit" href="{{ url_for('contagem.importar_insumos') }}">📥 Importar de arquivo</a>
+        <a class="btn btn-edit" href="{{ url_for('insumo.precos_planilha') }}">💲 Preços e NCM por planilha</a>
+    </div>
 </div>
 
 <p class="sub">Toque no nome para abrir a ficha: estoque mínimo, local, código, fornecedor, medidas de compra (saco, peça, fardo) e ativo/inativo.</p>
