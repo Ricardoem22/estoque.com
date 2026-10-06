@@ -1,5 +1,4 @@
 from datetime import timedelta
-import hmac
 import sqlite3
 
 from flask import Flask, render_template, request, redirect, session, url_for
@@ -9,6 +8,8 @@ from contagem import bp as contagem_bp, init_db as init_db_contagem
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
 from compras import bp as compras_bp, init_db as init_db_compras
 from relatorio import bp as relatorio_bp
+from mural import bp as mural_bp, init_db as init_db_mural
+from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -22,14 +23,18 @@ app.register_blueprint(contagem_bp)
 app.register_blueprint(desperdicio_bp)
 app.register_blueprint(compras_bp)
 app.register_blueprint(relatorio_bp)
+app.register_blueprint(funcionarios_bp)
+app.register_blueprint(mural_bp)
 DB_NAME = config.DB_PATH
 
 
 @app.before_request
 def exigir_login():
-    if request.endpoint in ("login", "static") or session.get("logado"):
+    if request.endpoint in ("login", "static", "funcionarios.esqueci_senha"):
         return None
-    return redirect(url_for("login", proximo=request.full_path.rstrip("?")))
+    if not session.get("logado"):
+        return redirect(url_for("login", proximo=request.full_path.rstrip("?")))
+    return conferir_sessao()
 
 
 def destino_seguro(proximo):
@@ -43,42 +48,22 @@ def destino_seguro(proximo):
 def login():
     erro = None
     proximo = request.values.get("proximo", "")
-    if not config.APP_PASSWORD:
-        erro = "Senha de acesso não configurada. Defina a variável APP_PASSWORD no servidor."
-    elif request.method == "POST":
-        senha = request.form.get("senha", "")
-        if hmac.compare_digest(senha.encode(), config.APP_PASSWORD.encode()):
-            session.clear()
-            session.permanent = True
-            session["logado"] = True
+    usuario = request.form.get("usuario", "")
+    if request.method == "POST":
+        erro = autenticar(usuario, request.form.get("senha", ""))
+        if not erro:
+            if session.get("trocar_senha"):
+                return redirect(url_for("funcionarios.trocar_senha"))
             return redirect(destino_seguro(proximo))
-        erro = "Senha incorreta."
-    return render_template("login.html", erro=erro, proximo=proximo)
+    return render_template("login.html", erro=erro, proximo=proximo, usuario=usuario)
 
 
-@app.route("/gerencia", methods=["GET", "POST"])
+@app.route("/gerencia")
 def gerencia():
-    erro = None
-    proximo = request.values.get("proximo", "")
-    nome = request.form.get("nome", "").strip()
-    if not config.GERENCIA_PASSWORD:
-        erro = "Senha da gerência não configurada. Defina a variável GERENCIA_PASSWORD no servidor."
-    elif request.method == "POST":
-        senha = request.form.get("senha", "")
-        if not nome:
-            erro = "Informe seu nome."
-        elif hmac.compare_digest(senha.encode(), config.GERENCIA_PASSWORD.encode()):
-            session["gerente"] = nome
-            return redirect(destino_seguro(proximo or url_for("desperdicio.desperdicio")))
-        else:
-            erro = "Senha da gerência incorreta."
-    return render_template("gerencia.html", erro=erro, proximo=proximo, nome=nome)
-
-
-@app.route("/gerencia/sair")
-def sair_gerencia():
-    session.pop("gerente", None)
-    return redirect(url_for("desperdicio.desperdicio"))
+    # Aprovar desperdício e cadastrar funcionários exige uma conta com perfil Gerência
+    if session.get("gerente"):
+        return redirect(destino_seguro(request.args.get("proximo", "") or url_for("desperdicio.desperdicio")))
+    return render_template("gerencia.html")
 
 
 @app.route("/sair")
@@ -203,6 +188,8 @@ init_db()
 init_db_contagem()
 init_db_desperdicio()
 init_db_compras()
+init_db_funcionarios()
+init_db_mural()
 
 if __name__ == "__main__":
     import os

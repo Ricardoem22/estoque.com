@@ -1,0 +1,58 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Mural{% endblock %}
+{% block conteudo %}
+<h1>💬 Mural da equipe</h1>
+<p class="sub">Conversas, dúvidas e recados. Todo mundo que entra no sistema vê as mensagens.</p>
+
+{% if fixadas %}
+<h2>📌 Recados da gerência</h2>
+<div class="recados">
+    {% for m in fixadas %}{% include "_mensagem.html" %}{% endfor %}
+</div>
+{% endif %}
+
+<h2>Conversa</h2>
+<div class="conversa" id="conversa" data-ultima="{{ mensagens[-1]['id'] if mensagens else 0 }}">
+    {% for m in mensagens %}{% include "_mensagem.html" %}{% endfor %}
+    {% if not mensagens %}<p class="vazio" id="sem-mensagens">Nenhuma mensagem ainda. Escreva a primeira!</p>{% endif %}
+</div>
+<div id="fim"></div>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+<form method="post" class="form-mensagem">
+    <textarea name="texto" id="texto" rows="2" maxlength="{{ maximo }}" required
+              placeholder="Escreva sua mensagem, {{ meu_nome }}...">{{ texto }}</textarea>
+    <div class="form-mensagem-acoes">
+        {% if gerente %}
+        <label class="inline-label"><input type="checkbox" name="fixar" value="1"> 📌 Fixar como recado</label>
+        {% endif %}
+        <button class="btn" type="submit">Enviar</button>
+    </div>
+</form>
+
+<script>
+(function () {
+    var conversa = document.getElementById('conversa');
+    conversa.scrollTop = conversa.scrollHeight;
+
+    // Busca mensagens novas a cada 15 segundos enquanto a página está aberta
+    function buscar() {
+        if (document.hidden) return;
+        fetch('{{ url_for("mural.novas") }}?depois=' + conversa.dataset.ultima, {credentials: 'same-origin'})
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (dados) {
+                if (!dados || !dados.html) return;
+                var vazio = document.getElementById('sem-mensagens');
+                if (vazio) vazio.remove();
+                var noFim = conversa.scrollHeight - conversa.scrollTop - conversa.clientHeight < 80;
+                conversa.insertAdjacentHTML('beforeend', dados.html);
+                conversa.dataset.ultima = dados.ultima;
+                if (noFim) conversa.scrollTop = conversa.scrollHeight;
+            })
+            .catch(function () {});
+    }
+    setInterval(buscar, 15000);
+    document.addEventListener('visibilitychange', buscar);
+})();
+</script>
+{% endblock %}

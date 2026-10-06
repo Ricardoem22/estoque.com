@@ -4,22 +4,29 @@
 {%- elif ep.startswith('compras.') %}{% set aba = 'compras' -%}
 {%- elif ep.startswith('desperdicio.') or ep.startswith('gerencia') %}{% set aba = 'desperdicio' -%}
 {%- elif ep.startswith('relatorio.') %}{% set aba = 'relatorio' -%}
+{%- elif ep.startswith('mural.') %}{% set aba = 'mural' -%}
+{%- elif ep.startswith('funcionarios.') %}{% set aba = 'funcionarios' -%}
 {%- else %}{% set aba = 'produtos' %}{% endif -%}
 <header class="topo">
     <div class="topo-interno">
         <a class="marca" href="{{ url_for('contagem.contagens') }}">
-            <span class="marca-icone">LB</span>
-            <span class="marca-texto"><strong>La Barca</strong><small>Controle de Estoque</small></span>
+            <span class="marca-icone">GF</span>
+            <span class="marca-texto"><strong>Gestor Full de Restaurante</strong><small>La Barca</small></span>
         </a>
-        <a class="sair" href="{{ url_for('sair') }}">Sair</a>
+        <div class="usuario-topo">
+            <a class="usuario-nome" href="{{ url_for('funcionarios.trocar_senha') }}" title="Trocar senha">👤 <span>{{ session.get('nome', '') }}</span></a>
+            <a class="sair" href="{{ url_for('sair') }}">Sair</a>
+        </div>
     </div>
     <nav class="menu">
         <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}>📋 Contagens</a>
+        <a href="{{ url_for('mural.mural') }}" {% if aba == 'mural' %}class="ativo"{% endif %}>💬 Mural</a>
         <a href="{{ url_for('contagem.insumos') }}" {% if aba == 'insumos' %}class="ativo"{% endif %}>🧾 Insumos</a>
         <a href="{{ url_for('compras.compras') }}" {% if aba == 'compras' %}class="ativo"{% endif %}>🛒 Compras</a>
         <a href="{{ url_for('desperdicio.desperdicio') }}" {% if aba == 'desperdicio' %}class="ativo"{% endif %}>🗑️ Desperdício</a>
         <a href="{{ url_for('relatorio.relatorio') }}" {% if aba == 'relatorio' %}class="ativo"{% endif %}>📊 Relatório</a>
         <a href="{{ url_for('index') }}" {% if aba == 'produtos' %}class="ativo"{% endif %}>📦 Produtos</a>
+        {% if session.get('gerente') %}<a href="{{ url_for('funcionarios.cadastro') }}" {% if aba == 'funcionarios' %}class="ativo"{% endif %}>👥 Funcionários</a>{% endif %}
     </nav>
 </header>
 <script>

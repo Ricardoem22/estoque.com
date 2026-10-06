@@ -1,21 +1,12 @@
 {% extends "base_contagem.html" %}
 {% block titulo %}Gerência{% endblock %}
 {% block conteudo %}
-<div class="login-gerencia">
-<h1>🔑 Gerência</h1>
-<p class="sub">Entre com a senha da gerência para aprovar ou recusar os desperdícios.</p>
-
-{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
-
-<form method="post">
-    <input type="hidden" name="proximo" value="{{ proximo }}">
-    <label for="nome">Seu nome</label>
-    <input type="text" id="nome" name="nome" value="{{ nome }}" required autofocus>
-    <label for="senha">Senha da gerência</label>
-    <input type="password" id="senha" name="senha" required autocomplete="current-password">
-    <div class="form-actions">
-        <button class="btn" type="submit">Entrar</button>
-    </div>
-</form>
+<div class="form-estreito">
+<h1>🔑 Só para a gerência</h1>
+<p class="sub">Aprovar desperdícios e cadastrar funcionários exige um usuário com perfil <strong>Gerência</strong>.</p>
+<p class="sub">Se você é da gerência, saia e entre com o seu usuário.</p>
+<div class="form-actions">
+    <a class="btn" href="{{ url_for('sair') }}">Sair e entrar como gerência</a>
+</div>
 </div>
 {% endblock %}

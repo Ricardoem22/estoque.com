@@ -473,3 +473,69 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
     .tabela-contagens td:nth-child(3) { grid-column: 2; grid-row: 2; text-align: right; color: var(--texto-suave); }
     .tabela-contagens td:nth-child(5) { grid-column: 1 / 3; grid-row: 3; margin-top: 6px; }
 }
+
+/* ---------- Funcionários e login ---------- */
+.usuario-topo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.usuario-nome { color: #fff; text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.usuario-nome:hover { text-decoration: underline; }
+.login-link { text-align: center; margin: 16px 0 0; font-size: 14px; }
+.login-link a, .form-estreito a:not(.btn) { color: var(--vermelho); font-weight: 600; }
+.passos { padding-left: 20px; line-height: 1.6; }
+.passos li { margin-bottom: 8px; }
+.form-estreito { max-width: 420px; }
+.senha-nova { background: var(--amarelo-claro); border: 2px solid var(--amarelo); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
+.senha-nova p { margin: 6px 0; }
+.senha-nova code { font-size: 20px; font-weight: 800; background: #fff; padding: 2px 8px; border-radius: 6px; letter-spacing: 1px; }
+.form-funcionario { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.form-funcionario > div { flex: 1; min-width: 160px; }
+.form-funcionario select { width: 100%; }
+.form-funcionario label { margin-top: 0; }
+.form-funcionario .form-actions { flex: none; min-width: 0; margin-top: 0; }
+.tabela-funcionarios tr.inativo td { color: #aaa; }
+@media (max-width: 600px) {
+    .usuario-nome { font-size: 22px; }
+    .usuario-nome span { display: none; }
+    .form-funcionario input, .form-funcionario select { font-size: 16px; }
+    .form-funcionario .form-actions { flex-basis: 100%; }
+    .form-funcionario .form-actions .btn { width: 100%; padding: 12px; }
+    .tabela-funcionarios thead { display: none; }
+    .tabela-funcionarios tr { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; padding: 12px 4px; border-bottom: 1px solid var(--borda); }
+    .tabela-funcionarios td { border: none; padding: 0; }
+    .tabela-funcionarios td:nth-child(1) { grid-column: 1; grid-row: 1; }
+    .tabela-funcionarios td:nth-child(4) { grid-column: 2; grid-row: 1; text-align: right; }
+    .tabela-funcionarios td:nth-child(2) { grid-column: 1; grid-row: 2; }
+    .tabela-funcionarios td:nth-child(3) { grid-column: 2; grid-row: 2; text-align: right; }
+    .tabela-funcionarios td:nth-child(5) { grid-column: 1 / 3; grid-row: 3; }
+}
+
+/* ---------- Mural ---------- */
+.recados { display: flex; flex-direction: column; gap: 8px; }
+.conversa {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 60vh; overflow-y: auto;
+    background: var(--fundo); border-radius: 10px; padding: 12px;
+}
+.msg {
+    align-self: flex-start; max-width: 85%;
+    background: #fff; border: 1px solid var(--borda); border-radius: 12px 12px 12px 4px;
+    padding: 8px 12px;
+}
+.msg.minha { align-self: flex-end; background: var(--amarelo-claro); border-color: var(--amarelo); border-radius: 12px 12px 4px 12px; }
+.recados .msg { align-self: stretch; max-width: none; border-left: 4px solid var(--vermelho); border-radius: 8px; background: #fff; }
+.msg-topo { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.msg-hora { color: var(--texto-suave); font-size: 12px; }
+.msg-texto { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 2px; }
+.msg-acoes { display: flex; gap: 12px; margin-top: 4px; }
+.link-botao { background: none; border: none; padding: 0; color: var(--texto-suave); font-size: 12px; font-weight: 600; cursor: pointer; }
+.link-botao:hover { color: var(--texto); text-decoration: underline; }
+.link-botao.apagar:hover { color: var(--vermelho); }
+.form-mensagem { margin-top: 12px; }
+.form-mensagem textarea { resize: vertical; }
+.form-mensagem-acoes { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.form-mensagem-acoes .inline-label { font-weight: 600; font-size: 14px; margin-right: auto; }
+@media (max-width: 600px) {
+    .conversa { max-height: 55vh; padding: 8px; }
+    .msg { max-width: 92%; }
+    .form-mensagem textarea { font-size: 16px; }
+    .form-mensagem-acoes .btn { flex: 1; padding: 12px; }
+}
