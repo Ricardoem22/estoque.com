@@ -47,7 +47,13 @@
     <tr>
         <td><strong>{{ l.nome }}</strong>{% if l.nome_pedido|lower != l.nome|lower %}<br><span class="sub">no pedido: {{ l.nome_pedido }}</span>{% endif %}</td>
         <td>{{ l.pedido|round(2)|qtd }} {{ l.unidade_pedido }}</td>
-        <td>{% if l.estoque is none %}—{% else %}{{ l.estoque|round(2)|qtd }} {{ l.unidade }}{% endif %}</td>
+        <td class="col-estoque">
+            {% if l.estoque is none %}<span class="sub">sem contagem</span>
+            {% else %}
+            <strong class="{% if l.estoque <= 0 %}estoque-zerado{% endif %}">{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</strong>
+            {% if l.ultima_contagem %}<br><span class="sub">contagem de {{ l.ultima_contagem|data_br }}</span>{% endif %}
+            {% endif %}
+        </td>
         <td>{% if l.consumo is none %}—{% else %}{{ l.sugestao|qtd }} {{ l.unidade }}{% endif %}</td>
         <td>
             {% if l.situacao == 'ok' %}<span class="tag tag-ok">Compra necessária</span>
@@ -62,7 +68,8 @@
     {% endfor %}
     </tbody>
 </table>
-<p class="sub">Sugestão = consumo médio por semana × período escolhido − estoque atual. "Compra necessária" aceita até 30% de diferença.</p>
+<p class="sub">Estoque = última contagem finalizada + compras lançadas − desperdício aprovado desde então.
+    Sugestão = consumo médio por semana × período escolhido − estoque atual. "Compra necessária" aceita até 30% de diferença.</p>
 
 {% if resultado.faltou_pedir %}
 <h2>⚠️ Faltou pedir <span class="sub">({{ resultado.faltou_pedir|length }})</span></h2>
@@ -79,7 +86,19 @@
 
 {% if resultado.nao_encontrados %}
 <h2>Não encontrados no app <span class="sub">({{ resultado.nao_encontrados|length }})</span></h2>
-<p class="sem-dados">{% for i in resultado.nao_encontrados %}{{ i.nome }} ({{ i.quantidade|qtd }}{% if i.unidade %} {{ i.unidade }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+<p class="sub">Não são insumos da contagem. Quando estão cadastrados na aba Produtos, aparece o estoque de lá.</p>
+<table class="tabela-faltou">
+    <thead><tr><th>Item do pedido</th><th>Pedido</th><th>Estoque (Produtos)</th></tr></thead>
+    <tbody>
+    {% for i in resultado.nao_encontrados %}
+    <tr>
+        <td>{{ i.nome }}{% if i.produto and i.produto['nome']|lower != i.nome|lower %}<br><span class="sub">produto: {{ i.produto['nome'] }}</span>{% endif %}</td>
+        <td>{{ i.quantidade|qtd }}{% if i.unidade %} {{ i.unidade }}{% endif %}</td>
+        <td>{% if i.produto %}<strong class="{% if (i.produto['quantidade'] or 0) <= 0 %}estoque-zerado{% endif %}">{{ (i.produto['quantidade'] or 0)|round(2)|qtd }} {{ i.produto['unidade'] }}</strong>{% else %}<span class="sub">não cadastrado</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
 {% endif %}
 {% endif %}
 {% endblock %}

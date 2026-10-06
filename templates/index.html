@@ -11,12 +11,17 @@
     <div class="container">
         <h1>📦 Produtos em Estoque</h1>
 
+        {% if request.args.get('novos') is not none %}
+        <div class="sucesso">Nota importada: {{ request.args.get('novos') }} produto(s) novo(s) e {{ request.args.get('atualizados', 0) }} atualizado(s).</div>
+        {% endif %}
+
         <div class="top-bar">
             <form class="busca" method="get" action="{{ url_for('index') }}">
-                <input type="text" name="busca" placeholder="Buscar produto..." value="{{ busca }}">
+                <input type="text" name="busca" placeholder="Buscar por nome, NCM ou código..." value="{{ busca }}">
                 <button class="btn" type="submit">Buscar</button>
             </form>
             <a class="btn btn-edit" href="{{ url_for('contagem.contagens') }}">📋 Contagem de Estoque</a>
+            <a class="btn btn-edit" href="{{ url_for('produtos_nota.importar_nota') }}">📄 Importar da nota fiscal</a>
             <a class="btn" href="{{ url_for('adicionar') }}">+ Adicionar Produto</a>
         </div>
 
@@ -25,6 +30,7 @@
             <thead>
                 <tr>
                     <th>Nome</th>
+                    <th class="col-ncm">NCM</th>
                     <th>Quantidade</th>
                     <th>Preço</th>
                     <th>Ações</th>
@@ -33,9 +39,16 @@
             <tbody>
                 {% for produto in produtos %}
                 <tr>
-                    <td>{{ produto['nome'] }}</td>
-                    <td>{{ produto['quantidade'] }}</td>
-                    <td>R$ {{ "%.2f"|format(produto['preco']) }}</td>
+                    <td>
+                        {{ produto['nome'] }}
+                        {% if produto['ncm'] %}<br><span class="sub so-celular">NCM {{ produto['ncm']|ncm }}</span>{% endif %}
+                        {% if produto['codigo'] or produto['fornecedor'] %}
+                        <br><span class="sub">{% if produto['codigo'] %}cód. {{ produto['codigo'] }}{% endif %}{% if produto['codigo'] and produto['fornecedor'] %} · {% endif %}{{ produto['fornecedor'] }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-ncm">{{ produto['ncm']|ncm or '—' }}</td>
+                    <td>{{ produto['quantidade']|qtd }} {{ produto['unidade'] }}</td>
+                    <td>{{ produto['preco']|brl }}{% if produto['unidade'] %}<span class="sub">/{{ produto['unidade'] }}</span>{% endif %}</td>
                     <td class="acoes">
                         <a class="btn btn-edit" href="{{ url_for('editar', id=produto['id']) }}">Editar</a>
                         <a class="btn btn-delete" href="{{ url_for('excluir', id=produto['id']) }}"

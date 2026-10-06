@@ -394,22 +394,33 @@ def valor_estoque():
 
 # ---------- Conferir pedido de compra ----------
 
-def montar_conferencia(itens, linhas_app):
+def estoque_produtos():
+    """Produtos da aba Produtos, para mostrar o estoque de itens que não são insumos da contagem."""
+    conn = get_connection()
+    produtos = [dict(p) for p in conn.execute("SELECT id, nome, quantidade, unidade FROM produtos")]
+    conn.close()
+    return produtos
+
+
+def montar_conferencia(itens, linhas_app, produtos=()):
     """Compara cada item do pedido com a sugestão de compra do relatório."""
     from notas import achar_insumo
     por_id = {l["id"]: l for l in linhas_app}
+    produto_por_id = {p["id"]: p for p in produtos}
     resultado = {"linhas": [], "nao_encontrados": [], "faltou_pedir": []}
     usados = set()
     for item in itens:
         insumo_id = achar_insumo(item["nome"], linhas_app, {})
         app = por_id.get(insumo_id)
         if app is None:
-            resultado["nao_encontrados"].append(item)
+            produto = produto_por_id.get(achar_insumo(item["nome"], produtos, {}))
+            resultado["nao_encontrados"].append({**item, "produto": produto})
             continue
         usados.add(app["id"])
         unidade_pedido = item["unidade"] or app["unidade"]
         linha = {"nome": app["nome"], "nome_pedido": item["nome"], "pedido": item["quantidade"],
                  "unidade_pedido": unidade_pedido, "unidade": app["unidade"], "estoque": app["estoque"],
+                 "ultima_contagem": app["ultima_contagem"],
                  "consumo": app["consumo_semanal"], "sugestao": app["sugestao"], "dias": app["dias_cobertura"]}
         convertido = converter(item["quantidade"], unidade_pedido, app["unidade"])
         if app["estoque"] is None:
@@ -471,7 +482,7 @@ def conferir_pedido():
                     erro = ("Não encontrei itens com quantidade no pedido. Use uma linha por item, por exemplo "
                             "\"Bacon 2 kg\". Foto de papel escrito à mão não dá para ler.")
                 else:
-                    resultado = montar_conferencia(itens, app)
+                    resultado = montar_conferencia(itens, app, estoque_produtos())
         except ValueError as e:
             erro = str(e)
         except Exception:

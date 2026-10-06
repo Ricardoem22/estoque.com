@@ -1,7 +1,8 @@
 # notas.py
 # Lê notas fiscais de compra: XML da NF-e (o mais confiável), PDF da DANFE
 # (quando o PDF tem texto) e planilhas Excel/CSV. Devolve fornecedor, data,
-# número/chave e os itens com quantidade, unidade e valor.
+# número/chave e os itens com quantidade, unidade, valor e, quando a nota
+# traz, NCM, código de barras (EAN) e CFOP.
 import re
 import xml.etree.ElementTree as ET
 
@@ -12,7 +13,26 @@ PALAVRAS_IGNORADAS = {"de", "da", "do", "das", "dos", "e", "com", "em", "a", "o"
 
 
 def nota_vazia():
-    return {"fornecedor": "", "data": "", "numero": "", "chave": "", "itens": []}
+    return {"fornecedor": "", "cnpj": "", "data": "", "numero": "", "chave": "", "itens": []}
+
+
+def so_digitos(texto):
+    return re.sub(r"\D", "", texto or "")
+
+
+def item_nota(nome, quantidade, unidade_nota, valor_total, codigo="", ncm="", ean="", cfop="", unitario=None):
+    # Sem o unitário da nota, ele sai do total (já com desconto), que é o que foi pago de fato
+    if unitario is None and valor_total is not None and quantidade:
+        unitario = round(valor_total / quantidade, 4)
+    ean = so_digitos(ean)
+    ncm = so_digitos(ncm)
+    return {
+        "nome": nome, "codigo": codigo, "quantidade": quantidade, "unidade_nota": unidade_nota,
+        "valor_total": valor_total, "valor_unitario": unitario,
+        "ncm": ncm if len(ncm) == 8 else "",
+        "ean": ean if len(ean) in (8, 12, 13, 14) else "",  # "SEM GTIN" e vazios ficam de fora
+        "cfop": so_digitos(cfop)[:4],
+    }
 
 
 def ler_nota(nome_arquivo, dados):
@@ -59,6 +79,7 @@ def ler_xml(dados):
     nota["data"] = data[:10]
     emitente = achar(inf, "emit")
     nota["fornecedor"] = texto(emitente, "xFant") or texto(emitente, "xNome")
+    nota["cnpj"] = texto(emitente, "CNPJ") or texto(emitente, "CPF")
     for det in inf.iter():
         if det.tag.rsplit("}", 1)[-1] != "det":
             continue
@@ -68,11 +89,14 @@ def ler_xml(dados):
         desconto = parse_numero(texto(prod, "vDesc").replace(".", ",")) or 0
         if not quantidade:
             continue
-        nota["itens"].append({
-            "nome": texto(prod, "xProd"), "codigo": texto(prod, "cProd"),
-            "quantidade": quantidade, "unidade_nota": texto(prod, "uCom"),
-            "valor_total": round(valor - desconto, 2) if valor is not None else None,
-        })
+        # Com desconto no item, o unitário é recalculado pelo valor pago
+        unitario = None if desconto else parse_numero(texto(prod, "vUnCom").replace(".", ","))
+        nota["itens"].append(item_nota(
+            texto(prod, "xProd"), quantidade, texto(prod, "uCom"),
+            round(valor - desconto, 2) if valor is not None else None,
+            codigo=texto(prod, "cProd"), ncm=texto(prod, "NCM"), ean=texto(prod, "cEAN"), cfop=texto(prod, "CFOP"),
+            unitario=round(unitario, 4) if unitario is not None else None,
+        ))
     return nota
 
 
@@ -109,11 +133,10 @@ def ler_danfe(dados):
         quantidade = parse_numero(m.group("qtd"))
         if not quantidade:
             continue
-        nota["itens"].append({
-            "nome": m.group("nome").strip(), "codigo": m.group("codigo") or "",
-            "quantidade": quantidade, "unidade_nota": m.group("un"),
-            "valor_total": parse_numero(m.group("total")),
-        })
+        nota["itens"].append(item_nota(
+            m.group("nome").strip(), quantidade, m.group("un"), parse_numero(m.group("total")),
+            codigo=m.group("codigo") or "", ncm=m.group("ncm"), cfop=m.group("cfop"),
+        ))
     if not nota["itens"]:
         raise ValueError("Não encontrei os itens nesse PDF. Use o XML da nota (o fornecedor manda por e-mail "
                          "ou dá para baixar no site da Sefaz com a chave de acesso).")
@@ -128,6 +151,10 @@ COLUNAS = {
     "unidade": ["unidade", "un", "und", "unid", "ucom", "medida"],
     "valor_total": ["total", "vprod", "subtotal"],
     "valor_unitario": ["unitario", "vuncom", "unit", "preco"],
+    "ncm": ["ncm"],
+    # EAN antes de código: "Cód. barras" é EAN, não código do fornecedor
+    "ean": ["ean", "gtin", "barras", "cean"],
+    "codigo": ["codigo", "cod", "cprod", "sku"],
 }
 
 
@@ -165,10 +192,11 @@ def ler_planilha(linhas):
         if total is None:
             unitario = parse_numero(str(celula(linha, "valor_unitario")).replace("R$", ""))
             total = round(unitario * quantidade, 2) if unitario is not None else None
-        nota["itens"].append({
-            "nome": nome, "codigo": "", "quantidade": quantidade,
-            "unidade_nota": str(celula(linha, "unidade")).strip(), "valor_total": total,
-        })
+        nota["itens"].append(item_nota(
+            nome, quantidade, str(celula(linha, "unidade")).strip(), total,
+            codigo=str(celula(linha, "codigo")).strip(), ncm=str(celula(linha, "ncm")),
+            ean=str(celula(linha, "ean")),
+        ))
     return nota
 
 

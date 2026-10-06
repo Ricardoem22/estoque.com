@@ -1,0 +1,116 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Produtos pela nota fiscal{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>📄 Produtos pela nota fiscal</h1>
+    <a class="btn btn-edit" href="{{ url_for('index') }}">← Produtos</a>
+</div>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+{% if not nota %}
+<p class="sub">Anexe a nota de compra e o sistema cadastra os produtos com NCM, código, código de barras, unidade e valor.
+    Antes de salvar você confere tudo.</p>
+<form method="post" enctype="multipart/form-data" class="form-desperdicio">
+    <label for="arquivo">Arquivo da nota ({{ extensoes }})</label>
+    <input type="file" id="arquivo" name="arquivo" accept="{{ extensoes }}" required>
+    <div class="form-actions"><button class="btn btn-grande" type="submit">Ler a nota</button></div>
+</form>
+<div class="aviso">
+    <strong>Qual arquivo usar?</strong><br>
+    1. <strong>XML da nota</strong> (o melhor): traz NCM, código de barras e valores exatos. O fornecedor manda por e-mail junto com o PDF.<br>
+    2. <strong>PDF da DANFE</strong>: funciona quando o PDF tem texto. Traz NCM, mas não o código de barras. Foto ou nota escaneada não dá para ler.<br>
+    3. <strong>Planilha</strong> (Excel ou CSV) com as colunas Produto, Quantidade, Valor e, se tiver, NCM.
+</div>
+{% else %}
+{% if ja_importada %}
+<div class="aviso">⚠️ Esta nota já foi importada nos produtos em {{ ja_importada['importada_em'][:10]|data_br }}.
+    Se marcar "somar ao estoque", as quantidades entram duas vezes.</div>
+{% endif %}
+<p class="sub">Confira cada item. Ele é ligado a um produto já cadastrado (pelo código de barras, código do fornecedor
+    ou nome) ou cadastrado como produto novo. Desmarque o que não quiser importar.</p>
+
+<form method="post" action="{{ url_for('produtos_nota.confirmar_nota') }}">
+    <input type="hidden" name="total" value="{{ nota.itens|length }}">
+    <input type="hidden" name="chave" value="{{ nota.chave }}">
+    <input type="hidden" name="numero" value="{{ nota.numero }}">
+    <input type="hidden" name="data" value="{{ nota.data }}">
+    <div class="linha-nota">
+        <div>
+            <label for="fornecedor">Fornecedor</label>
+            <input type="text" id="fornecedor" name="fornecedor" value="{{ nota.fornecedor }}">
+            {% if nota.cnpj %}<span class="sub">CNPJ {{ nota.cnpj }}</span>{% endif %}
+        </div>
+        {% if nota.numero %}<div><label>Nota nº</label><p class="nota-numero">{{ nota.numero }}{% if nota.data %} · {{ nota.data|data_br }}{% endif %}</p></div>{% endif %}
+    </div>
+    <div class="opcoes-nota">
+        <label><input type="checkbox" name="somar_estoque" value="1" checked> Somar as quantidades ao estoque</label>
+        <label><input type="checkbox" name="atualizar_preco" value="1" checked> Atualizar o preço com o valor da nota</label>
+    </div>
+
+    <table class="tabela-nota tabela-produtos-nota">
+        <thead><tr><th></th><th>Item da nota</th><th>Produto no sistema</th><th>NCM</th><th>Qtd.</th><th>Un.</th><th>Valor unit. (R$)</th></tr></thead>
+        <tbody>
+        {% for item in nota.itens %}
+        {% set i = loop.index0 %}
+        <tr class="{% if not item.produto_id %}sem-ligacao{% endif %}">
+            <td><input type="checkbox" name="incluir_{{ i }}" value="1" checked aria-label="Importar {{ item.nome }}"></td>
+            <td>
+                <strong>{{ item.nome }}</strong>
+                <input type="hidden" name="nome_{{ i }}" value="{{ item.nome }}">
+                <input type="hidden" name="codigo_{{ i }}" value="{{ item.codigo }}">
+                <input type="hidden" name="ean_{{ i }}" value="{{ item.ean }}">
+                <br><span class="sub">
+                    {% if item.codigo %}cód. {{ item.codigo }}{% endif %}
+                    {% if item.ean %} · EAN {{ item.ean }}{% endif %}
+                    {% if item.cfop %} · CFOP {{ item.cfop }}{% endif %}
+                    {% if item.valor_total is not none %} · total {{ item.valor_total|brl }}{% endif %}
+                </span>
+            </td>
+            <td>
+                <select name="produto_{{ i }}" class="escolha-produto" data-linha="{{ i }}">
+                    <option value="novo" {% if not item.produto_id %}selected{% endif %}>➕ Cadastrar como produto novo</option>
+                    {% for p in produtos %}
+                    <option value="{{ p['id'] }}" {% if p['id'] == item.produto_id %}selected{% endif %}>{{ p['nome'] }}</option>
+                    {% endfor %}
+                </select>
+                <div class="novo-insumo" id="novo_{{ i }}" hidden>
+                    <input type="text" name="novo_nome_{{ i }}" value="{{ item.nome|title }}" aria-label="Nome do produto novo">
+                </div>
+            </td>
+            <td><input type="text" name="ncm_{{ i }}" value="{{ item.ncm|ncm }}" inputmode="numeric" class="ncm" placeholder="0000.00.00" aria-label="NCM"></td>
+            <td><input type="text" name="qtd_{{ i }}" value="{{ item.quantidade|qtd }}" inputmode="decimal" class="qtd" aria-label="Quantidade"></td>
+            <td><input type="text" name="unidade_{{ i }}" value="{{ item.unidade }}" list="lista-unidades" class="un" aria-label="Unidade"></td>
+            <td><input type="text" name="valor_{{ i }}" value="{{ numero_br(item.valor_unitario, 4) }}" inputmode="decimal" class="valor" aria-label="Valor unitário"></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <datalist id="lista-unidades">{% for u in unidades %}<option value="{{ u }}">{% endfor %}</datalist>
+
+    <div class="barra-acoes">
+        <a class="btn btn-edit" href="{{ url_for('produtos_nota.importar_nota') }}">Outra nota</a>
+        <button class="btn" type="submit">✅ Importar <span id="qtd-marcados"></span> itens</button>
+    </div>
+</form>
+
+<script>
+(function () {
+    function contar() {
+        document.getElementById('qtd-marcados').textContent =
+            document.querySelectorAll('.tabela-nota input[type=checkbox]:checked').length;
+    }
+    document.querySelectorAll('.escolha-produto').forEach(function (sel) {
+        function atualizar() {
+            document.getElementById('novo_' + sel.dataset.linha).hidden = sel.value !== 'novo';
+            sel.closest('tr').classList.toggle('sem-ligacao', sel.value === 'novo');
+        }
+        sel.addEventListener('change', atualizar);
+        atualizar();
+    });
+    document.querySelectorAll('.tabela-nota input[type=checkbox]').forEach(function (c) { c.addEventListener('change', contar); });
+    contar();
+})();
+</script>
+{% endif %}
+{% endblock %}
