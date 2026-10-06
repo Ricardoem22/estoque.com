@@ -539,3 +539,27 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
     .form-mensagem textarea { font-size: 16px; }
     .form-mensagem-acoes .btn { flex: 1; padding: 12px; }
 }
+
+/* ---------- Valor do estoque ---------- */
+.valor-total {
+    display: flex; flex-direction: column; gap: 2px;
+    background: var(--vermelho); color: #fff; border-radius: 12px;
+    padding: 16px 20px; margin: 16px 0 8px; border-bottom: 5px solid var(--amarelo);
+}
+.valor-total span { font-size: 14px; font-weight: 600; opacity: 0.9; }
+.valor-total strong { font-size: 34px; font-weight: 800; color: var(--amarelo); }
+.valor-total small { font-size: 13px; opacity: 0.9; }
+.barra-pct { display: inline-block; width: 70px; height: 8px; background: var(--amarelo-claro); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 6px; }
+.barra-pct span { display: block; height: 100%; background: var(--vermelho); }
+.tabela-categorias a { color: var(--texto); font-weight: 600; }
+.tabela-categorias strong, .tabela-valor strong { white-space: nowrap; }
+.dica { margin: 4px 0 0; font-size: 13px; }
+@media (max-width: 600px) {
+    .valor-total strong { font-size: 28px; }
+    .barra-pct { display: none; }
+    .tabela-compras th:nth-child(5), .tabela-compras td:nth-child(5) { display: none; }
+}
+@media print {
+    .valor-total { background: #fff; color: var(--texto); border: 2px solid var(--texto); }
+    .valor-total strong { color: var(--texto); }
+}

@@ -318,3 +318,63 @@ def semanas_csv():
     nome = f"saida_{inicio['data']}_a_{fim['data']}.csv"
     return Response("\ufeff" + saida.getvalue(), mimetype="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f"attachment; filename={nome}"})
+
+
+# ---------- Valor do estoque ----------
+
+def calcular_valor_estoque():
+    """Estoque atual de cada insumo × último preço pago (valor da nota ÷ quantidade)."""
+    linhas = calcular_linhas()
+    conn = get_connection()
+    compras_com_valor = conn.execute("""
+        SELECT insumo_id, quantidade, unidade, valor_total, data FROM compras
+        WHERE valor_total IS NOT NULL AND quantidade > 0
+        ORDER BY data DESC, id DESC
+    """).fetchall()
+    conn.close()
+    por_insumo = {}
+    for compra in compras_com_valor:
+        por_insumo.setdefault(compra["insumo_id"], []).append(compra)
+
+    com_preco, sem_preco = [], []
+    sem_contagem = 0
+    for linha in linhas:
+        if linha["estoque"] is None:
+            sem_contagem += 1
+            continue
+        if linha["estoque"] <= 0:
+            continue
+        compras = por_insumo.get(linha["id"], [])
+        # Último preço numa unidade que dá para converter para a do estoque
+        preco = None
+        for compra in compras:
+            fator = converter(1, compra["unidade"], linha["unidade"])
+            if fator:
+                preco = compra["valor_total"] / compra["quantidade"] / fator
+                linha["preco_data"] = compra["data"]
+                break
+        if preco is None:
+            linha["motivo"] = ("compra registrada em outra unidade" if compras
+                               else "nenhuma compra com valor registrado")
+            sem_preco.append(linha)
+            continue
+        linha["preco"] = preco
+        linha["valor"] = preco * linha["estoque"]
+        com_preco.append(linha)
+
+    categorias = []
+    for categoria, itens in agrupar_por_categoria(com_preco):
+        itens = sorted(itens, key=lambda l: -l["valor"])
+        categorias.append({"nome": categoria, "itens": itens, "total": sum(l["valor"] for l in itens)})
+    return {
+        "categorias": categorias,
+        "total": sum(c["total"] for c in categorias),
+        "sem_preco": sorted(sem_preco, key=lambda l: sem_acento(l["nome"])),
+        "sem_contagem": sem_contagem,
+        "com_preco": len(com_preco),
+    }
+
+
+@bp.route("/relatorio/valor")
+def valor_estoque():
+    return render_template("valor_estoque.html", **calcular_valor_estoque())
