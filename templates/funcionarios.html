@@ -96,4 +96,8 @@
 {% else %}
 <p class="vazio">Nenhum funcionário cadastrado ainda. Comece cadastrando você mesmo com o perfil Gerência.</p>
 {% endif %}
+
+<h2>Recomeçar do zero</h2>
+<p class="sub">Apaga contagens, compras, desperdícios e movimentações, mantendo insumos e funcionários. Pede a senha da gerência.</p>
+<a class="btn btn-delete" href="{{ url_for('funcionarios.cadastro_zerar') }}">⚠️ Zerar lançamentos</a>
 {% endblock %}

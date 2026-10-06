@@ -2,6 +2,7 @@
 # Contas individuais dos funcionários: login, cadastro pela gerência,
 # senha temporária ("esqueci a senha") e troca de senha.
 import hmac
+import os
 import re
 import secrets
 import sqlite3
@@ -368,3 +369,58 @@ def cadastro_acao(id, acao):
             form={}, nova_senha=nova_senha, eu=session.get("funcionario_id"),
         )
     return redirect(url_for("funcionarios.cadastro"))
+
+
+# ---------- Zerar lançamentos (só gerência, com senha) ----------
+
+# Tabelas dos lançamentos. Insumos, medidas, funcionários e mural ficam.
+TABELAS_LANCAMENTOS = ["contagem_itens", "contagens", "compras", "desperdicios", "movimentacoes"]
+
+
+def senha_da_gerencia_confere(senha):
+    """A senha de quem está logado (gerente) ou a senha da gerência do servidor."""
+    if senha_confere(senha, config.GERENCIA_PASSWORD):
+        return True
+    funcionario_id = session.get("funcionario_id")
+    if not funcionario_id or not senha:
+        return False
+    conn = get_connection()
+    funcionario = conn.execute("SELECT senha_hash FROM funcionarios WHERE id = ?", (funcionario_id,)).fetchone()
+    conn.close()
+    return bool(funcionario) and check_password_hash(funcionario["senha_hash"], senha)
+
+
+def copiar_banco():
+    """Guarda uma cópia do banco na pasta copias/ (ao lado do banco) e devolve o nome do arquivo."""
+    pasta = os.path.join(os.path.dirname(os.path.abspath(config.DB_PATH)), "copias")
+    os.makedirs(pasta, exist_ok=True)
+    nome = f"estoque-antes-de-zerar-{config.agora().strftime('%Y-%m-%d-%H%M%S')}.db"
+    origem = get_connection()
+    destino = sqlite3.connect(os.path.join(pasta, nome))
+    origem.backup(destino)
+    destino.close()
+    origem.close()
+    return nome
+
+
+@bp.route("/funcionarios/zerar", methods=["GET", "POST"], endpoint="cadastro_zerar")
+def zerar():
+    erro = None
+    conn = get_connection()
+    totais = {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in TABELAS_LANCAMENTOS}
+    conn.close()
+    if request.method == "POST":
+        if request.form.get("confirmar") != "ZERAR":
+            erro = "Digite ZERAR (em maiúsculas) para confirmar."
+        elif not senha_da_gerencia_confere(request.form.get("senha", "")):
+            time.sleep(1)  # atrasa quem tenta adivinhar a senha
+            erro = "Senha da gerência incorreta."
+        else:
+            copia = copiar_banco()
+            conn = get_connection()
+            for tabela in TABELAS_LANCAMENTOS:
+                conn.execute(f"DELETE FROM {tabela}")
+            conn.commit()
+            conn.close()
+            return render_template("zerar.html", feito=True, copia=copia)
+    return render_template("zerar.html", erro=erro, totais=totais)

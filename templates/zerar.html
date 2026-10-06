@@ -1,0 +1,38 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Zerar lançamentos{% endblock %}
+{% block conteudo %}
+<h1>⚠️ Zerar lançamentos</h1>
+{% if feito %}
+<div class="sucesso">Pronto, os lançamentos foram apagados. Uma cópia de tudo como estava antes ficou guardada em
+    <strong>copias/{{ copia }}</strong>.</div>
+<p>Comece pela contagem: a primeira contagem finalizada vira o seu estoque inicial, e as compras lançadas depois somam em cima dela.</p>
+<div class="form-actions">
+    <a class="btn" href="{{ url_for('contagem.contagens') }}">📋 Fazer a contagem</a>
+</div>
+{% else %}
+<p class="sub">Use para recomeçar do zero. Isto apaga:</p>
+<ul>
+    <li>{{ totais['contagens'] }} contage{{ 'ns' if totais['contagens'] != 1 else 'm' }}</li>
+    <li>{{ totais['compras'] }} compra{{ 's' if totais['compras'] != 1 }}</li>
+    <li>{{ totais['desperdicios'] }} desperdício{{ 's' if totais['desperdicios'] != 1 }}</li>
+    <li>{{ totais['movimentacoes'] }} movimentaç{{ 'ões' if totais['movimentacoes'] != 1 else 'ão' }} (saídas, devoluções, ajustes)</li>
+</ul>
+<p class="sub">Continuam: a lista de insumos com as medidas, os funcionários e o mural. Antes de apagar, o app guarda uma
+    cópia de tudo na pasta <strong>copias</strong>, no PythonAnywhere.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+<form method="post" class="form-desperdicio" onsubmit="return confirm('Apagar todos os lançamentos? Não dá para desfazer pelo app.')">
+    <label for="senha">Senha da gerência</label>
+    <input type="password" id="senha" name="senha" required autocomplete="current-password">
+    <p class="sub dica">Sua senha de login, ou a senha da gerência do servidor.</p>
+
+    <label for="confirmar">Para confirmar, digite ZERAR</label>
+    <input type="text" id="confirmar" name="confirmar" required autocomplete="off" autocapitalize="characters">
+
+    <div class="form-actions">
+        <button class="btn btn-delete" type="submit">Zerar lançamentos</button>
+        <a class="btn btn-edit" href="{{ url_for('funcionarios.cadastro') }}">Cancelar</a>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
