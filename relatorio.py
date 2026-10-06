@@ -4,12 +4,14 @@
 # Consumo entre duas contagens = estoque anterior + compras no período - estoque atual.
 # Usa só contagens finalizadas e as últimas MAX_INTERVALOS semanas de cada insumo.
 # Estoque atual = última contagem + compras depois dela - desperdício aprovado depois dela.
+import csv
+import io
 import math
 from datetime import date
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, Response, render_template, request
 
-from contagem import agrupar_por_categoria, get_connection
+from contagem import agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection
 from importador import chave_nome, extrair_itens, ler_arquivo, ler_texto, sem_acento
 
 bp = Blueprint("relatorio", __name__)
@@ -218,3 +220,101 @@ def montar_comparacao(itens, linhas_app):
         (l["nome"] for l in linhas_app if l["id"] not in usados and l["estoque"]), key=sem_acento)
     resultado["divergentes"] = sum(1 for l in resultado["linhas"] if l["situacao"] in ("falta", "sobra"))
     return resultado
+
+
+# ---------- Saída por semana (entre duas contagens) ----------
+
+def contagens_finalizadas(conn):
+    return conn.execute("SELECT * FROM contagens WHERE finalizada = 1 ORDER BY data, id").fetchall()
+
+
+def escolher_periodo(contagens):
+    """Contagens de início e fim pedidas na URL; por padrão, as duas últimas."""
+    por_id = {c["id"]: c for c in contagens}
+    inicio = por_id.get(request.args.get("inicio", type=int))
+    fim = por_id.get(request.args.get("fim", type=int))
+    if not (inicio and fim) and len(contagens) >= 2:
+        inicio, fim = contagens[-2], contagens[-1]
+    if inicio and fim and (inicio["data"], inicio["id"]) > (fim["data"], fim["id"]):
+        inicio, fim = fim, inicio
+    return inicio, fim
+
+
+def calcular_saida(conn, inicio, fim):
+    """Saída de cada insumo = contagem inicial + compras - contagem final.
+    Vendido/usado = saída - desperdício aprovado no período."""
+    def quantidades(contagem_id):
+        return {r["insumo_id"]: r for r in conn.execute(
+            "SELECT insumo_id, quantidade, unidade FROM contagem_itens WHERE contagem_id = ? AND quantidade IS NOT NULL",
+            (contagem_id,))}
+
+    def movimentos(sql):
+        totais = {}
+        for r in conn.execute(sql, (inicio["data"], fim["data"])):
+            chave = (r["insumo_id"], r["unidade"])
+            totais[chave] = totais.get(chave, 0) + r["quantidade"]
+        return totais
+
+    ini, fin = quantidades(inicio["id"]), quantidades(fim["id"])
+    compras = movimentos("SELECT insumo_id, quantidade, unidade FROM compras WHERE data >= ? AND data < ?")
+    perdas = movimentos("""SELECT insumo_id, quantidade, unidade FROM desperdicios
+                           WHERE status = 'aprovado' AND data >= ? AND data < ?""")
+    linhas, incompletos = [], []
+    for insumo in conn.execute("SELECT * FROM insumos"):
+        a, b = ini.get(insumo["id"]), fin.get(insumo["id"])
+        if not a and not b:
+            continue
+        if not a or not b or a["unidade"] != b["unidade"]:
+            incompletos.append(insumo["nome"])
+            continue
+        unidade = b["unidade"]
+        entrada = compras.get((insumo["id"], unidade), 0)
+        perda = perdas.get((insumo["id"], unidade), 0)
+        saida = round(a["quantidade"] + entrada - b["quantidade"], 3)
+        linhas.append({
+            "nome": insumo["nome"], "categoria": insumo["categoria"], "unidade": unidade,
+            "inicio": a["quantidade"], "compras": entrada, "desperdicio": perda, "final": b["quantidade"],
+            "saida": saida, "vendido": round(saida - perda, 3), "inconsistente": saida < 0,
+        })
+    return linhas, sorted(incompletos, key=sem_acento)
+
+
+@bp.route("/relatorio/semanas")
+def semanas():
+    conn = get_connection()
+    contagens = contagens_finalizadas(conn)
+    inicio, fim = escolher_periodo(contagens)
+    linhas, incompletos = calcular_saida(conn, inicio, fim) if inicio and fim and inicio["id"] != fim["id"] else ([], [])
+    conn.close()
+    pares = list(zip(contagens, contagens[1:]))[::-1][:12]
+    dias = (dia(fim["data"]) - dia(inicio["data"])).days if inicio and fim else 0
+    return render_template(
+        "semanas.html", contagens=contagens, inicio=inicio, fim=fim, dias=dias, pares=pares,
+        grupos=agrupar_por_categoria(linhas), incompletos=incompletos,
+        inconsistentes=sum(1 for l in linhas if l["inconsistente"]),
+    )
+
+
+@bp.route("/relatorio/semanas/csv")
+def semanas_csv():
+    conn = get_connection()
+    inicio, fim = escolher_periodo(contagens_finalizadas(conn))
+    if not (inicio and fim) or inicio["id"] == fim["id"]:
+        conn.close()
+        return Response("Escolha duas contagens finalizadas.", status=400)
+    linhas, _ = calcular_saida(conn, inicio, fim)
+    conn.close()
+
+    saida = io.StringIO()
+    writer = csv.writer(saida, delimiter=";")
+    writer.writerow(["Período", f"{data_br_filter(inicio['data'])} a {data_br_filter(fim['data'])}"])
+    writer.writerow([])
+    writer.writerow(["Categoria", "Insumo", "Unidade", "Contagem inicial", "Compras", "Desperdício aprovado",
+                     "Contagem final", "Saída total", "Vendido / usado"])
+    for categoria, itens in agrupar_por_categoria(linhas):
+        for l in itens:
+            writer.writerow([categoria, l["nome"], l["unidade"]] + [formatar_quantidade(l[c]) for c in
+                            ("inicio", "compras", "desperdicio", "final", "saida", "vendido")])
+    nome = f"saida_{inicio['data']}_a_{fim['data']}.csv"
+    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f"attachment; filename={nome}"})

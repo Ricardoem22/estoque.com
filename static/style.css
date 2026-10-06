@@ -323,3 +323,18 @@ textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px
     .tabela-contagem td:nth-child(2) { grid-column: 2 / 4; }
     .tabela-contagem .qtd { width: 100%; font-size: 16px; }
 }
+
+/* ---------- Saída por semana ---------- */
+.form-periodo { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
+.form-periodo > div { flex: 1; min-width: 140px; }
+.form-periodo select { width: 100%; }
+.form-periodo label { margin-top: 0; }
+.semanas-rapidas { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+.semanas-rapidas a { padding: 4px 10px; border: 1px solid #ccc; border-radius: 14px; color: #2980b9; text-decoration: none; }
+.semanas-rapidas a.ativa { background: #2980b9; color: #fff; border-color: #2980b9; }
+.tabela-saida .detalhe { display: none; }
+.linha-alerta td { background: #fff4e0; }
+@media (max-width: 600px) {
+    .tabela-saida th:nth-child(n+2):nth-child(-n+5), .tabela-saida td:nth-child(n+2):nth-child(-n+5) { display: none; }
+    .tabela-saida .detalhe { display: block; }
+}
