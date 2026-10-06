@@ -3,18 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Estoque de Produtos</title>
+    <title>Produtos - La Barca</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    {% include "_topo.html" %}
     <div class="container">
-        <nav class="menu">
-            <a href="{{ url_for('contagem.contagens') }}">📋 Contagens</a>
-            <a href="{{ url_for('compras.compras') }}">🛒 Compras</a>
-            <a href="{{ url_for('desperdicio.desperdicio') }}">🗑️ Desperdício</a>
-            <a href="{{ url_for('relatorio.relatorio') }}">📊 Relatório</a>
-            <a class="sair" href="{{ url_for('sair') }}">Sair</a>
-        </nav>
         <h1>📦 Produtos em Estoque</h1>
 
         <div class="top-bar">

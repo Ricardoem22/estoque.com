@@ -1,0 +1,33 @@
+{%- set ep = request.endpoint or '' -%}
+{%- if 'insumo' in ep or ep == 'contagem.confirmar_importacao' %}{% set aba = 'insumos' -%}
+{%- elif ep.startswith('contagem.') %}{% set aba = 'contagens' -%}
+{%- elif ep.startswith('compras.') %}{% set aba = 'compras' -%}
+{%- elif ep.startswith('desperdicio.') or ep.startswith('gerencia') %}{% set aba = 'desperdicio' -%}
+{%- elif ep.startswith('relatorio.') %}{% set aba = 'relatorio' -%}
+{%- else %}{% set aba = 'produtos' %}{% endif -%}
+<header class="topo">
+    <div class="topo-interno">
+        <a class="marca" href="{{ url_for('contagem.contagens') }}">
+            <span class="marca-icone">LB</span>
+            <span class="marca-texto"><strong>La Barca</strong><small>Controle de Estoque</small></span>
+        </a>
+        <a class="sair" href="{{ url_for('sair') }}">Sair</a>
+    </div>
+    <nav class="menu">
+        <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}>📋 Contagens</a>
+        <a href="{{ url_for('contagem.insumos') }}" {% if aba == 'insumos' %}class="ativo"{% endif %}>🧾 Insumos</a>
+        <a href="{{ url_for('compras.compras') }}" {% if aba == 'compras' %}class="ativo"{% endif %}>🛒 Compras</a>
+        <a href="{{ url_for('desperdicio.desperdicio') }}" {% if aba == 'desperdicio' %}class="ativo"{% endif %}>🗑️ Desperdício</a>
+        <a href="{{ url_for('relatorio.relatorio') }}" {% if aba == 'relatorio' %}class="ativo"{% endif %}>📊 Relatório</a>
+        <a href="{{ url_for('index') }}" {% if aba == 'produtos' %}class="ativo"{% endif %}>📦 Produtos</a>
+    </nav>
+</header>
+<script>
+    // No celular o menu rola de lado: mostra a aba atual
+    (function () {
+        var menu = document.querySelector('.menu'), ativo = menu && menu.querySelector('.ativo');
+        if (ativo && menu.scrollWidth > menu.clientWidth) {
+            menu.scrollLeft = ativo.offsetLeft - (menu.clientWidth - ativo.offsetWidth) / 2;
+        }
+    })();
+</script>
