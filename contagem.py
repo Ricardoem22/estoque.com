@@ -353,7 +353,9 @@ def ver_contagem(id):
     contagem = carregar_contagem(conn, id)
     grupos = agrupar_por_categoria(itens_da_contagem(conn, id))
     conn.close()
-    return render_template("ver_contagem.html", contagem=contagem, grupos=grupos)
+    from relatorio import divergencias
+    sistema, resumo = divergencias(contagem)
+    return render_template("ver_contagem.html", contagem=contagem, grupos=grupos, sistema=sistema, resumo=resumo)
 
 
 @bp.route("/contagens/<int:id>/reabrir", methods=["POST"])
@@ -380,17 +382,22 @@ def exportar_csv(id):
     contagem = carregar_contagem(conn, id)
     grupos = agrupar_por_categoria(itens_da_contagem(conn, id))
     conn.close()
+    from relatorio import divergencias
+    sistema, _ = divergencias(contagem)
 
     saida = io.StringIO()
     writer = csv.writer(saida, delimiter=";")
     writer.writerow(["Data da contagem", data_br_filter(contagem["data"]), "Responsável", contagem["responsavel"]])
     writer.writerow([])
-    writer.writerow(["Categoria", "Insumo", "Unidade", "Qtd. Contada", "Observações / Validade"])
+    writer.writerow(["Categoria", "Insumo", "Unidade", "Qtd. Contada", "No sistema", "Diferença",
+                     "Valor da diferença (R$)", "Observações / Validade"])
     for categoria, itens in grupos:
         for item in itens:
+            d = sistema.get(item["id"], {})
             writer.writerow([
-                categoria, item["nome"], item["unidade"],
-                formatar_quantidade(item["quantidade"]), item["observacao"],
+                categoria, item["nome"], item["unidade"], formatar_quantidade(item["quantidade"]),
+                formatar_quantidade(d.get("esperado")), formatar_quantidade(d.get("diferenca")),
+                f"{d['valor']:.2f}".replace(".", ",") if d.get("valor") is not None else "", item["observacao"],
             ])
 
     nome_arquivo = f"contagem_{contagem['data']}_{id}.csv"

@@ -56,8 +56,8 @@ def init_db():
 def brl_filter(valor):
     if valor is None:
         return ""
-    texto = f"{valor:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
-    return f"R$ {texto}"
+    texto = f"{abs(valor):,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+    return f"−R$ {texto}" if round(valor, 2) < 0 else f"R$ {texto}"
 
 
 def parse_valor(texto):
