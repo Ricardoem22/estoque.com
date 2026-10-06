@@ -4,13 +4,18 @@
 <div class="top-bar">
     <h1>🏪 Meu estoque</h1>
     <div class="nao-imprimir">
-        <a class="btn btn-edit" href="{{ url_for('compras.importar_nota') }}">📄 Lançar nota</a>
-        <a class="btn btn-edit" href="{{ url_for('compras.compras') }}">🛒 Lançar compra</a>
+        <a class="btn btn-edit" href="{{ url_for('relatorio.estoque_csv') }}">⬇️ Exportar</a>
         <button class="btn" type="button" onclick="window.print()">🖨️ Imprimir</button>
     </div>
 </div>
-<p class="sub">O estoque parte da última contagem finalizada. Cada compra lançada depois dela (por nota ou à mão) soma
-    sozinha, e o desperdício aprovado pela gerência desconta. Quando você faz uma contagem nova, ela vira o novo ponto de partida.</p>
+
+<nav class="atalhos nao-imprimir" aria-label="Atalhos">
+    <a href="{{ url_for('compras.compras') }}">🛒<span>Lançar compra</span></a>
+    <a href="{{ url_for('compras.importar_nota') }}">📄<span>Lançar nota</span></a>
+    <a href="{{ url_for('movimentos.movimentacoes', tipo='saida') }}">➖<span>Saída</span></a>
+    <a href="{{ url_for('desperdicio.desperdicio') }}">🗑️<span>Perda</span></a>
+    <a href="{{ url_for('contagem.contagens') }}">📋<span>Contagem</span></a>
+</nav>
 
 <div class="valor-total">
     <span>Valor dos insumos em estoque</span>
@@ -19,8 +24,43 @@
     <small>{{ itens }} insumo{{ 's' if itens != 1 }} em estoque{% if sem_preco %} · {{ sem_preco }} sem preço de compra (fora do valor){% endif %}</small>
 </div>
 
+<div class="cartoes-alerta">
+    <a class="cartao-alerta {{ 'alerta-laranja' if alertas.abaixo_minimo else 'alerta-ok' }}" href="#" data-filtro="abaixo_minimo">
+        <strong>{{ alertas.abaixo_minimo|length }}</strong><span>abaixo do mínimo</span></a>
+    <a class="cartao-alerta {{ 'alerta-vermelho' if alertas.sem_saldo else 'alerta-ok' }}" href="#" data-filtro="sem_saldo">
+        <strong>{{ alertas.sem_saldo|length }}</strong><span>sem saldo</span></a>
+    <div class="cartao-alerta alerta-neutro">
+        <strong>{{ ultima_contagem['data']|data_br if ultima_contagem else '—' }}</strong>
+        <span>última contagem{% if ultima_contagem %} · {{ ultima_contagem['responsavel'] }}{% endif %}</span></div>
+</div>
+
+{% if alertas.abaixo_minimo or alertas.sem_saldo %}
+<div class="lista-alertas">
+    {% for l in alertas.sem_saldo %}<a class="tag tag-recusado" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}: acabou</a>{% endfor %}
+    {% for l in alertas.abaixo_minimo %}<a class="tag tag-aberta" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}: {{ l.estoque|round(2)|qtd }} de {{ l.minimo|qtd }} {{ l.unidade }}</a>{% endfor %}
+</div>
+{% endif %}
+
+<p class="sub">O estoque parte da última contagem finalizada. Cada compra lançada depois dela (por nota ou à mão) soma
+    sozinha; saídas, devoluções, ajustes e o desperdício aprovado descontam. Quando você faz uma contagem nova, ela
+    vira o novo ponto de partida. Toque no nome para ver o histórico.</p>
+
 {% if categorias %}
-<input type="search" id="busca-estoque" class="busca nao-imprimir" placeholder="🔎 Procurar insumo...">
+<div class="filtros-estoque nao-imprimir">
+    <input type="search" id="busca-estoque" class="busca" placeholder="🔎 Procurar insumo...">
+    <select id="filtro-situacao" aria-label="Situação">
+        <option value="">Todas as situações</option>
+        <option value="abaixo_minimo">Abaixo do mínimo</option>
+        <option value="sem_saldo">Sem saldo</option>
+        <option value="ok">OK</option>
+    </select>
+    {% if locais %}
+    <select id="filtro-local" aria-label="Local">
+        <option value="">Todos os locais</option>
+        {% for l in locais %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+    </select>
+    {% endif %}
+</div>
 
 {% for c in categorias %}
 <div class="grupo-estoque">
@@ -29,16 +69,20 @@
     <thead><tr><th>Insumo</th><th>Estoque agora</th><th>Preço</th><th>Valor</th></tr></thead>
     <tbody>
     {% for l in c.itens %}
-    <tr data-nome="{{ l.nome|lower }}">
-        <td><strong>{{ l.nome }}</strong></td>
-        <td><strong>{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</strong><br>
+    <tr data-nome="{{ l.nome|lower }}" data-situacao="{{ l.situacao }}" data-local="{{ l.local }}" class="sit-{{ l.situacao }}">
+        <td><a class="nome-insumo" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}</a>
+            {% if l.local %}<br><span class="sub">📍 {{ l.local }}</span>{% endif %}</td>
+        <td><strong>{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</strong>
+            {% if l.situacao == 'sem_saldo' %}<span class="tag tag-recusado">sem saldo</span>
+            {% elif l.situacao == 'abaixo_minimo' %}<span class="tag tag-aberta">abaixo do mínimo ({{ l.minimo|qtd }})</span>{% endif %}<br>
             <span class="sub">
                 {% if l.ultima_contagem %}contado {{ l.contado|round(2)|qtd }} em {{ l.ultima_contagem|data_br }}{% else %}sem contagem{% endif %}
                 {%- if l.compras_desde %} · + {{ l.compras_desde|round(2)|qtd }} comprado{% endif %}
+                {%- if l.movimentos and l.movimentos < 0 %} · − {{ (-l.movimentos)|round(2)|qtd }} saídas/ajustes{% elif l.movimentos and l.movimentos > 0 %} · + {{ l.movimentos|round(2)|qtd }} ajuste{% endif %}
                 {%- if l.desperdicio %} · − {{ l.desperdicio|round(2)|qtd }} desperdício{% endif %}
             </span>
         </td>
-        <td>{% if l.preco is defined %}{{ l.preco|brl }}/{{ l.unidade }}{% if l.preco_medio|round(2) != l.preco|round(2) %}<br><span class="sub">médio {{ l.preco_medio|brl }}</span>{% endif %}{% else %}<span class="sub">—</span>{% endif %}</td>
+        <td>{% if l.preco is defined %}{{ l.preco|brl }}/{{ l.unidade }}{% if l.preco_referencia %}<br><span class="sub">custo de referência</span>{% elif l.preco_medio|round(2) != l.preco|round(2) %}<br><span class="sub">médio {{ l.preco_medio|brl }}</span>{% endif %}{% else %}<span class="sub">—</span>{% endif %}</td>
         <td>{% if l.valor is defined %}<strong>{{ l.valor|brl }}</strong>{% elif l.estoque > 0 %}<span class="sub">sem preço</span>{% else %}<span class="sub">acabou</span>{% endif %}</td>
     </tr>
     {% endfor %}
@@ -46,6 +90,7 @@
 </table>
 </div>
 {% endfor %}
+<p class="vazio" id="nada-encontrado" hidden>Nenhum insumo com esse filtro.</p>
 {% else %}
 <p class="vazio">Ainda não há estoque. Finalize uma <a href="{{ url_for('contagem.contagens') }}">contagem</a> ou lance uma <a href="{{ url_for('compras.compras') }}">compra</a>.</p>
 {% endif %}
@@ -54,19 +99,62 @@
 <p class="sub">{{ sem_contagem }} insumo{{ 's' if sem_contagem != 1 }} sem contagem e sem compra não aparece{{ 'm' if sem_contagem != 1 }} aqui.</p>
 {% endif %}
 
+<div class="ultimos">
+    <section>
+        <h2>Últimas entradas</h2>
+        {% if ultimas_entradas %}
+        <ul class="lista-ultimos">
+            {% for e in ultimas_entradas %}<li><span class="sub">{{ e['data']|data_br }}</span> <strong>+ {{ e['quantidade']|qtd }} {{ e['unidade'] }}</strong> {{ e['nome'] }}{% if e['fornecedor'] %} <span class="sub">· {{ e['fornecedor'] }}</span>{% endif %}</li>{% endfor %}
+        </ul>
+        {% else %}<p class="sub">Nenhuma compra lançada.</p>{% endif %}
+    </section>
+    <section>
+        <h2>Últimas saídas</h2>
+        {% if ultimas_saidas %}
+        <ul class="lista-ultimos">
+            {% for e in ultimas_saidas %}
+            {% set t = tipos.get(e['tipo'], {'nome': 'Desperdício', 'sinal': '−'}) %}
+            <li><span class="sub">{{ e['data']|data_br }}</span> <strong>{{ t.sinal }} {{ e['quantidade']|qtd }} {{ e['unidade'] }}</strong> {{ e['nome'] }} <span class="sub">· {{ t.nome }}</span></li>
+            {% endfor %}
+        </ul>
+        {% else %}<p class="sub">Nenhuma saída lançada.</p>{% endif %}
+    </section>
+</div>
+
 <script>
-    var busca = document.getElementById("busca-estoque");
-    if (busca) busca.addEventListener("input", function () {
-        var termo = this.value.trim().toLowerCase();
-        document.querySelectorAll(".grupo-estoque").forEach(function (grupo) {
-            var visiveis = 0;
-            grupo.querySelectorAll("tbody tr").forEach(function (tr) {
-                var mostra = !termo || tr.dataset.nome.indexOf(termo) !== -1;
-                tr.style.display = mostra ? "" : "none";
-                if (mostra) visiveis++;
+    (function () {
+        var busca = document.getElementById("busca-estoque");
+        var situacao = document.getElementById("filtro-situacao");
+        var local = document.getElementById("filtro-local");
+        if (!busca) return;
+        function filtrar() {
+            var termo = busca.value.trim().toLowerCase();
+            var sit = situacao.value, loc = local ? local.value : "";
+            var total = 0;
+            document.querySelectorAll(".grupo-estoque").forEach(function (grupo) {
+                var visiveis = 0;
+                grupo.querySelectorAll("tbody tr").forEach(function (tr) {
+                    var mostra = (!termo || tr.dataset.nome.indexOf(termo) !== -1) &&
+                        (!sit || tr.dataset.situacao === sit) && (!loc || tr.dataset.local === loc);
+                    tr.style.display = mostra ? "" : "none";
+                    if (mostra) visiveis++;
+                });
+                grupo.style.display = visiveis ? "" : "none";
+                total += visiveis;
             });
-            grupo.style.display = visiveis ? "" : "none";
+            document.getElementById("nada-encontrado").hidden = total > 0;
+        }
+        busca.addEventListener("input", filtrar);
+        situacao.addEventListener("change", filtrar);
+        if (local) local.addEventListener("change", filtrar);
+        document.querySelectorAll("[data-filtro]").forEach(function (a) {
+            a.addEventListener("click", function (ev) {
+                ev.preventDefault();
+                situacao.value = situacao.value === a.dataset.filtro ? "" : a.dataset.filtro;
+                filtrar();
+                busca.scrollIntoView({behavior: "smooth", block: "start"});
+            });
         });
-    });
+    })();
 </script>
 {% endblock %}

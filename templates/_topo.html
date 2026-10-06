@@ -1,6 +1,7 @@
 {%- set ep = request.endpoint or '' -%}
 {%- if 'insumo' in ep or ep == 'contagem.confirmar_importacao' %}{% set aba = 'insumos' -%}
 {%- elif ep.startswith('contagem.') %}{% set aba = 'contagens' -%}
+{%- elif ep.startswith('movimentos.') %}{% set aba = 'movimentos' -%}
 {%- elif ep.startswith('compras.') %}{% set aba = 'compras' -%}
 {%- elif ep.startswith('desperdicio.') or ep.startswith('gerencia') %}{% set aba = 'desperdicio' -%}
 {%- elif ep == 'relatorio.estoque' %}{% set aba = 'estoque' -%}
@@ -10,7 +11,7 @@
 {%- else %}{% set aba = 'produtos' %}{% endif -%}
 <header class="topo">
     <div class="topo-interno">
-        <a class="marca" href="{{ url_for('contagem.contagens') }}">
+        <a class="marca" href="{{ url_for('relatorio.estoque') }}">
             <span class="marca-icone">GF</span>
             <span class="marca-texto"><strong>Gestor Full de Restaurante</strong><small>La Barca</small></span>
         </a>
@@ -20,11 +21,12 @@
         </div>
     </div>
     <nav class="menu">
-        <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}>📋 Contagens</a>
         <a href="{{ url_for('relatorio.estoque') }}" {% if aba == 'estoque' %}class="ativo"{% endif %}>🏪 Estoque</a>
+        <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}>📋 Contagens</a>
         <a href="{{ url_for('mural.mural') }}" {% if aba == 'mural' %}class="ativo"{% endif %}>💬 Mural</a>
         <a href="{{ url_for('contagem.insumos') }}" {% if aba == 'insumos' %}class="ativo"{% endif %}>🧾 Insumos</a>
         <a href="{{ url_for('compras.compras') }}" {% if aba == 'compras' %}class="ativo"{% endif %}>🛒 Compras</a>
+        <a href="{{ url_for('movimentos.movimentacoes') }}" {% if aba == 'movimentos' %}class="ativo"{% endif %}>🔄 Movimentações</a>
         <a href="{{ url_for('desperdicio.desperdicio') }}" {% if aba == 'desperdicio' %}class="ativo"{% endif %}>🗑️ Desperdício</a>
         <a href="{{ url_for('relatorio.relatorio') }}" {% if aba == 'relatorio' %}class="ativo"{% endif %}>📊 Relatório</a>
         <a href="{{ url_for('index') }}" {% if aba == 'produtos' %}class="ativo"{% endif %}>📦 Produtos</a>

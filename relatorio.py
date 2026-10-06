@@ -13,6 +13,7 @@ from flask import Blueprint, Response, render_template, request
 
 from contagem import agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection
 from importador import chave_nome, extrair_itens, ler_arquivo, ler_texto, sem_acento
+from unidades import converter
 
 bp = Blueprint("relatorio", __name__)
 
@@ -31,41 +32,54 @@ def arredondar_compra(valor, unidade):
     return float(math.ceil(round(valor, 6)))
 
 
-def soma_compras(compras, unidade, inicio, fim=None):
-    """Compras convertidas para a unidade dada (g↔kg, ml↔L) com data >= inicio e < fim.
+def soma_compras(compras, unidade, inicio, fim=None, conversoes=()):
+    """Compras convertidas para a unidade dada (g↔kg, ml↔L e medidas do insumo) com data >= inicio e < fim.
     Uma compra no dia da contagem conta como chegada depois da contagem."""
     total = 0.0
     for c in compras:
         if c["data"] >= inicio and (fim is None or c["data"] < fim):
-            quantidade = converter(c["quantidade"], c["unidade"], unidade)
+            quantidade = converter(c["quantidade"], c["unidade"], unidade, conversoes)
             if quantidade is not None:
                 total += quantidade
     return total
 
 
-def analisar_insumo(insumo, contagens, compras, semanas, desperdicios=()):
+def analisar_insumo(insumo, contagens, compras, semanas, desperdicios=(), movimentos=(), conversoes=()):
+    """movimentos: saídas, devoluções e ajustes com a quantidade já com sinal (− desconta, + soma)."""
+    dados = dict(insumo)
     linha = {
         "id": insumo["id"], "nome": insumo["nome"], "categoria": insumo["categoria"],
         "unidade": insumo["unidade"], "estoque": None, "ultima_contagem": None,
         "consumo_semanal": None, "dias_cobertura": None, "sugestao": 0, "status": "sem_dados",
+        "local": dados.get("local") or "", "minimo": dados.get("minimo"), "ideal": dados.get("ideal"),
+        "custo": dados.get("custo"), "fornecedor": dados.get("fornecedor") or "",
+        "ativo": dados.get("ativo", 1), "conversoes": conversoes,
     }
+    # Devolução ao fornecedor desfaz parte da compra (vale também no cálculo do consumo)
+    compras_liquidas = list(compras) + [m for m in movimentos if m["tipo"] == "devolucao"]
     if not contagens:
         # Nunca contado: o estoque é o que entrou pelas compras
         if compras:
+            unidade = insumo["unidade"]
             linha["contado"] = 0.0
-            linha["compras_desde"] = soma_compras(compras, insumo["unidade"], "")
-            linha["desperdicio"] = soma_compras(desperdicios, insumo["unidade"], "")
-            linha["estoque"] = max(0.0, linha["compras_desde"] - linha["desperdicio"])
-        return linha
+            linha["compras_desde"] = soma_compras(compras, unidade, "", None, conversoes)
+            linha["movimentos"] = soma_compras(movimentos, unidade, "", None, conversoes)
+            linha["desperdicio"] = soma_compras(desperdicios, unidade, "", None, conversoes)
+            linha["estoque"] = max(0.0, linha["compras_desde"] + linha["movimentos"] - linha["desperdicio"])
+        return marcar_situacao(linha)
 
     ultima = contagens[-1]
     unidade = ultima["unidade"]
     linha["unidade"] = unidade
     linha["ultima_contagem"] = ultima["data"]
     linha["contado"] = ultima["quantidade"]
-    linha["compras_desde"] = soma_compras(compras, unidade, ultima["data"])
-    linha["desperdicio"] = soma_compras(desperdicios, unidade, ultima["data"])
-    linha["estoque"] = max(0.0, ultima["quantidade"] + linha["compras_desde"] - linha["desperdicio"])
+    linha["contado_por"] = dict(ultima).get("responsavel", "")
+    linha["compras_desde"] = soma_compras(compras, unidade, ultima["data"], None, conversoes)
+    linha["movimentos"] = soma_compras(movimentos, unidade, ultima["data"], None, conversoes)
+    linha["desperdicio"] = soma_compras(desperdicios, unidade, ultima["data"], None, conversoes)
+    linha["estoque"] = max(0.0, ultima["quantidade"] + linha["compras_desde"] + linha["movimentos"]
+                           - linha["desperdicio"])
+    marcar_situacao(linha)
 
     consumo_total = 0.0
     dias_total = 0
@@ -78,8 +92,8 @@ def analisar_insumo(insumo, contagens, compras, semanas, desperdicios=()):
             break  # histórico mais antigo em outra unidade
         if dias <= 0 or anterior["unidade"] != atual["unidade"]:
             continue
-        consumo = anterior["quantidade"] + soma_compras(compras, atual["unidade"], anterior["data"], atual["data"]) \
-            - atual["quantidade"]
+        consumo = anterior["quantidade"] - atual["quantidade"] + soma_compras(
+            compras_liquidas, atual["unidade"], anterior["data"], atual["data"], conversoes)
         if consumo < 0:
             # Estoque subiu sem compra registrada: o intervalo não serve para o cálculo
             continue
@@ -104,11 +118,27 @@ def analisar_insumo(insumo, contagens, compras, semanas, desperdicios=()):
     return linha
 
 
+def marcar_situacao(linha):
+    """sem_saldo, abaixo_minimo, ok ou sem_minimo (para os alertas do painel)."""
+    estoque, minimo = linha["estoque"], linha.get("minimo")
+    if estoque is None:
+        linha["situacao"] = "sem_contagem"
+    elif estoque <= 0:
+        linha["situacao"] = "sem_saldo"
+    elif minimo is not None and estoque < minimo:
+        linha["situacao"] = "abaixo_minimo"
+    else:
+        linha["situacao"] = "ok"
+    return linha
+
+
 def calcular_linhas(semanas=1):
+    from insumo_cadastro import carregar_conversoes
+    from movimentos import TIPOS
     conn = get_connection()
     insumos = conn.execute("SELECT * FROM insumos").fetchall()
     itens = conn.execute("""
-        SELECT ci.insumo_id, ci.quantidade, ci.unidade, c.data
+        SELECT ci.insumo_id, ci.quantidade, ci.unidade, c.data, c.responsavel
         FROM contagem_itens ci
         JOIN contagens c ON c.id = ci.contagem_id
         WHERE c.finalizada = 1 AND ci.quantidade IS NOT NULL
@@ -119,7 +149,17 @@ def calcular_linhas(semanas=1):
         SELECT insumo_id, quantidade, unidade, data FROM desperdicios
         WHERE status = 'aprovado' AND insumo_id IS NOT NULL ORDER BY data
     """).fetchall()
+    movimentos = [
+        {"insumo_id": m["insumo_id"], "data": m["data"], "unidade": m["unidade"], "tipo": m["tipo"],
+         "quantidade": m["quantidade"] * TIPOS.get(m["tipo"], {"fator": 0})["fator"]}
+        for m in conn.execute("SELECT * FROM movimentacoes ORDER BY data")
+        if TIPOS.get(m["tipo"], {"fator": 0})["fator"]
+    ]
+    conversoes = carregar_conversoes(conn)
     conn.close()
+    movimentos_por_insumo = {}
+    for m in movimentos:
+        movimentos_por_insumo.setdefault(m["insumo_id"], []).append(m)
 
     contagens_por_insumo, compras_por_insumo, desperdicios_por_insumo = {}, {}, {}
     for item in itens:
@@ -136,7 +176,8 @@ def calcular_linhas(semanas=1):
 
     return [
         analisar_insumo(i, contagens_por_insumo.get(i["id"], []), compras_por_insumo.get(i["id"], []), semanas,
-                        desperdicios_por_insumo.get(i["id"], []))
+                        desperdicios_por_insumo.get(i["id"], []), movimentos_por_insumo.get(i["id"], []),
+                        conversoes.get(i["id"], []))
         for i in insumos
     ]
 
@@ -188,14 +229,6 @@ def comparar():
     return render_template("comparar.html", erro=erro, resultado=resultado, texto=texto)
 
 
-CONVERSOES = {("g", "kg"): 0.001, ("kg", "g"): 1000, ("ml", "L"): 0.001, ("L", "ml"): 1000}
-
-
-def converter(quantidade, de, para):
-    if de == para:
-        return quantidade
-    fator = CONVERSOES.get((de, para))
-    return quantidade * fator if fator else None
 
 
 def montar_comparacao(itens, linhas_app):
@@ -358,11 +391,18 @@ def calcular_valor_estoque():
         # Último preço numa unidade que dá para converter para a do estoque
         preco = None
         for compra in compras:
-            fator = converter(1, compra["unidade"], linha["unidade"])
+            fator = converter(1, compra["unidade"], linha["unidade"], linha["conversoes"])
             if fator:
                 preco = compra["valor_total"] / compra["quantidade"] / fator
                 linha["preco_data"] = compra["data"]
                 break
+        if preco is None and linha.get("custo"):
+            # Sem compra com valor: usa o custo de referência da ficha do insumo
+            linha.update(preco=linha["custo"], preco_medio=linha["custo"], preco_data=None, compras_com_valor=0,
+                         valor=linha["custo"] * linha["estoque"], valor_medio=linha["custo"] * linha["estoque"],
+                         preco_referencia=True)
+            com_preco.append(linha)
+            continue
         if preco is None:
             linha["motivo"] = ("compra registrada em outra unidade" if compras
                                else "nenhuma compra com valor registrado")
@@ -371,13 +411,13 @@ def calcular_valor_estoque():
         # Preço médio ponderado de todas as compras com valor (total pago ÷ quantidade total)
         pago = quantidade = 0.0
         for compra in compras:
-            fator = converter(1, compra["unidade"], linha["unidade"])
+            fator = converter(1, compra["unidade"], linha["unidade"], linha["conversoes"])
             if fator:
                 pago += compra["valor_total"]
                 quantidade += compra["quantidade"] * fator
         linha["preco"] = preco
         linha["preco_medio"] = pago / quantidade if quantidade else preco
-        linha["compras_com_valor"] = sum(1 for c in compras if converter(1, c["unidade"], linha["unidade"]))
+        linha["compras_com_valor"] = sum(1 for c in compras if converter(1, c["unidade"], linha["unidade"], linha["conversoes"]))
         linha["valor"] = preco * linha["estoque"]
         linha["valor_medio"] = linha["preco_medio"] * linha["estoque"]
         com_preco.append(linha)
@@ -402,22 +442,77 @@ def valor_estoque():
     return render_template("valor_estoque.html", **calcular_valor_estoque())
 
 
-@bp.route("/estoque")
-def estoque():
-    """Meu estoque: última contagem + compras − desperdício aprovado, com o valor pelas notas."""
+def montar_estoque():
     valor = calcular_valor_estoque()
     precos = {l["id"]: l for c in valor["categorias"] for l in c["itens"]}
-    linhas = [l for l in calcular_linhas() if l["estoque"] is not None]
+    linhas = [l for l in calcular_linhas() if l["estoque"] is not None and (l["ativo"] or l["estoque"] > 0)]
     for linha in linhas:
         com_preco = precos.get(linha["id"])
         if com_preco:
             linha.update(preco=com_preco["preco"], preco_medio=com_preco["preco_medio"],
-                         valor=com_preco["valor"], valor_medio=com_preco["valor_medio"])
+                         valor=com_preco["valor"], valor_medio=com_preco["valor_medio"],
+                         preco_referencia=com_preco.get("preco_referencia", False))
+    return valor, linhas
+
+
+@bp.route("/estoque")
+def estoque():
+    """Painel: estoque atual (última contagem + compras − saídas − desperdício), alertas e valor pelas notas."""
+    valor, linhas = montar_estoque()
     categorias = [{"nome": cat, "itens": itens, "total": sum(l.get("valor", 0) for l in itens)}
                   for cat, itens in agrupar_por_categoria(linhas)]
-    return render_template("estoque.html", categorias=categorias, total=valor["total"],
-                           total_medio=valor["total_medio"], itens=len(linhas),
-                           sem_preco=len(valor["sem_preco"]), sem_contagem=valor["sem_contagem"])
+    alertas = {
+        "abaixo_minimo": sorted((l for l in linhas if l["situacao"] == "abaixo_minimo"), key=lambda l: l["nome"]),
+        "sem_saldo": sorted((l for l in linhas if l["situacao"] == "sem_saldo"), key=lambda l: l["nome"]),
+    }
+    conn = get_connection()
+    ultima_contagem = conn.execute(
+        "SELECT * FROM contagens WHERE finalizada = 1 ORDER BY data DESC, id DESC LIMIT 1").fetchone()
+    ultimas_entradas = conn.execute("""
+        SELECT c.data, c.quantidade, c.unidade, c.fornecedor, i.nome, i.id AS insumo_id FROM compras c
+        JOIN insumos i ON i.id = c.insumo_id ORDER BY c.data DESC, c.id DESC LIMIT 5
+    """).fetchall()
+    ultimas_saidas = conn.execute("""
+        SELECT * FROM (
+            SELECT m.data, m.id, m.quantidade, m.unidade, m.tipo, i.nome, i.id AS insumo_id FROM movimentacoes m
+            JOIN insumos i ON i.id = m.insumo_id WHERE m.tipo != 'transferencia'
+            UNION ALL
+            SELECT d.data, d.id, d.quantidade, d.unidade, 'desperdicio' AS tipo, d.insumo_nome AS nome,
+                   d.insumo_id FROM desperdicios d WHERE d.status = 'aprovado'
+        ) ORDER BY data DESC, id DESC LIMIT 5
+    """).fetchall()
+    conn.close()
+    from movimentos import TIPOS
+    locais = sorted({l["local"] for l in linhas if l["local"]})
+    return render_template(
+        "estoque.html", categorias=categorias, total=valor["total"], total_medio=valor["total_medio"],
+        itens=len(linhas), sem_preco=len(valor["sem_preco"]), sem_contagem=valor["sem_contagem"],
+        alertas=alertas, ultima_contagem=ultima_contagem, ultimas_entradas=ultimas_entradas,
+        ultimas_saidas=ultimas_saidas, tipos=TIPOS, locais=locais,
+    )
+
+
+@bp.route("/estoque/csv")
+def estoque_csv():
+    _, linhas = montar_estoque()
+    saida = io.StringIO()
+    escritor = csv.writer(saida, delimiter=";")
+    escritor.writerow(["Categoria", "Insumo", "Local", "Estoque", "Unidade", "Mínimo", "Situação",
+                       "Última contagem", "Preço (R$)", "Valor (R$)"])
+    situacoes = {"ok": "OK", "abaixo_minimo": "Abaixo do mínimo", "sem_saldo": "Sem saldo"}
+
+    def numero(v, casas=3):
+        if v is None:
+            return ""
+        return f"{v:.2f}".replace(".", ",") if casas == 2 else formatar_quantidade(round(v, 3))
+
+    for categoria, itens in agrupar_por_categoria(linhas):
+        for l in itens:
+            escritor.writerow([categoria, l["nome"], l["local"], numero(l["estoque"]), l["unidade"],
+                               numero(l["minimo"]), situacoes.get(l["situacao"], ""), l["ultima_contagem"] or "",
+                               numero(l.get("preco"), 2), numero(l.get("valor"), 2)])
+    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=estoque.csv"})
 
 
 # ---------- Conferir pedido de compra ----------
@@ -450,7 +545,7 @@ def montar_conferencia(itens, linhas_app, produtos=()):
                  "unidade_pedido": unidade_pedido, "unidade": app["unidade"], "estoque": app["estoque"],
                  "ultima_contagem": app["ultima_contagem"],
                  "consumo": app["consumo_semanal"], "sugestao": app["sugestao"], "dias": app["dias_cobertura"]}
-        convertido = converter(item["quantidade"], unidade_pedido, app["unidade"])
+        convertido = converter(item["quantidade"], unidade_pedido, app["unidade"], app.get("conversoes", ()))
         if app["estoque"] is None:
             linha["situacao"] = "sem_contagem"
         elif convertido is None:

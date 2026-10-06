@@ -14,6 +14,8 @@ from importador import sem_acento
 from relatorio import bp as relatorio_bp, calcular_linhas
 from mural import bp as mural_bp, init_db as init_db_mural
 from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
+from insumo_cadastro import bp as insumo_bp
+from movimentos import bp as movimentos_bp, init_db as init_db_movimentos
 
 app = Flask(__name__)
 # O PythonAnywhere atende por HTTPS na frente do app; assim os links por e-mail saem com https
@@ -32,6 +34,8 @@ app.register_blueprint(relatorio_bp)
 app.register_blueprint(funcionarios_bp)
 app.register_blueprint(mural_bp)
 app.register_blueprint(produtos_nota_bp)
+app.register_blueprint(insumo_bp)
+app.register_blueprint(movimentos_bp)
 DB_NAME = config.DB_PATH
 
 
@@ -48,7 +52,8 @@ def destino_seguro(proximo):
     # Só redireciona para caminhos internos do próprio site
     if proximo.startswith("/") and not proximo.startswith(("//", "/\\")):
         return proximo
-    return url_for("index")
+    # A tela inicial é o painel do estoque
+    return url_for("relatorio.estoque")
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -220,6 +225,7 @@ init_db_compras()
 init_db_funcionarios()
 init_db_mural()
 init_db_produtos_nota()
+init_db_movimentos()
 
 if __name__ == "__main__":
     import os
