@@ -602,7 +602,8 @@ input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8p
 .r-demais { background: var(--vermelho-claro); color: var(--vermelho-escuro); }
 .r-pouco { background: var(--laranja-claro); color: #7a4f00; }
 @media (max-width: 600px) {
-    .tabela-pedido th:nth-child(3), .tabela-pedido td:nth-child(3) { display: none; }
+    /* No celular a sugestão some (a avaliação já diz quanto falta ou sobra); o estoque fica */
+    .tabela-pedido th:nth-child(4), .tabela-pedido td:nth-child(4) { display: none; }
     .tabela-pedido th, .tabela-pedido td { padding: 8px 4px; }
 }
 
@@ -623,3 +624,4 @@ input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8p
     .col-ncm { display: none; }
     .so-celular { display: inline; }
 }
+.estoque-zerado { color: var(--vermelho); }
