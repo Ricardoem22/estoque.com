@@ -35,6 +35,11 @@
         </div>
     </div>
 
+    <label for="valor_total">Valor pago (R$, total da linha da nota)</label>
+    <input type="text" id="valor_total" name="valor_total" inputmode="decimal" placeholder="Opcional. Ex.: 45,90"
+           value="{{ form.get('valor_total', '') }}">
+    <p class="sub dica">Com o valor, o sistema calcula o preço por unidade e quanto vale o seu estoque.</p>
+
     <div class="linha">
         <div>
             <label for="data">Data da entrega</label>
@@ -52,19 +57,20 @@
 </form>
 
 <form method="get" class="top-bar filtro-mes">
-    <h2>Compras do mês</h2>
+    <h2>Compras do mês{% if total_mes %} <span class="sub">· {{ total_mes|brl }}</span>{% endif %}</h2>
     <div><input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()"></div>
 </form>
 
 {% if registros %}
-<table>
-    <thead><tr><th>Data</th><th>Insumo</th><th>Qtd.</th><th>Fornecedor</th><th></th></tr></thead>
+<table class="tabela-compras">
+    <thead><tr><th>Data</th><th>Insumo</th><th>Qtd.</th><th>Valor</th><th>Fornecedor</th><th></th></tr></thead>
     <tbody>
         {% for r in registros %}
         <tr>
             <td>{{ r['data']|data_br }}</td>
             <td>{{ r['insumo_nome'] }}</td>
             <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}</td>
+            <td>{% if r['valor_total'] is not none %}{{ r['valor_total']|brl }}<br><span class="sub">{{ (r['valor_total'] / r['quantidade'])|brl }}/{{ r['unidade'] }}</span>{% else %}<span class="sub">sem valor</span>{% endif %}</td>
             <td>{{ r['fornecedor'] }}</td>
             <td class="acoes">
                 <form class="inline" method="post" action="{{ url_for('compras.excluir_compra', id=r['id']) }}"
