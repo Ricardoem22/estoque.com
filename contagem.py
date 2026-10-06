@@ -3,7 +3,7 @@
 import csv
 import io
 import sqlite3
-from datetime import date, datetime
+from datetime import datetime
 from itertools import groupby
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
@@ -144,7 +144,7 @@ def contagens():
 @bp.route("/contagens/nova", methods=["GET", "POST"])
 def nova_contagem():
     erro = None
-    data = request.form.get("data", date.today().isoformat())
+    data = request.form.get("data", config.hoje().isoformat())
     responsavel = request.form.get("responsavel", "").strip()
 
     if request.method == "POST":
@@ -159,7 +159,7 @@ def nova_contagem():
             conn = get_connection()
             cur = conn.execute(
                 "INSERT INTO contagens (data, responsavel, criada_em) VALUES (?, ?, ?)",
-                (data, responsavel, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                (data, responsavel, config.agora().strftime("%Y-%m-%d %H:%M:%S"))
             )
             conn.commit()
             contagem_id = cur.lastrowid
