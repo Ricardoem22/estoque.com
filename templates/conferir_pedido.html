@@ -2,17 +2,18 @@
 {% block titulo %}Conferir pedido{% endblock %}
 {% block conteudo %}
 <h1>✅ Conferir pedido de compra</h1>
-<p class="sub">Anexe o pedido ou cole o texto. O app confere cada item com o estoque atual e com o consumo das últimas
+<p class="sub">Digite o pedido ou anexe o arquivo. O app confere cada item com o estoque atual e com o consumo das últimas
     semanas, e diz se a compra é necessária, se está pedindo demais ou se faltou pedir algo.</p>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 
 <form method="post" enctype="multipart/form-data" class="form-desperdicio nao-imprimir">
-    <label for="arquivo">Anexar o pedido (Excel, CSV, Word ou PDF)</label>
-    <input type="file" id="arquivo" name="arquivo" accept=".xlsx,.xlsm,.csv,.txt,.docx,.pdf,application/pdf,text/plain">
+    <label for="texto">Digite o pedido (um item por linha, com a quantidade)</label>
+    <textarea id="texto" name="texto" rows="8" autofocus placeholder="Bacon 5 kg&#10;Tomate 10 kg&#10;Alface 12 un">{{ texto }}</textarea>
+    <p class="sub dica">Pode digitar aqui ou colar a lista do WhatsApp.</p>
 
-    <label for="texto">ou colar o texto do pedido</label>
-    <textarea id="texto" name="texto" rows="6" placeholder="Bacon 5 kg&#10;Tomate 10 kg&#10;Alface 12 un">{{ texto }}</textarea>
+    <label for="arquivo">ou anexe o pedido (Excel, CSV, Word ou PDF)</label>
+    <input type="file" id="arquivo" name="arquivo" accept=".xlsx,.xlsm,.csv,.txt,.docx,.pdf,application/pdf,text/plain">
 
     <label for="semanas">O pedido é para</label>
     <select id="semanas" name="semanas">

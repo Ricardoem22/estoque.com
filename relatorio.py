@@ -456,13 +456,13 @@ def conferir_pedido():
     if request.method == "POST":
         arquivo = request.files.get("arquivo")
         try:
-            if arquivo and arquivo.filename:
-                linhas_arquivo = ler_arquivo(arquivo.filename, arquivo.read())
-            elif texto.strip():
+            if texto.strip():
                 linhas_arquivo = ler_texto(texto)
+            elif arquivo and arquivo.filename:
+                linhas_arquivo = ler_arquivo(arquivo.filename, arquivo.read())
             else:
                 linhas_arquivo = None
-                erro = "Cole o texto do pedido ou anexe o arquivo."
+                erro = "Digite o pedido ou anexe o arquivo."
             if linhas_arquivo is not None:
                 app = calcular_linhas(semanas)
                 itens = extrair_itens(linhas_arquivo, sorted({l["categoria"] for l in app}))
