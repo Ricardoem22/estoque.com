@@ -1,0 +1,83 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Saída por Semana{% endblock %}
+{% block conteudo %}
+<h1>📅 Saída por semana</h1>
+<p class="sub">
+    Compara duas contagens finalizadas e mostra quanto saiu de cada insumo:
+    contagem inicial + compras − contagem final. O <strong>vendido / usado</strong> é a saída menos o desperdício
+    aprovado pela gerência.
+</p>
+
+{% if contagens|length < 2 %}
+<p class="vazio">É preciso ter pelo menos duas contagens finalizadas para comparar.</p>
+{% else %}
+<form method="get" class="form-periodo nao-imprimir">
+    <div>
+        <label for="inicio">De</label>
+        <select id="inicio" name="inicio">
+            {% for c in contagens|reverse %}<option value="{{ c['id'] }}" {% if inicio and c['id'] == inicio['id'] %}selected{% endif %}>{{ c['data']|data_br }} · {{ c['responsavel'] }}</option>{% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="fim">Até</label>
+        <select id="fim" name="fim">
+            {% for c in contagens|reverse %}<option value="{{ c['id'] }}" {% if fim and c['id'] == fim['id'] %}selected{% endif %}>{{ c['data']|data_br }} · {{ c['responsavel'] }}</option>{% endfor %}
+        </select>
+    </div>
+    <button class="btn" type="submit">Comparar</button>
+</form>
+
+{% if pares|length > 1 %}
+<p class="semanas-rapidas nao-imprimir">
+    {% for a, b in pares %}
+    <a class="{% if inicio and fim and a['id'] == inicio['id'] and b['id'] == fim['id'] %}ativa{% endif %}"
+       href="{{ url_for('relatorio.semanas', inicio=a['id'], fim=b['id']) }}">{{ a['data']|data_br }} → {{ b['data']|data_br }}</a>
+    {% endfor %}
+</p>
+{% endif %}
+
+{% if inicio and fim and inicio['id'] != fim['id'] %}
+<div class="top-bar">
+    <h2>{{ inicio['data']|data_br }} a {{ fim['data']|data_br }} <span class="sub">({{ dias }} dias)</span></h2>
+    <div class="nao-imprimir">
+        <a class="btn" href="{{ url_for('relatorio.semanas_csv', inicio=inicio['id'], fim=fim['id']) }}">⬇️ CSV</a>
+        <button class="btn btn-edit" type="button" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+</div>
+
+{% if inconsistentes %}
+<div class="aviso">⚠️ {{ inconsistentes }} insumo(s) aumentaram entre as contagens sem compra registrada. Confira se faltou lançar alguma compra.</div>
+{% endif %}
+
+{% for categoria, itens in grupos %}
+<h3>{{ categoria }}</h3>
+<table class="tabela-saida">
+    <thead><tr><th>Insumo</th><th>Início</th><th>+ Compras</th><th>− Desperd.</th><th>Final</th><th>Vendido / usado</th></tr></thead>
+    <tbody>
+        {% for l in itens %}
+        <tr {% if l.inconsistente %}class="linha-alerta"{% endif %}>
+            <td>
+                {{ l.nome }}
+                <span class="detalhe sub">{{ l.inicio|qtd }} + {{ l.compras|qtd }} − {{ l.final|qtd }}{% if l.desperdicio %} · desperd. {{ l.desperdicio|qtd }}{% endif %}</span>
+            </td>
+            <td>{{ l.inicio|qtd }}</td>
+            <td>{{ l.compras|qtd }}</td>
+            <td>{{ l.desperdicio|qtd }}</td>
+            <td>{{ l.final|qtd }}</td>
+            <td><strong>{{ l.vendido|qtd }} {{ l.unidade }}</strong></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhum insumo contado nas duas contagens.</p>
+{% endfor %}
+
+{% if incompletos %}
+<h2 class="nao-imprimir">Não dá para calcular <span class="sub">({{ incompletos|length }})</span></h2>
+<p class="sub nao-imprimir">Faltou contar numa das duas contagens, ou a unidade mudou entre elas.</p>
+<p class="sem-dados nao-imprimir">{{ incompletos|join(', ') }}</p>
+{% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}
