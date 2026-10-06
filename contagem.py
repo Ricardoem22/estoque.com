@@ -55,7 +55,8 @@ def init_db():
     for coluna, tipo in (("codigo", "TEXT NOT NULL DEFAULT ''"), ("marca", "TEXT NOT NULL DEFAULT ''"),
                          ("fornecedor", "TEXT NOT NULL DEFAULT ''"), ("local", "TEXT NOT NULL DEFAULT ''"),
                          ("minimo", "REAL"), ("ideal", "REAL"), ("custo", "REAL"),
-                         ("observacao", "TEXT NOT NULL DEFAULT ''"), ("ativo", "INTEGER NOT NULL DEFAULT 1")):
+                         ("observacao", "TEXT NOT NULL DEFAULT ''"), ("ativo", "INTEGER NOT NULL DEFAULT 1"),
+                         ("ncm", "TEXT NOT NULL DEFAULT ''")):
         if coluna not in colunas:
             conn.execute(f"ALTER TABLE insumos ADD COLUMN {coluna} {tipo}")
     # Medidas de compra de cada insumo: 1 <unidade> = <fator> <unidade_base>
