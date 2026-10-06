@@ -563,3 +563,25 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
     .valor-total { background: #fff; color: var(--texto); border: 2px solid var(--texto); }
     .valor-total strong { color: var(--texto); }
 }
+
+/* ---------- Lançar nota fiscal ---------- */
+.linha-nota { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.linha-nota > div { flex: 1; min-width: 150px; }
+.nota-numero { margin: 8px 0; font-weight: 700; }
+.tabela-nota td { vertical-align: top; padding: 8px 6px; }
+.tabela-nota select { width: 100%; max-width: 260px; }
+.tabela-nota .qtd { width: 80px; }
+.tabela-nota .valor { width: 100px; }
+.tabela-nota td:nth-child(5) select { width: 70px; }
+.tabela-nota tr.sem-ligacao td { background: var(--laranja-claro); }
+.novo-insumo { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.novo-insumo[hidden] { display: none; }
+@media (max-width: 600px) {
+    .tabela-nota thead { display: none; }
+    .tabela-nota tr { display: grid; grid-template-columns: 28px 1fr 1fr 1fr; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--borda); }
+    .tabela-nota td { border: none; padding: 0; }
+    .tabela-nota td:nth-child(1) { grid-row: span 3; align-self: start; padding-top: 2px; }
+    .tabela-nota td:nth-child(2), .tabela-nota td:nth-child(3) { grid-column: 2 / 5; }
+    .tabela-nota select, .tabela-nota input { max-width: none; width: 100% !important; font-size: 16px; }
+}
+.valor-total small b { color: var(--amarelo); }

@@ -1,11 +1,15 @@
 {% extends "base_contagem.html" %}
 {% block titulo %}Compras{% endblock %}
 {% block conteudo %}
-<h1>🛒 Compras</h1>
+<div class="top-bar">
+    <h1>🛒 Compras</h1>
+    <a class="btn" href="{{ url_for('compras.importar_nota') }}">📄 Lançar nota fiscal</a>
+</div>
 <p class="sub">Registre aqui o que chegou de mercadoria. O relatório usa as compras para calcular quanto foi consumido entre uma contagem e outra.</p>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 {% if salvo %}<div class="sucesso">Compra registrada.</div>{% endif %}
+{% if lancados is not none %}<div class="sucesso">Nota lançada: {{ lancados }} ite{{ 'ns' if lancados != 1 else 'm' }} entr{{ 'aram' if lancados != 1 else 'ou' }} nas compras.</div>{% endif %}
 
 <form method="post" class="form-desperdicio">
     <label for="insumo_id">Insumo</label>

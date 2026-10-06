@@ -358,17 +358,29 @@ def calcular_valor_estoque():
                                else "nenhuma compra com valor registrado")
             sem_preco.append(linha)
             continue
+        # Preço médio ponderado de todas as compras com valor (total pago ÷ quantidade total)
+        pago = quantidade = 0.0
+        for compra in compras:
+            fator = converter(1, compra["unidade"], linha["unidade"])
+            if fator:
+                pago += compra["valor_total"]
+                quantidade += compra["quantidade"] * fator
         linha["preco"] = preco
+        linha["preco_medio"] = pago / quantidade if quantidade else preco
+        linha["compras_com_valor"] = sum(1 for c in compras if converter(1, c["unidade"], linha["unidade"]))
         linha["valor"] = preco * linha["estoque"]
+        linha["valor_medio"] = linha["preco_medio"] * linha["estoque"]
         com_preco.append(linha)
 
     categorias = []
     for categoria, itens in agrupar_por_categoria(com_preco):
         itens = sorted(itens, key=lambda l: -l["valor"])
-        categorias.append({"nome": categoria, "itens": itens, "total": sum(l["valor"] for l in itens)})
+        categorias.append({"nome": categoria, "itens": itens, "total": sum(l["valor"] for l in itens),
+                           "total_medio": sum(l["valor_medio"] for l in itens)})
     return {
         "categorias": categorias,
         "total": sum(c["total"] for c in categorias),
+        "total_medio": sum(c["total_medio"] for c in categorias),
         "sem_preco": sorted(sem_preco, key=lambda l: sem_acento(l["nome"])),
         "sem_contagem": sem_contagem,
         "com_preco": len(com_preco),
