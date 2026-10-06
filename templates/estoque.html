@@ -1,0 +1,72 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Meu estoque{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>🏪 Meu estoque</h1>
+    <div class="nao-imprimir">
+        <a class="btn btn-edit" href="{{ url_for('compras.importar_nota') }}">📄 Lançar nota</a>
+        <a class="btn btn-edit" href="{{ url_for('compras.compras') }}">🛒 Lançar compra</a>
+        <button class="btn" type="button" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+</div>
+<p class="sub">O estoque parte da última contagem finalizada. Cada compra lançada depois dela (por nota ou à mão) soma
+    sozinha, e o desperdício aprovado pela gerência desconta. Quando você faz uma contagem nova, ela vira o novo ponto de partida.</p>
+
+<div class="valor-total">
+    <span>Valor dos insumos em estoque</span>
+    <strong>{{ total|brl if total else "R$ 0,00" }}</strong>
+    <small>pelo último preço das notas · pelo preço médio: <b>{{ total_medio|brl if total_medio else "R$ 0,00" }}</b></small>
+    <small>{{ itens }} insumo{{ 's' if itens != 1 }} em estoque{% if sem_preco %} · {{ sem_preco }} sem preço de compra (fora do valor){% endif %}</small>
+</div>
+
+{% if categorias %}
+<input type="search" id="busca-estoque" class="busca nao-imprimir" placeholder="🔎 Procurar insumo...">
+
+{% for c in categorias %}
+<div class="grupo-estoque">
+<h3>{{ c.nome }}{% if c.total %} · {{ c.total|brl }}{% endif %}</h3>
+<table class="tabela-estoque">
+    <thead><tr><th>Insumo</th><th>Estoque agora</th><th>Preço</th><th>Valor</th></tr></thead>
+    <tbody>
+    {% for l in c.itens %}
+    <tr data-nome="{{ l.nome|lower }}">
+        <td><strong>{{ l.nome }}</strong></td>
+        <td><strong>{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</strong><br>
+            <span class="sub">
+                {% if l.ultima_contagem %}contado {{ l.contado|round(2)|qtd }} em {{ l.ultima_contagem|data_br }}{% else %}sem contagem{% endif %}
+                {%- if l.compras_desde %} · + {{ l.compras_desde|round(2)|qtd }} comprado{% endif %}
+                {%- if l.desperdicio %} · − {{ l.desperdicio|round(2)|qtd }} desperdício{% endif %}
+            </span>
+        </td>
+        <td>{% if l.preco is defined %}{{ l.preco|brl }}/{{ l.unidade }}{% if l.preco_medio|round(2) != l.preco|round(2) %}<br><span class="sub">médio {{ l.preco_medio|brl }}</span>{% endif %}{% else %}<span class="sub">—</span>{% endif %}</td>
+        <td>{% if l.valor is defined %}<strong>{{ l.valor|brl }}</strong>{% elif l.estoque > 0 %}<span class="sub">sem preço</span>{% else %}<span class="sub">acabou</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endfor %}
+{% else %}
+<p class="vazio">Ainda não há estoque. Finalize uma <a href="{{ url_for('contagem.contagens') }}">contagem</a> ou lance uma <a href="{{ url_for('compras.compras') }}">compra</a>.</p>
+{% endif %}
+
+{% if sem_contagem %}
+<p class="sub">{{ sem_contagem }} insumo{{ 's' if sem_contagem != 1 }} sem contagem e sem compra não aparece{{ 'm' if sem_contagem != 1 }} aqui.</p>
+{% endif %}
+
+<script>
+    var busca = document.getElementById("busca-estoque");
+    if (busca) busca.addEventListener("input", function () {
+        var termo = this.value.trim().toLowerCase();
+        document.querySelectorAll(".grupo-estoque").forEach(function (grupo) {
+            var visiveis = 0;
+            grupo.querySelectorAll("tbody tr").forEach(function (tr) {
+                var mostra = !termo || tr.dataset.nome.indexOf(termo) !== -1;
+                tr.style.display = mostra ? "" : "none";
+                if (mostra) visiveis++;
+            });
+            grupo.style.display = visiveis ? "" : "none";
+        });
+    });
+</script>
+{% endblock %}

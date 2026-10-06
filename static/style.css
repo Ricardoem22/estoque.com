@@ -558,6 +558,8 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
     .valor-total strong { font-size: 28px; }
     .barra-pct { display: none; }
     .tabela-compras th:nth-child(5), .tabela-compras td:nth-child(5) { display: none; }
+    .tabela-valor th:nth-child(4), .tabela-valor td:nth-child(4) { display: none; }
+    .tabela-valor th, .tabela-valor td { padding: 8px 4px; }
 }
 @media print {
     .valor-total { background: #fff; color: var(--texto); border: 2px solid var(--texto); }
@@ -604,4 +606,12 @@ input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8p
 @media (max-width: 600px) {
     .tabela-pedido th:nth-child(3), .tabela-pedido td:nth-child(3) { display: none; }
     .tabela-pedido th, .tabela-pedido td { padding: 8px 4px; }
+}
+
+/* Meu estoque */
+input.busca { width: 100%; padding: 10px 12px; border: 1px solid #D3CBBB; border-radius: 8px; font-size: 16px; margin: 16px 0 4px; }
+.tabela-estoque td:nth-child(3), .tabela-estoque td:nth-child(4) { white-space: nowrap; }
+@media (max-width: 600px) {
+    .tabela-estoque th:nth-child(3), .tabela-estoque td:nth-child(3) { display: none; }
+    .tabela-estoque th, .tabela-estoque td { padding: 8px 4px; }
 }

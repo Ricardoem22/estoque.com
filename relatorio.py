@@ -32,12 +32,15 @@ def arredondar_compra(valor, unidade):
 
 
 def soma_compras(compras, unidade, inicio, fim=None):
-    """Compras na unidade dada com data >= inicio e < fim.
+    """Compras convertidas para a unidade dada (g↔kg, ml↔L) com data >= inicio e < fim.
     Uma compra no dia da contagem conta como chegada depois da contagem."""
-    return sum(
-        c["quantidade"] for c in compras
-        if c["unidade"] == unidade and c["data"] >= inicio and (fim is None or c["data"] < fim)
-    )
+    total = 0.0
+    for c in compras:
+        if c["data"] >= inicio and (fim is None or c["data"] < fim):
+            quantidade = converter(c["quantidade"], c["unidade"], unidade)
+            if quantidade is not None:
+                total += quantidade
+    return total
 
 
 def analisar_insumo(insumo, contagens, compras, semanas, desperdicios=()):
@@ -47,15 +50,22 @@ def analisar_insumo(insumo, contagens, compras, semanas, desperdicios=()):
         "consumo_semanal": None, "dias_cobertura": None, "sugestao": 0, "status": "sem_dados",
     }
     if not contagens:
+        # Nunca contado: o estoque é o que entrou pelas compras
+        if compras:
+            linha["contado"] = 0.0
+            linha["compras_desde"] = soma_compras(compras, insumo["unidade"], "")
+            linha["desperdicio"] = soma_compras(desperdicios, insumo["unidade"], "")
+            linha["estoque"] = max(0.0, linha["compras_desde"] - linha["desperdicio"])
         return linha
 
     ultima = contagens[-1]
     unidade = ultima["unidade"]
     linha["unidade"] = unidade
     linha["ultima_contagem"] = ultima["data"]
+    linha["contado"] = ultima["quantidade"]
+    linha["compras_desde"] = soma_compras(compras, unidade, ultima["data"])
     linha["desperdicio"] = soma_compras(desperdicios, unidade, ultima["data"])
-    linha["estoque"] = max(0.0, ultima["quantidade"] + soma_compras(compras, unidade, ultima["data"])
-                           - linha["desperdicio"])
+    linha["estoque"] = max(0.0, ultima["quantidade"] + linha["compras_desde"] - linha["desperdicio"])
 
     consumo_total = 0.0
     dias_total = 0
@@ -390,6 +400,24 @@ def calcular_valor_estoque():
 @bp.route("/relatorio/valor")
 def valor_estoque():
     return render_template("valor_estoque.html", **calcular_valor_estoque())
+
+
+@bp.route("/estoque")
+def estoque():
+    """Meu estoque: última contagem + compras − desperdício aprovado, com o valor pelas notas."""
+    valor = calcular_valor_estoque()
+    precos = {l["id"]: l for c in valor["categorias"] for l in c["itens"]}
+    linhas = [l for l in calcular_linhas() if l["estoque"] is not None]
+    for linha in linhas:
+        com_preco = precos.get(linha["id"])
+        if com_preco:
+            linha.update(preco=com_preco["preco"], preco_medio=com_preco["preco_medio"],
+                         valor=com_preco["valor"], valor_medio=com_preco["valor_medio"])
+    categorias = [{"nome": cat, "itens": itens, "total": sum(l.get("valor", 0) for l in itens)}
+                  for cat, itens in agrupar_por_categoria(linhas)]
+    return render_template("estoque.html", categorias=categorias, total=valor["total"],
+                           total_medio=valor["total_medio"], itens=len(linhas),
+                           sem_preco=len(valor["sem_preco"]), sem_contagem=valor["sem_contagem"])
 
 
 # ---------- Conferir pedido de compra ----------

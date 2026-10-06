@@ -3,6 +3,7 @@
 {%- elif ep.startswith('contagem.') %}{% set aba = 'contagens' -%}
 {%- elif ep.startswith('compras.') %}{% set aba = 'compras' -%}
 {%- elif ep.startswith('desperdicio.') or ep.startswith('gerencia') %}{% set aba = 'desperdicio' -%}
+{%- elif ep == 'relatorio.estoque' %}{% set aba = 'estoque' -%}
 {%- elif ep.startswith('relatorio.') %}{% set aba = 'relatorio' -%}
 {%- elif ep.startswith('mural.') %}{% set aba = 'mural' -%}
 {%- elif ep.startswith('funcionarios.') %}{% set aba = 'funcionarios' -%}
@@ -20,6 +21,7 @@
     </div>
     <nav class="menu">
         <a href="{{ url_for('contagem.contagens') }}" {% if aba == 'contagens' %}class="ativo"{% endif %}>📋 Contagens</a>
+        <a href="{{ url_for('relatorio.estoque') }}" {% if aba == 'estoque' %}class="ativo"{% endif %}>🏪 Estoque</a>
         <a href="{{ url_for('mural.mural') }}" {% if aba == 'mural' %}class="ativo"{% endif %}>💬 Mural</a>
         <a href="{{ url_for('contagem.insumos') }}" {% if aba == 'insumos' %}class="ativo"{% endif %}>🧾 Insumos</a>
         <a href="{{ url_for('compras.compras') }}" {% if aba == 'compras' %}class="ativo"{% endif %}>🛒 Compras</a>
