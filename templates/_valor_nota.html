@@ -1,0 +1,10 @@
+{# Valor pago do item, tirado da nota. Travado quando a nota traz o valor. #}
+{% if item.valor_total is not none %}
+<input type="hidden" name="valor_{{ i }}" value="{{ '%.2f'|format(item.valor_total)|replace('.', ',') }}">
+<strong class="valor-travado" title="Valor tirado da nota fiscal">🔒 {{ item.valor_total|brl }}</strong>
+{% if item.acrescimos or item.desconto %}
+<br><span class="sub">produto {{ item.valor_produto|brl }}{% if item.acrescimos %} + impostos/frete {{ item.acrescimos|brl }}{% endif %}{% if item.desconto %} − desconto {{ item.desconto|brl }}{% endif %}</span>
+{% endif %}
+{% else %}
+<input type="text" name="valor_{{ i }}" value="" inputmode="decimal" class="valor" placeholder="não veio na nota" aria-label="Valor pago">
+{% endif %}

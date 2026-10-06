@@ -604,7 +604,8 @@ input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8p
 .r-demais { background: var(--vermelho-claro); color: var(--vermelho-escuro); }
 .r-pouco { background: var(--laranja-claro); color: #7a4f00; }
 @media (max-width: 600px) {
-    .tabela-pedido th:nth-child(3), .tabela-pedido td:nth-child(3) { display: none; }
+    /* No celular a sugestão some (a avaliação já diz quanto falta ou sobra); o estoque fica */
+    .tabela-pedido th:nth-child(4), .tabela-pedido td:nth-child(4) { display: none; }
     .tabela-pedido th, .tabela-pedido td { padding: 8px 4px; }
 }
 
@@ -615,3 +616,26 @@ input.busca { width: 100%; padding: 10px 12px; border: 1px solid #D3CBBB; border
     .tabela-estoque th:nth-child(3), .tabela-estoque td:nth-child(3) { display: none; }
     .tabela-estoque th, .tabela-estoque td { padding: 8px 4px; }
 }
+
+/* ---------- Produtos: campos e importação pela nota ---------- */
+.linha-campos { display: flex; gap: 10px; flex-wrap: wrap; }
+.linha-campos > div { flex: 1; min-width: 140px; }
+.opcoes-nota { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 12px; }
+.opcoes-nota label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; }
+.tabela-produtos-nota .ncm { width: 105px; }
+.tabela-produtos-nota .un { width: 60px; }
+
+.so-celular { display: none; }
+@media (max-width: 600px) {
+    .tabela-produtos-nota tr { grid-template-columns: 28px minmax(108px, 1.4fr) 1fr minmax(60px, 0.7fr) 1fr; }
+    .tabela-produtos-nota td:nth-child(1) { grid-row: span 3; }
+    .tabela-produtos-nota td:nth-child(2), .tabela-produtos-nota td:nth-child(3) { grid-column: 2 / 6; }
+    .tabela-produtos-nota .un, .tabela-produtos-nota .ncm { padding-left: 6px; padding-right: 6px; }
+    .col-ncm { display: none; }
+    .so-celular { display: inline; }
+}
+.estoque-zerado { color: var(--vermelho); }
+.titulo-busca { margin-top: 18px; }
+.titulo-busca[hidden], table[hidden], .vazio[hidden], section[hidden], tr[hidden] { display: none; }
+input[type="search"] { padding: 8px; border: 1px solid #ccc; border-radius: 6px; width: 100%; }
+.valor-travado { white-space: nowrap; }

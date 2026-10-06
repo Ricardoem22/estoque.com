@@ -2,6 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Editar Produto - Gestor Full</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -16,13 +17,41 @@
 
         <form method="post">
             <label for="nome">Nome do produto</label>
-            <input type="text" id="nome" name="nome" value="{{ produto['nome'] }}" required>
+            <input type="text" id="nome" name="nome" value="{{ produto.get('nome', '') }}" required>
 
-            <label for="quantidade">Quantidade</label>
-            <input type="number" id="quantidade" name="quantidade" min="0" value="{{ produto['quantidade'] }}" required>
+            <div class="linha-campos">
+                <div>
+                    <label for="quantidade">Quantidade</label>
+                    <input type="text" id="quantidade" name="quantidade" inputmode="decimal" value="{{ produto.get('quantidade')|qtd }}" required>
+                </div>
+                <div>
+                    <label for="unidade">Unidade</label>
+                    <input type="text" id="unidade" name="unidade" list="lista-unidades" value="{{ produto.get('unidade', '') }}" placeholder="kg, un, cx...">
+                    <datalist id="lista-unidades">{% for u in unidades %}<option value="{{ u }}">{% endfor %}</datalist>
+                </div>
+                <div>
+                    <label for="preco">Preço (R$)</label>
+                    <input type="text" id="preco" name="preco" inputmode="decimal" value="{{ produto.get('preco')|brl|replace('R$ ', '') }}" required>
+                </div>
+            </div>
 
-            <label for="preco">Preço (R$)</label>
-            <input type="number" id="preco" name="preco" min="0" step="0.01" value="{{ produto['preco'] }}" required>
+            <div class="linha-campos">
+                <div>
+                    <label for="ncm">NCM</label>
+                    <input type="text" id="ncm" name="ncm" inputmode="numeric" value="{{ produto.get('ncm', '')|ncm }}" placeholder="0000.00.00">
+                </div>
+                <div>
+                    <label for="codigo">Código do fornecedor</label>
+                    <input type="text" id="codigo" name="codigo" value="{{ produto.get('codigo', '') }}">
+                </div>
+                <div>
+                    <label for="ean">Código de barras (EAN)</label>
+                    <input type="text" id="ean" name="ean" inputmode="numeric" value="{{ produto.get('ean', '') }}">
+                </div>
+            </div>
+
+            <label for="fornecedor">Fornecedor</label>
+            <input type="text" id="fornecedor" name="fornecedor" value="{{ produto.get('fornecedor', '') }}">
 
             <div class="form-actions">
                 <button class="btn" type="submit">Salvar Alterações</button>

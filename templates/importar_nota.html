@@ -22,11 +22,13 @@
     3. <strong>Planilha</strong> (Excel ou CSV) com as colunas Produto, Quantidade e Valor.
 </div>
 {% else %}
+{% include "_aviso_valor_nota.html" %}
 {% if ja_lancada %}
 <div class="aviso">⚠️ Esta nota já foi lançada em {{ ja_lancada|data_br }}. Lançar de novo vai somar as quantidades duas vezes.</div>
 {% endif %}
 <p class="sub">Confira cada item. Escolha o insumo do sistema, ajuste a quantidade para a unidade que vocês contam
-    (ex.: 2 caixas de 12 → 24 un) e desmarque o que não for para o estoque.</p>
+    (ex.: 2 caixas de 12 → 24 un) e desmarque o que não for para o estoque. O valor pago vem da nota e não muda
+    quando você ajusta a quantidade.</p>
 
 <form method="post" action="{{ url_for('compras.confirmar_nota') }}">
     <input type="hidden" name="total" value="{{ nota.itens|length }}">
@@ -44,7 +46,7 @@
     </div>
 
     <table class="tabela-nota">
-        <thead><tr><th></th><th>Item da nota</th><th>Insumo no sistema</th><th>Qtd.</th><th>Un.</th><th>Valor (R$)</th></tr></thead>
+        <thead><tr><th></th><th>Item da nota</th><th>Insumo no sistema</th><th>Qtd.</th><th>Un.</th><th>Valor pago (R$)</th></tr></thead>
         <tbody>
         {% for item in nota.itens %}
         {% set i = loop.index0 %}
@@ -80,7 +82,7 @@
                     {% for u in unidades %}<option value="{{ u }}" {% if u == item.unidade %}selected{% endif %}>{{ u }}</option>{% endfor %}
                 </select>
             </td>
-            <td><input type="text" name="valor_{{ i }}" value="{{ '%.2f'|format(item.valor_total)|replace('.', ',') if item.valor_total is not none else '' }}" inputmode="decimal" class="valor" aria-label="Valor"></td>
+            <td>{% include "_valor_nota.html" %}</td>
         </tr>
         {% endfor %}
         </tbody>
