@@ -1,0 +1,51 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Divergências{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>⚖️ Divergências da contagem</h1>
+    <button class="btn btn-edit nao-imprimir" type="button" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+<p class="sub">Compara o que foi contado com o que o sistema esperava: contagem anterior + compras − saídas −
+    desperdício aprovado até a véspera. Diferença negativa é falta (furo de estoque).</p>
+
+{% if not contagem %}
+<p class="vazio">Nenhuma contagem finalizada ainda.</p>
+{% else %}
+<form method="get" class="filtro-mes nao-imprimir">
+    <label for="contagem">Contagem</label>
+    <select id="contagem" name="contagem" onchange="this.form.submit()">
+        {% for c in contagens %}<option value="{{ c['id'] }}" {% if c['id'] == contagem['id'] %}selected{% endif %}>{{ c['data']|data_br }} · {{ c['responsavel'] }}</option>{% endfor %}
+    </select>
+</form>
+
+{% if not resumo.comparados %}
+<p class="vazio">Esta foi a primeira contagem: não havia estoque anterior para comparar. Ela virou o estoque inicial.</p>
+{% else %}
+<div class="resumo-pedido">
+    <div class="{{ 'r-ok' if not resumo.com_diferenca else 'r-pouco' }}"><strong>{{ resumo.com_diferenca }}</strong><span>de {{ resumo.comparados }} com diferença</span></div>
+    <div class="r-pouco"><strong>{{ resumo.faltou|abs|brl if resumo.faltou else 'R$ 0,00' }}</strong><span>faltou no estoque</span></div>
+    <div class="r-ok"><strong>{{ resumo.sobrou|brl if resumo.sobrou else 'R$ 0,00' }}</strong><span>sobrou no estoque</span></div>
+</div>
+{% if linhas %}
+<table class="tabela-pedido">
+    <thead><tr><th>Insumo</th><th>No sistema</th><th>Contado</th><th>Diferença</th><th>Valor</th></tr></thead>
+    <tbody>
+    {% for l in linhas %}
+    <tr>
+        <td><a class="nome-insumo" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}</a><br><span class="sub">{{ l.categoria }}</span></td>
+        <td>{{ l.esperado|round(2)|qtd }} {{ l.unidade }}</td>
+        <td>{{ l.contado|qtd }} {{ l.unidade }}</td>
+        <td><strong class="{{ 'dif-falta' if l.diferenca < 0 else 'dif-sobra' }}">{{ '+' if l.diferenca > 0 }}{{ l.diferenca|round(2)|qtd }}</strong></td>
+        <td>{% if l.valor is not none %}{{ l.valor|brl }}{% else %}<span class="sub">sem preço</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="sucesso">Tudo bateu: nenhum item contado com diferença.</p>
+{% endif %}
+<p class="nao-imprimir"><a href="{{ url_for('contagem.ver_contagem', id=contagem['id']) }}">Ver a contagem completa</a> ·
+    <a href="{{ url_for('contagem.exportar_csv', id=contagem['id']) }}">⬇️ Baixar CSV com as diferenças</a></p>
+{% endif %}
+{% endif %}
+{% endblock %}

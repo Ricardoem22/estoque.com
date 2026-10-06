@@ -17,18 +17,32 @@
     </form>
 </div>
 
+{% if resumo and resumo.comparados %}
+<div class="resumo-pedido">
+    <div class="{{ 'r-ok' if not resumo.com_diferenca else 'r-pouco' }}"><strong>{{ resumo.com_diferenca }}</strong><span>de {{ resumo.comparados }} com diferença</span></div>
+    <div class="r-pouco"><strong>{{ resumo.faltou|abs|brl if resumo.faltou else 'R$ 0,00' }}</strong><span>faltou no estoque</span></div>
+    <div class="r-ok"><strong>{{ resumo.sobrou|brl if resumo.sobrou else 'R$ 0,00' }}</strong><span>sobrou no estoque</span></div>
+</div>
+<p class="sub">"No sistema" é o que o app esperava: contagem anterior + compras − saídas − desperdício aprovado até a véspera.
+    Diferença negativa é falta (furo de estoque). Depois de finalizada, esta contagem vira o novo estoque.</p>
+{% elif resumo %}
+<p class="sub">Primeira contagem: ainda não há estoque anterior para comparar. Ela vira o seu estoque inicial.</p>
+{% endif %}
+
 {% for categoria, itens in grupos %}
 <h2>{{ categoria }}</h2>
-<table>
+<table class="tabela-ver-contagem">
     <thead>
-        <tr><th>Insumo</th><th>Unidade</th><th>Qtd. Contada</th><th>Observações / Validade</th></tr>
+        <tr><th>Insumo</th><th>Contado</th><th>No sistema</th><th>Diferença</th><th>Obs. / validade</th></tr>
     </thead>
     <tbody>
         {% for item in itens %}
         <tr {% if item['quantidade'] is none %}class="nao-contado"{% endif %}>
+            {% set d = sistema.get(item['id'], {}) %}
             <td>{{ item['nome'] }}</td>
-            <td>{{ item['unidade'] }}</td>
-            <td>{{ item['quantidade']|qtd if item['quantidade'] is not none else '—' }}</td>
+            <td>{{ (item['quantidade']|qtd ~ ' ' ~ item['unidade']) if item['quantidade'] is not none else '—' }}</td>
+            <td>{% if d.esperado is not none and d.esperado is defined %}{{ d.esperado|round(2)|qtd }}{% else %}<span class="sub">—</span>{% endif %}</td>
+            <td>{% if d.diferenca %}<strong class="{{ 'dif-falta' if d.diferenca < 0 else 'dif-sobra' }}">{{ '+' if d.diferenca > 0 }}{{ d.diferenca|round(2)|qtd }}</strong>{% if d.valor is not none %}<br><span class="sub">{{ d.valor|brl }}</span>{% endif %}{% elif d.diferenca is defined and d.diferenca == 0 %}<span class="tag tag-ok">bate</span>{% else %}<span class="sub">—</span>{% endif %}</td>
             <td>{{ item['observacao'] }}</td>
         </tr>
         {% endfor %}

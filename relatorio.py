@@ -132,7 +132,9 @@ def marcar_situacao(linha):
     return linha
 
 
-def calcular_linhas(semanas=1):
+def calcular_linhas(semanas=1, ate=None):
+    """ate: data (AAAA-MM-DD) para calcular o estoque como estava logo antes dela; só valem
+    contagens e lançamentos com data anterior."""
     from insumo_cadastro import carregar_conversoes
     from movimentos import TIPOS
     conn = get_connection()
@@ -157,6 +159,11 @@ def calcular_linhas(semanas=1):
     ]
     conversoes = carregar_conversoes(conn)
     conn.close()
+    if ate:
+        itens = [i for i in itens if i["data"] < ate]
+        compras = [c for c in compras if c["data"] < ate]
+        desperdicios = [d for d in desperdicios if d["data"] < ate]
+        movimentos = [m for m in movimentos if m["data"] < ate]
     movimentos_por_insumo = {}
     for m in movimentos:
         movimentos_por_insumo.setdefault(m["insumo_id"], []).append(m)
@@ -180,6 +187,62 @@ def calcular_linhas(semanas=1):
                         conversoes.get(i["id"], []))
         for i in insumos
     ]
+
+
+def divergencias(contagem):
+    """Compara cada item contado com o que o sistema tinha logo antes da contagem
+    (contagem anterior + compras − saídas − desperdício aprovado até a véspera)."""
+    from insumo_cadastro import carregar_conversoes
+    sistema = {l["id"]: l for l in calcular_linhas(ate=contagem["data"])}
+    precos = {l["id"]: l for c in calcular_valor_estoque()["categorias"] for l in c["itens"]}
+    conn = get_connection()
+    itens = conn.execute("""
+        SELECT ci.insumo_id, ci.quantidade, ci.unidade, i.nome, i.categoria FROM contagem_itens ci
+        JOIN insumos i ON i.id = ci.insumo_id WHERE ci.contagem_id = ? AND ci.quantidade IS NOT NULL
+    """, (contagem["id"],)).fetchall()
+    conversoes = carregar_conversoes(conn)
+    conn.close()
+    linhas = {}
+    for item in itens:
+        linha = {"id": item["insumo_id"], "nome": item["nome"], "categoria": item["categoria"],
+                 "unidade": item["unidade"], "contado": item["quantidade"], "esperado": None,
+                 "diferenca": None, "valor": None}
+        antes = sistema.get(item["insumo_id"])
+        conv = conversoes.get(item["insumo_id"], [])
+        if antes and antes["estoque"] is not None:
+            linha["esperado"] = converter(antes["estoque"], antes["unidade"], item["unidade"], conv)
+        if linha["esperado"] is not None:
+            linha["diferenca"] = round(item["quantidade"] - linha["esperado"], 3)
+            preco = precos.get(item["insumo_id"])
+            if preco:
+                # preço por unidade do estoque atual → por unidade desta contagem
+                por_unidade = converter(1, item["unidade"], preco["unidade"], conv)
+                if por_unidade is not None:
+                    linha["valor"] = linha["diferenca"] * por_unidade * preco["preco"]
+        linhas[item["insumo_id"]] = linha
+    com_diferenca = [l for l in linhas.values() if l["diferenca"]]
+    resumo = {
+        "comparados": sum(1 for l in linhas.values() if l["esperado"] is not None),
+        "com_diferenca": len(com_diferenca),
+        "faltou": sum(l["valor"] for l in com_diferenca if l["valor"] and l["valor"] < 0),
+        "sobrou": sum(l["valor"] for l in com_diferenca if l["valor"] and l["valor"] > 0),
+    }
+    return linhas, resumo
+
+
+@bp.route("/relatorio/divergencias")
+def relatorio_divergencias():
+    conn = get_connection()
+    contagens = conn.execute(
+        "SELECT * FROM contagens WHERE finalizada = 1 ORDER BY data DESC, id DESC LIMIT 30").fetchall()
+    conn.close()
+    escolhida = request.args.get("contagem", type=int)
+    contagem = next((c for c in contagens if c["id"] == escolhida), contagens[0] if contagens else None)
+    linhas, resumo = divergencias(contagem) if contagem else ({}, None)
+    lista = sorted((l for l in linhas.values() if l["diferenca"]),
+                   key=lambda l: (l["valor"] is None, l["valor"] or 0, l["diferenca"]))
+    return render_template("divergencias.html", contagens=contagens, contagem=contagem, linhas=lista,
+                           resumo=resumo)
 
 
 @bp.route("/relatorio")
