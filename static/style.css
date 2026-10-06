@@ -605,3 +605,21 @@ input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8p
     .tabela-pedido th:nth-child(3), .tabela-pedido td:nth-child(3) { display: none; }
     .tabela-pedido th, .tabela-pedido td { padding: 8px 4px; }
 }
+
+/* ---------- Produtos: campos e importação pela nota ---------- */
+.linha-campos { display: flex; gap: 10px; flex-wrap: wrap; }
+.linha-campos > div { flex: 1; min-width: 140px; }
+.opcoes-nota { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 12px; }
+.opcoes-nota label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; }
+.tabela-produtos-nota .ncm { width: 105px; }
+.tabela-produtos-nota .un { width: 60px; }
+
+.so-celular { display: none; }
+@media (max-width: 600px) {
+    .tabela-produtos-nota tr { grid-template-columns: 28px minmax(108px, 1.4fr) 1fr minmax(60px, 0.7fr) 1fr; }
+    .tabela-produtos-nota td:nth-child(1) { grid-row: span 3; }
+    .tabela-produtos-nota td:nth-child(2), .tabela-produtos-nota td:nth-child(3) { grid-column: 2 / 6; }
+    .tabela-produtos-nota .un, .tabela-produtos-nota .ncm { padding-left: 6px; padding-right: 6px; }
+    .col-ncm { display: none; }
+    .so-celular { display: inline; }
+}

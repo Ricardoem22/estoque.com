@@ -5,9 +5,11 @@ from flask import Flask, render_template, request, redirect, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
-from contagem import bp as contagem_bp, init_db as init_db_contagem
+from insumos_iniciais import UNIDADES
+from contagem import bp as contagem_bp, init_db as init_db_contagem, parse_quantidade
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
-from compras import bp as compras_bp, init_db as init_db_compras
+from compras import bp as compras_bp, init_db as init_db_compras, parse_valor
+from produtos_nota import bp as produtos_nota_bp, init_db as init_db_produtos_nota
 from relatorio import bp as relatorio_bp
 from mural import bp as mural_bp, init_db as init_db_mural
 from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
@@ -28,6 +30,7 @@ app.register_blueprint(compras_bp)
 app.register_blueprint(relatorio_bp)
 app.register_blueprint(funcionarios_bp)
 app.register_blueprint(mural_bp)
+app.register_blueprint(produtos_nota_bp)
 DB_NAME = config.DB_PATH
 
 
@@ -89,8 +92,41 @@ def init_db():
             preco REAL NOT NULL
         )
     """)
+    # Características que vêm da nota fiscal
+    colunas = {c["name"] for c in conn.execute("PRAGMA table_info(produtos)")}
+    for coluna in ("ncm", "codigo", "ean", "unidade", "fornecedor"):
+        if coluna not in colunas:
+            conn.execute(f"ALTER TABLE produtos ADD COLUMN {coluna} TEXT NOT NULL DEFAULT ''")
     conn.commit()
     conn.close()
+
+
+CAMPOS_TEXTO = ("ncm", "codigo", "ean", "unidade", "fornecedor")
+
+
+def ler_form_produto(form):
+    """Valida o formulário de produto. Retorna (dados, erro)."""
+    dados = {"nome": form.get("nome", "").strip()}
+    for campo in CAMPOS_TEXTO:
+        dados[campo] = form.get(campo, "").strip()
+    dados["ncm"] = "".join(c for c in dados["ncm"] if c.isdigit())
+    if not dados["nome"]:
+        return dados, "O nome do produto é obrigatório."
+    if dados["ncm"] and len(dados["ncm"]) != 8:
+        return dados, "O NCM tem 8 números (ex.: 0402.10.10)."
+    try:
+        dados["quantidade"] = parse_quantidade(form.get("quantidade", ""))
+    except ValueError:
+        dados["quantidade"] = None
+    if dados["quantidade"] is None:
+        return dados, "A quantidade deve ser um número maior ou igual a zero (ex.: 2,5)."
+    try:
+        dados["preco"] = parse_valor(form.get("preco", ""))
+    except ValueError:
+        dados["preco"] = None
+    if dados["preco"] is None:
+        return dados, "O preço deve ser um número válido, maior ou igual a zero (ex.: 12,90)."
+    return dados, None
 
 @app.route("/")
 def index():
@@ -98,8 +134,8 @@ def index():
     conn = get_connection()
     if busca:
         produtos = conn.execute(
-            "SELECT * FROM produtos WHERE nome LIKE ? ORDER BY nome",
-            (f"%{busca}%",)
+            "SELECT * FROM produtos WHERE nome LIKE ? OR ncm LIKE ? OR codigo LIKE ? OR ean LIKE ? ORDER BY nome",
+            (f"%{busca}%",) * 4
         ).fetchall()
     else:
         produtos = conn.execute("SELECT * FROM produtos ORDER BY nome").fetchall()
@@ -109,35 +145,21 @@ def index():
 @app.route("/adicionar", methods=["GET", "POST"])
 def adicionar():
     erro = None
+    dados = {}
     if request.method == "POST":
-        nome = request.form.get("nome", "").strip()
-        quantidade = request.form.get("quantidade", "")
-        preco = request.form.get("preco", "")
-
-        # Validações
-        if not nome:
-            erro = "O nome do produto é obrigatório."
-        elif not quantidade.isdigit() or int(quantidade) < 0:
-            erro = "A quantidade deve ser um número inteiro maior ou igual a zero."
-        else:
-            try:
-                preco_float = float(preco)
-                if preco_float < 0:
-                    erro = "O preço não pode ser negativo."
-            except ValueError:
-                erro = "O preço deve ser um número válido."
-
+        dados, erro = ler_form_produto(request.form)
         if not erro:
             conn = get_connection()
             conn.execute(
-                "INSERT INTO produtos (nome, quantidade, preco) VALUES (?, ?, ?)",
-                (nome, int(quantidade), preco_float)
+                "INSERT INTO produtos (nome, quantidade, preco, ncm, codigo, ean, unidade, fornecedor)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (dados["nome"], dados["quantidade"], dados["preco"], *(dados[c] for c in CAMPOS_TEXTO))
             )
             conn.commit()
             conn.close()
             return redirect(url_for("index"))
 
-    return render_template("adicionar.html", erro=erro)
+    return render_template("adicionar.html", erro=erro, produto=dados, unidades=UNIDADES)
 
 @app.route("/editar/<int:id>", methods=["GET", "POST"])
 def editar(id):
@@ -148,35 +170,23 @@ def editar(id):
         conn.close()
         return "Produto não encontrado", 404
 
+    produto = dict(produto)
     erro = None
     if request.method == "POST":
-        nome = request.form.get("nome", "").strip()
-        quantidade = request.form.get("quantidade", "")
-        preco = request.form.get("preco", "")
-
-        if not nome:
-            erro = "O nome do produto é obrigatório."
-        elif not quantidade.isdigit() or int(quantidade) < 0:
-            erro = "A quantidade deve ser um número inteiro maior ou igual a zero."
-        else:
-            try:
-                preco_float = float(preco)
-                if preco_float < 0:
-                    erro = "O preço não pode ser negativo."
-            except ValueError:
-                erro = "O preço deve ser um número válido."
-
+        dados, erro = ler_form_produto(request.form)
         if not erro:
             conn.execute(
-                "UPDATE produtos SET nome = ?, quantidade = ?, preco = ? WHERE id = ?",
-                (nome, int(quantidade), preco_float, id)
+                "UPDATE produtos SET nome = ?, quantidade = ?, preco = ?, ncm = ?, codigo = ?, ean = ?,"
+                " unidade = ?, fornecedor = ? WHERE id = ?",
+                (dados["nome"], dados["quantidade"], dados["preco"], *(dados[c] for c in CAMPOS_TEXTO), id)
             )
             conn.commit()
             conn.close()
             return redirect(url_for("index"))
+        produto.update(dados)
 
     conn.close()
-    return render_template("editar.html", produto=produto, erro=erro)
+    return render_template("editar.html", produto=produto, erro=erro, unidades=UNIDADES)
 
 @app.route("/excluir/<int:id>")
 def excluir(id):
@@ -193,6 +203,7 @@ init_db_desperdicio()
 init_db_compras()
 init_db_funcionarios()
 init_db_mural()
+init_db_produtos_nota()
 
 if __name__ == "__main__":
     import os
