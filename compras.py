@@ -5,9 +5,11 @@ import re
 
 from flask import Blueprint, redirect, render_template, request, url_for
 
-from contagem import agrupar_por_categoria, get_connection, parse_quantidade
+from contagem import agrupar_por_categoria, get_connection, lista_categorias, parse_quantidade, unidade_padrao
 import config
+from importador import chave_nome
 from insumos_iniciais import UNIDADES
+from notas import EXTENSOES_NOTA, achar_insumo, ler_nota, unidade_do_item
 
 bp = Blueprint("compras", __name__)
 
@@ -29,6 +31,16 @@ def init_db():
     colunas = {c["name"] for c in conn.execute("PRAGMA table_info(compras)")}
     if "valor_total" not in colunas:
         conn.execute("ALTER TABLE compras ADD COLUMN valor_total REAL")
+    # Chave de acesso (ou número) da nota fiscal de onde a compra veio
+    if "nota" not in colunas:
+        conn.execute("ALTER TABLE compras ADD COLUMN nota TEXT")
+    # Como cada produto da nota foi ligado a um insumo, para a próxima nota já vir ligada
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS nota_apelidos (
+            chave TEXT PRIMARY KEY,
+            insumo_id INTEGER NOT NULL REFERENCES insumos(id) ON DELETE CASCADE
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -121,7 +133,7 @@ def compras():
         total_mes=sum(r["valor_total"] or 0 for r in registros),
         data_padrao=form.get("data") or request.args.get("data") or config.hoje().isoformat(),
         fornecedor=form.get("fornecedor") or request.args.get("fornecedor", ""),
-        salvo=request.args.get("salvo"),
+        salvo=request.args.get("salvo"), lancados=request.args.get("lancados", type=int),
     )
 
 
@@ -132,3 +144,98 @@ def excluir_compra(id):
     conn.commit()
     conn.close()
     return redirect(url_for("compras.compras", mes=request.form.get("mes", "")))
+
+
+# ---------- Lançar compras pela nota fiscal ----------
+
+@bp.route("/compras/nota", methods=["GET", "POST"])
+def importar_nota():
+    conn = get_connection()
+    insumos = conn.execute("SELECT * FROM insumos ORDER BY nome COLLATE NOCASE").fetchall()
+    grupos = agrupar_por_categoria(insumos)
+    erro = None
+    nota = None
+    ja_lancada = None
+
+    if request.method == "POST":
+        arquivo = request.files.get("arquivo")
+        if not arquivo or not arquivo.filename:
+            erro = "Escolha o arquivo da nota."
+        else:
+            try:
+                nota = ler_nota(arquivo.filename, arquivo.read())
+                if not nota["itens"]:
+                    erro = "Não encontrei itens nessa nota."
+            except ValueError as e:
+                erro = str(e)
+            except Exception:
+                erro = "Não consegui ler esse arquivo. Confira se ele não está corrompido ou protegido por senha."
+            if erro:
+                nota = None
+        if nota:
+            apelidos = {r["chave"]: r["insumo_id"] for r in conn.execute("SELECT * FROM nota_apelidos")}
+            unidade_insumo = {i["id"]: i["unidade"] for i in insumos}
+            for item in nota["itens"]:
+                item["insumo_id"] = achar_insumo(item["nome"], insumos, apelidos)
+                item["unidade"] = unidade_do_item(item) or unidade_insumo.get(item["insumo_id"]) or "un"
+            if nota["chave"]:
+                ja_lancada = conn.execute("SELECT MIN(data) AS data FROM compras WHERE nota = ?",
+                                          (nota["chave"],)).fetchone()["data"]
+    conn.close()
+    return render_template(
+        "importar_nota.html", erro=erro, nota=nota, grupos=grupos, unidades=UNIDADES,
+        categorias=lista_categorias(grupos), ja_lancada=ja_lancada, hoje=config.hoje().isoformat(),
+        extensoes=", ".join(sorted("." + e for e in EXTENSOES_NOTA)),
+    )
+
+
+@bp.route("/compras/nota/confirmar", methods=["POST"])
+def confirmar_nota():
+    form = request.form
+    data = form.get("data", "")
+    try:
+        datetime.strptime(data, "%Y-%m-%d")
+    except ValueError:
+        data = config.hoje().isoformat()
+    fornecedor = form.get("fornecedor", "").strip()
+    nota = form.get("nota", "").strip() or None
+    agora = config.agora().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_connection()
+    lancados = 0
+    for i in range(form.get("total", 0, type=int)):
+        destino = form.get(f"insumo_{i}", "")
+        if not form.get(f"incluir_{i}") or not destino:
+            continue
+        try:
+            quantidade = parse_quantidade(form.get(f"qtd_{i}"))
+            valor = parse_valor(form.get(f"valor_{i}"))
+        except ValueError:
+            continue
+        if not quantidade:
+            continue
+        unidade = form.get(f"unidade_{i}", "").strip() or "un"
+        nome_nota = form.get(f"nome_{i}", "").strip()
+        if destino == "novo":
+            nome = form.get(f"novo_nome_{i}", "").strip() or nome_nota
+            categoria = form.get(f"categoria_{i}", "").strip()
+            if not nome or not categoria:
+                continue
+            existente = conn.execute("SELECT id FROM insumos WHERE nome = ?", (nome,)).fetchone()
+            insumo_id = existente["id"] if existente else conn.execute(
+                "INSERT INTO insumos (nome, categoria, unidade) VALUES (?, ?, ?)",
+                (nome, categoria, unidade if unidade else unidade_padrao(categoria))).lastrowid
+        else:
+            insumo_id = int(destino) if destino.isdigit() else None
+            if not insumo_id or not conn.execute("SELECT 1 FROM insumos WHERE id = ?", (insumo_id,)).fetchone():
+                continue
+        conn.execute("""
+            INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total, nota)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (data, insumo_id, quantidade, unidade, fornecedor, agora, valor, nota))
+        if nome_nota:
+            conn.execute("INSERT OR REPLACE INTO nota_apelidos (chave, insumo_id) VALUES (?, ?)",
+                         (chave_nome(nome_nota), insumo_id))
+        lancados += 1
+    conn.commit()
+    conn.close()
+    return redirect(url_for("compras.compras", mes=data[:7], lancados=lancados))

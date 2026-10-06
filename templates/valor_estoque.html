@@ -8,11 +8,12 @@
         <button class="btn" type="button" onclick="window.print()">🖨️ Imprimir</button>
     </div>
 </div>
-<p class="sub">Estimativa: estoque atual (última contagem + compras − desperdício aprovado) × último preço pago em cada insumo.</p>
+<p class="sub">Estimativa: estoque atual (última contagem + compras − desperdício aprovado) × último preço pago em cada insumo. O preço médio considera todas as compras com valor.</p>
 
 <div class="valor-total">
     <span>Valor estimado em estoque</span>
     <strong>{{ total|brl if total else "R$ 0,00" }}</strong>
+    <small>pelo último preço pago · pelo preço médio: <b>{{ total_medio|brl if total_medio else "R$ 0,00" }}</b></small>
     <small>{{ com_preco }} insumo{{ 's' if com_preco != 1 }} com preço{% if sem_preco %} · {{ sem_preco|length }} sem preço (fora da conta){% endif %}</small>
 </div>
 
@@ -36,13 +37,14 @@
 {% for c in categorias %}
 <h3 id="cat-{{ loop.index }}">{{ c.nome }} · {{ c.total|brl }}</h3>
 <table class="tabela-valor">
-    <thead><tr><th>Insumo</th><th>Estoque</th><th>Último preço</th><th>Valor</th></tr></thead>
+    <thead><tr><th>Insumo</th><th>Estoque</th><th>Último preço</th><th>Preço médio</th><th>Valor</th></tr></thead>
     <tbody>
     {% for l in c.itens %}
     <tr>
         <td>{{ l.nome }}</td>
         <td>{{ l.estoque|round(2)|qtd }} {{ l.unidade }}</td>
         <td>{{ l.preco|brl }}/{{ l.unidade }}<br><span class="sub">{{ l.preco_data|data_br }}</span></td>
+        <td>{{ l.preco_medio|brl }}/{{ l.unidade }}<br><span class="sub">{{ l.compras_com_valor }} compra{{ 's' if l.compras_com_valor != 1 }}</span></td>
         <td><strong>{{ l.valor|brl }}</strong></td>
     </tr>
     {% endfor %}
