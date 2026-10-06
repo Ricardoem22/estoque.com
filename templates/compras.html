@@ -39,10 +39,11 @@
         </div>
     </div>
 
-    <label for="valor_total">Valor pago (R$, total da linha da nota)</label>
+    <label for="valor_total">Valor pago (R$) — só para compra sem nota</label>
     <input type="text" id="valor_total" name="valor_total" inputmode="decimal" placeholder="Opcional. Ex.: 45,90"
            value="{{ form.get('valor_total', '') }}">
-    <p class="sub dica">Com o valor, o sistema calcula o preço por unidade e quanto vale o seu estoque.</p>
+    <p class="sub dica">Tem a nota fiscal? Use <a href="{{ url_for('compras.importar_nota') }}">📄 Lançar nota fiscal</a>:
+        o valor pago de cada item vem da própria nota, já com impostos e frete.</p>
 
     <div class="linha">
         <div>
@@ -74,7 +75,7 @@
             <td>{{ r['data']|data_br }}</td>
             <td>{{ r['insumo_nome'] }}</td>
             <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}</td>
-            <td>{% if r['valor_total'] is not none %}{{ r['valor_total']|brl }}<br><span class="sub">{{ (r['valor_total'] / r['quantidade'])|brl }}/{{ r['unidade'] }}</span>{% else %}<span class="sub">sem valor</span>{% endif %}</td>
+            <td>{% if r['valor_total'] is not none %}{{ r['valor_total']|brl }}<br><span class="sub">{{ (r['valor_total'] / r['quantidade'])|brl }}/{{ r['unidade'] }}</span>{% else %}<span class="sub">sem valor</span>{% endif %}{% if r['nota'] %}<br><span class="sub" title="Valor tirado da nota fiscal">📄 da nota</span>{% endif %}</td>
             <td>{{ r['fornecedor'] }}</td>
             <td class="acoes">
                 <form class="inline" method="post" action="{{ url_for('compras.excluir_compra', id=r['id']) }}"

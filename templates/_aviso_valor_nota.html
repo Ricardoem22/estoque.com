@@ -1,0 +1,12 @@
+{# Conferência do valor pago: soma dos itens × total da nota, e aviso para PDF/planilha #}
+{% set soma_itens = nota.itens|selectattr('valor_total', 'ne', none)|sum(attribute='valor_total') %}
+{% if nota.origem == 'xml' and nota.valor_nota is not none %}
+<div class="{% if (soma_itens - nota.valor_nota)|abs <= 0.05 %}sucesso{% else %}aviso{% endif %}">
+    Valor pago de cada item tirado da nota (produto − desconto + frete, seguro, outras despesas, IPI e ICMS-ST).
+    Soma dos itens: <strong>{{ soma_itens|brl }}</strong> · Total da nota: <strong>{{ nota.valor_nota|brl }}</strong>
+    {% if (soma_itens - nota.valor_nota)|abs > 0.05 %}<br>A diferença vem de valores que a nota não reparte por item.{% endif %}
+</div>
+{% elif nota.origem in ('pdf', 'planilha') %}
+<div class="aviso">O valor pago vem do {{ 'PDF da DANFE' if nota.origem == 'pdf' else 'arquivo' }} e é só o valor dos produtos:
+    impostos e frete não entram. Para o custo real, use o <strong>XML da nota</strong>.</div>
+{% endif %}

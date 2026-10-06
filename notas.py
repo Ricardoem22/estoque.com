@@ -13,14 +13,17 @@ PALAVRAS_IGNORADAS = {"de", "da", "do", "das", "dos", "e", "com", "em", "a", "o"
 
 
 def nota_vazia():
-    return {"fornecedor": "", "cnpj": "", "data": "", "numero": "", "chave": "", "itens": []}
+    # origem: de onde veio a nota; valor_nota: total da nota (só no XML), para conferir com a soma dos itens
+    return {"fornecedor": "", "cnpj": "", "data": "", "numero": "", "chave": "", "itens": [],
+            "origem": "", "valor_nota": None}
 
 
 def so_digitos(texto):
     return re.sub(r"\D", "", texto or "")
 
 
-def item_nota(nome, quantidade, unidade_nota, valor_total, codigo="", ncm="", ean="", cfop="", unitario=None):
+def item_nota(nome, quantidade, unidade_nota, valor_total, codigo="", ncm="", ean="", cfop="", unitario=None,
+              valor_produto=None, acrescimos=0.0, desconto=0.0):
     # Sem o unitário da nota, ele sai do total (já com desconto), que é o que foi pago de fato
     if unitario is None and valor_total is not None and quantidade:
         unitario = round(valor_total / quantidade, 4)
@@ -32,6 +35,8 @@ def item_nota(nome, quantidade, unidade_nota, valor_total, codigo="", ncm="", ea
         "ncm": ncm if len(ncm) == 8 else "",
         "ean": ean if len(ean) in (8, 12, 13, 14) else "",  # "SEM GTIN" e vazios ficam de fora
         "cfop": so_digitos(cfop)[:4],
+        # Composição do valor pago (só o XML traz impostos e frete por item)
+        "valor_produto": valor_produto, "acrescimos": acrescimos, "desconto": desconto,
     }
 
 
@@ -80,22 +85,38 @@ def ler_xml(dados):
     emitente = achar(inf, "emit")
     nota["fornecedor"] = texto(emitente, "xFant") or texto(emitente, "xNome")
     nota["cnpj"] = texto(emitente, "CNPJ") or texto(emitente, "CPF")
+    nota["origem"] = "xml"
+    nota["valor_nota"] = parse_numero(texto(achar(inf, "ICMSTot"), "vNF").replace(".", ","))
+
+    def numero(no, nome):
+        return parse_numero(texto(no, nome).replace(".", ",")) or 0.0
+
     for det in inf.iter():
         if det.tag.rsplit("}", 1)[-1] != "det":
             continue
         prod = achar(det, "prod")
+        imposto = achar(det, "imposto")
         quantidade = parse_numero(texto(prod, "qCom").replace(".", ",")) if prod is not None else None
         valor = parse_numero(texto(prod, "vProd").replace(".", ",")) if prod is not None else None
-        desconto = parse_numero(texto(prod, "vDesc").replace(".", ",")) or 0
         if not quantidade:
             continue
-        # Com desconto no item, o unitário é recalculado pelo valor pago
-        unitario = None if desconto else parse_numero(texto(prod, "vUnCom").replace(".", ","))
+        # Valor pago = produto − desconto + frete, seguro e outras despesas rateados no item
+        # + impostos cobrados por fora (IPI, ICMS-ST, FCP-ST, imposto de importação)
+        desconto = numero(prod, "vDesc")
+        acrescimos = numero(prod, "vFrete") + numero(prod, "vSeg") + numero(prod, "vOutro")
+        if imposto is not None:
+            acrescimos += (numero(imposto, "vIPI") + numero(imposto, "vICMSST") + numero(imposto, "vFCPST")
+                           + numero(imposto, "vII"))
+        pago = round(valor - desconto + acrescimos, 2) if valor is not None else None
+        # Sem desconto nem acréscimo, o unitário é o da própria nota; senão, é recalculado pelo valor pago
+        unitario = None
+        if not desconto and not acrescimos:
+            unitario = parse_numero(texto(prod, "vUnCom").replace(".", ","))
         nota["itens"].append(item_nota(
-            texto(prod, "xProd"), quantidade, texto(prod, "uCom"),
-            round(valor - desconto, 2) if valor is not None else None,
+            texto(prod, "xProd"), quantidade, texto(prod, "uCom"), pago,
             codigo=texto(prod, "cProd"), ncm=texto(prod, "NCM"), ean=texto(prod, "cEAN"), cfop=texto(prod, "CFOP"),
             unitario=round(unitario, 4) if unitario is not None else None,
+            valor_produto=valor, acrescimos=round(acrescimos, 2), desconto=round(desconto, 2),
         ))
     return nota
 
@@ -137,6 +158,7 @@ def ler_danfe(dados):
             m.group("nome").strip(), quantidade, m.group("un"), parse_numero(m.group("total")),
             codigo=m.group("codigo") or "", ncm=m.group("ncm"), cfop=m.group("cfop"),
         ))
+    nota["origem"] = "pdf"
     if not nota["itens"]:
         raise ValueError("Não encontrei os itens nesse PDF. Use o XML da nota (o fornecedor manda por e-mail "
                          "ou dá para baixar no site da Sefaz com a chave de acesso).")
@@ -178,6 +200,7 @@ def ler_planilha(linhas):
         raise ValueError("Não achei as colunas da planilha. Ela precisa ter pelo menos Produto e Quantidade "
                          "(e de preferência Valor total).")
     nota = nota_vazia()
+    nota["origem"] = "planilha"
 
     def celula(linha, campo):
         col = mapa.get(campo)

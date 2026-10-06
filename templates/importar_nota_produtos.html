@@ -23,6 +23,7 @@
     3. <strong>Planilha</strong> (Excel ou CSV) com as colunas Produto, Quantidade, Valor e, se tiver, NCM.
 </div>
 {% else %}
+{% include "_aviso_valor_nota.html" %}
 {% if ja_importada %}
 <div class="aviso">⚠️ Esta nota já foi importada nos produtos em {{ ja_importada['importada_em'][:10]|data_br }}.
     Se marcar "somar ao estoque", as quantidades entram duas vezes.</div>
@@ -64,7 +65,8 @@
                     {% if item.codigo %}cód. {{ item.codigo }}{% endif %}
                     {% if item.ean %} · EAN {{ item.ean }}{% endif %}
                     {% if item.cfop %} · CFOP {{ item.cfop }}{% endif %}
-                    {% if item.valor_total is not none %} · total {{ item.valor_total|brl }}{% endif %}
+                    {% if item.valor_total is not none %} · total pago {{ item.valor_total|brl }}{% endif %}
+                    {% if item.acrescimos %} (inclui impostos/frete {{ item.acrescimos|brl }}){% endif %}
                 </span>
             </td>
             <td>
@@ -81,7 +83,14 @@
             <td><input type="text" name="ncm_{{ i }}" value="{{ item.ncm|ncm }}" inputmode="numeric" class="ncm" placeholder="0000.00.00" aria-label="NCM"></td>
             <td><input type="text" name="qtd_{{ i }}" value="{{ item.quantidade|qtd }}" inputmode="decimal" class="qtd" aria-label="Quantidade"></td>
             <td><input type="text" name="unidade_{{ i }}" value="{{ item.unidade }}" list="lista-unidades" class="un" aria-label="Unidade"></td>
-            <td><input type="text" name="valor_{{ i }}" value="{{ numero_br(item.valor_unitario, 4) }}" inputmode="decimal" class="valor" aria-label="Valor unitário"></td>
+            <td>
+                {% if item.valor_unitario is not none %}
+                <input type="hidden" name="valor_{{ i }}" value="{{ numero_br(item.valor_unitario, 4) }}">
+                <strong class="valor-travado" title="Valor tirado da nota fiscal">🔒 R$ {{ numero_br(item.valor_unitario, 4) }}</strong>
+                {% else %}
+                <input type="text" name="valor_{{ i }}" value="" inputmode="decimal" class="valor" placeholder="não veio na nota" aria-label="Valor unitário">
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
         </tbody>
