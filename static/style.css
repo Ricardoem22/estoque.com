@@ -625,3 +625,6 @@ input[type="email"] { padding: 9px; border: 1px solid #D3CBBB; border-radius: 8p
     .so-celular { display: inline; }
 }
 .estoque-zerado { color: var(--vermelho); }
+.titulo-busca { margin-top: 18px; }
+.titulo-busca[hidden], table[hidden], .vazio[hidden], section[hidden], tr[hidden] { display: none; }
+input[type="search"] { padding: 8px; border: 1px solid #ccc; border-radius: 6px; width: 100%; }

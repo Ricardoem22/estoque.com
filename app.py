@@ -10,7 +10,8 @@ from contagem import bp as contagem_bp, init_db as init_db_contagem, parse_quant
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
 from compras import bp as compras_bp, init_db as init_db_compras, parse_valor
 from produtos_nota import bp as produtos_nota_bp, init_db as init_db_produtos_nota
-from relatorio import bp as relatorio_bp
+from importador import sem_acento
+from relatorio import bp as relatorio_bp, calcular_linhas
 from mural import bp as mural_bp, init_db as init_db_mural
 from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
 
@@ -128,19 +129,34 @@ def ler_form_produto(form):
         return dados, "O preço deve ser um número válido, maior ou igual a zero (ex.: 12,90)."
     return dados, None
 
+def texto_busca(*partes):
+    """Texto sem acento e em minúsculas usado para filtrar a lista (no servidor e no navegador)."""
+    return sem_acento(" ".join(str(p or "") for p in partes))
+
+
 @app.route("/")
 def index():
-    busca = request.args.get("busca", "")
+    busca = request.args.get("busca", "").strip()
+    termo = sem_acento(busca)
     conn = get_connection()
-    if busca:
-        produtos = conn.execute(
-            "SELECT * FROM produtos WHERE nome LIKE ? OR ncm LIKE ? OR codigo LIKE ? OR ean LIKE ? ORDER BY nome",
-            (f"%{busca}%",) * 4
-        ).fetchall()
-    else:
-        produtos = conn.execute("SELECT * FROM produtos ORDER BY nome").fetchall()
+    produtos = []
+    for p in conn.execute("SELECT * FROM produtos ORDER BY nome COLLATE NOCASE"):
+        p = dict(p)
+        ncm = p["ncm"] or ""
+        ncm_formatado = f"{ncm[:4]}.{ncm[4:6]}.{ncm[6:]}" if len(ncm) == 8 else ""
+        p["busca"] = texto_busca(p["nome"], ncm, ncm_formatado, p["codigo"], p["ean"], p["fornecedor"])
+        produtos.append(p)
     conn.close()
-    return render_template("index.html", produtos=produtos, busca=busca)
+    # Insumos da contagem também aparecem na busca, com o estoque atual
+    insumos = []
+    for linha in sorted(calcular_linhas(), key=lambda l: sem_acento(l["nome"])):
+        linha["busca"] = texto_busca(linha["nome"], linha["categoria"])
+        insumos.append(linha)
+    return render_template(
+        "index.html", produtos=produtos, insumos=insumos, busca=busca, termo=termo,
+        produtos_achados=sum(1 for p in produtos if termo in p["busca"]),
+        insumos_achados=sum(1 for i in insumos if termo in i["busca"]) if termo else 0,
+    )
 
 @app.route("/adicionar", methods=["GET", "POST"])
 def adicionar():
