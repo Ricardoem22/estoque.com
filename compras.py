@@ -1,10 +1,11 @@
 # compras.py
 # Registro das compras (entradas de mercadoria), usado no cálculo do consumo.
-from datetime import date, datetime
+from datetime import datetime
 
 from flask import Blueprint, redirect, render_template, request, url_for
 
 from contagem import agrupar_por_categoria, get_connection, parse_quantidade
+import config
 from insumos_iniciais import UNIDADES
 
 bp = Blueprint("compras", __name__)
@@ -33,7 +34,7 @@ def mes_selecionado():
         datetime.strptime(mes, "%Y-%m")
         return mes
     except ValueError:
-        return date.today().strftime("%Y-%m")
+        return config.hoje().strftime("%Y-%m")
 
 
 @bp.route("/compras", methods=["GET", "POST"])
@@ -64,7 +65,7 @@ def compras():
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 data, insumo["id"], quantidade, form.get("unidade", "").strip() or insumo["unidade"],
-                form.get("fornecedor", "").strip(), datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                form.get("fornecedor", "").strip(), config.agora().strftime("%Y-%m-%d %H:%M:%S"),
             ))
             conn.commit()
             conn.close()
@@ -83,7 +84,7 @@ def compras():
     conn.close()
     return render_template(
         "compras.html", grupos=grupos, unidades=UNIDADES, registros=registros, mes=mes, erro=erro, form=form,
-        data_padrao=form.get("data") or request.args.get("data") or date.today().isoformat(),
+        data_padrao=form.get("data") or request.args.get("data") or config.hoje().isoformat(),
         fornecedor=form.get("fornecedor") or request.args.get("fornecedor", ""),
         salvo=request.args.get("salvo"),
     )

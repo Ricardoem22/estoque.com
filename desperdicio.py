@@ -4,7 +4,7 @@ import csv
 import io
 import os
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, send_from_directory, session, url_for
 
@@ -76,7 +76,7 @@ def mes_selecionado():
         datetime.strptime(mes, "%Y-%m")
         return mes
     except ValueError:
-        return date.today().strftime("%Y-%m")
+        return config.hoje().strftime("%Y-%m")
 
 
 def registros_do_mes(conn, mes):
@@ -142,7 +142,7 @@ def desperdicio():
                 data, insumo["id"], insumo["nome"], insumo["categoria"], quantidade,
                 form.get("unidade", "").strip() or insumo["unidade"], motivo,
                 form.get("responsavel", "").strip(), form.get("observacao", "").strip(),
-                nome_foto, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                nome_foto, config.agora().strftime("%Y-%m-%d %H:%M:%S"),
             ))
             conn.commit()
             conn.close()
@@ -156,7 +156,7 @@ def desperdicio():
         "desperdicio.html", gerente=session.get("gerente"),
         pendentes=sum(1 for r in registros if r["status"] == "pendente"), grupos=grupos, unidades=UNIDADES, motivos=MOTIVOS,
         registros=registros, resumo=resumo(registros), mes=mes, erro=erro, form=form,
-        hoje=date.today().isoformat(), salvo=request.args.get("salvo"),
+        hoje=config.hoje().isoformat(), salvo=request.args.get("salvo"),
     )
 
 
@@ -175,7 +175,7 @@ def decidir_desperdicio(id, acao):
     conn.execute(
         "UPDATE desperdicios SET status = ?, aprovado_por = ?, aprovado_em = ? WHERE id = ?",
         ("aprovado" if acao == "aprovar" else "recusado", session["gerente"],
-         datetime.now().strftime("%Y-%m-%d %H:%M:%S"), id),
+         config.agora().strftime("%Y-%m-%d %H:%M:%S"), id),
     )
     conn.commit()
     conn.close()
