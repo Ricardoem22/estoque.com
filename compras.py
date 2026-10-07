@@ -315,8 +315,11 @@ def importar_nota():
         if nota:
             apelidos = {r["chave"]: r["insumo_id"] for r in conn.execute("SELECT * FROM nota_apelidos")}
             unidade_insumo = {i["id"]: i["unidade"] for i in insumos}
+            conversoes = {}
+            for c in conn.execute("SELECT insumo_id, unidade, fator, unidade_base FROM insumo_conversoes"):
+                conversoes.setdefault(c["insumo_id"], []).append((c["unidade"], c["fator"], c["unidade_base"]))
             for item in nota["itens"]:
-                item["insumo_id"] = achar_insumo(item["nome"], insumos, apelidos)
+                item["insumo_id"] = achar_insumo(item["nome"], insumos, apelidos, unidade_do_item(item), conversoes)
                 item["unidade"] = unidade_do_item(item) or unidade_insumo.get(item["insumo_id"]) or "un"
             nota["anexo"] = salvar_anexo(arquivo.filename, dados)
             if nota["chave"]:
