@@ -145,6 +145,10 @@ def adicionar_conversao(id):
     """, (id, unidade, fator, base))
     conn.commit()
     conn.close()
+    # Cadastrada direto do aviso das compras: volta para lá
+    voltar = request.form.get("voltar", "")
+    if voltar.startswith("/compras"):
+        return redirect(voltar)
     return redirect(url_for("insumo.editar", id=id) + "#medidas")
 
 

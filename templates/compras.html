@@ -29,7 +29,41 @@
     <a href="{{ url_for('insumo.historico', id=c['insumo_id']) }}">Ver histórico</a></div>
 {% endif %}
 {% endif %}
-{% if lancados is not none %}<div class="sucesso">Nota lançada: {{ lancados }} ite{{ 'ns' if lancados != 1 else 'm' }} entr{{ 'aram' if lancados != 1 else 'ou' }} nas compras.</div>{% endif %}
+{% if lancados is not none %}<div class="sucesso">Nota lançada: {{ lancados }} ite{{ 'ns' if lancados != 1 else 'm' }} entr{{ 'aram' if lancados != 1 else 'ou' }} nas compras{% if not nota_fora %} e no estoque{% endif %}.</div>{% endif %}
+{% if nota_fora %}
+<div class="aviso aviso-nota">
+    <strong>⚠️ {{ nota_fora|length }} ite{{ 'ns' if nota_fora|length != 1 else 'm' }} da nota não soma{{ 'ram' if nota_fora|length != 1 }} no estoque:</strong>
+    <ul class="lista-fora">
+    {% for f in nota_fora %}{% set c = f.compra %}
+        <li>
+            <strong>{{ c['insumo_nome'] }}</strong> ({{ c['quantidade']|qtd }} {{ c['unidade'] }}){% if f.motivo == 'data' %}:
+            a nota é de {{ c['data']|data_br }}, antes da última contagem ({{ f.contagem|data_br }}).
+            <form class="inline" method="post" action="{{ url_for('compras.mover_para_contagem', id=c['id']) }}">
+                <button class="btn btn-mini" type="submit">Chegou depois da contagem: somar</button>
+            </form>
+            {% else %}:
+            {{ c['unidade'] }} não converte para {{ f.unidade }}, a unidade do estoque. Diga quanto vale:
+            <form class="form-medida" method="post" action="{{ url_for('insumo.adicionar_conversao', id=c['insumo_id']) }}">
+                <input type="hidden" name="unidade" value="{{ c['unidade'] }}">
+                <input type="hidden" name="unidade_base" value="{{ f.unidade }}">
+                <input type="hidden" name="voltar" value="{{ voltar }}">
+                <span>1 {{ c['unidade'] }} =</span>
+                <input type="text" name="fator" inputmode="decimal" required placeholder="ex.: 12" aria-label="Quanto vale 1 {{ c['unidade'] }}">
+                <span>{{ f.unidade }}</span>
+                <button class="btn btn-mini" type="submit">Salvar e somar</button>
+            </form>
+            {% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% if nota_pulados %}
+<div class="erro">Não lançados:
+    <ul class="lista-fora">{% for nome, motivo in nota_pulados %}<li><strong>{{ nome }}</strong>: {{ motivo }}</li>{% endfor %}</ul>
+    Lance a nota de novo marcando só esses itens.
+</div>
+{% endif %}
 
 <form method="post" class="form-desperdicio" enctype="multipart/form-data">
     <label for="insumo_id">Insumo</label>
@@ -108,7 +142,8 @@
                 {% if f %}<br><span class="tag tag-aberta" title="Não somou no estoque">fora do estoque</span>
                 <br><span class="sub">{% if f.motivo == 'data' %}antes da contagem de {{ f.contagem|data_br }}{% else %}{{ r['unidade'] }} não converte para {{ f.unidade }}{% endif %}</span>
                 {% if f.motivo == 'data' %}<form class="inline" method="post" action="{{ url_for('compras.mover_para_contagem', id=r['id']) }}">
-                    <button class="btn btn-edit btn-mini" type="submit" title="A mercadoria chegou depois da contagem">Somar no estoque</button></form>{% endif %}
+                    <button class="btn btn-edit btn-mini" type="submit" title="A mercadoria chegou depois da contagem">Somar no estoque</button></form>
+                {% else %}<br><a class="btn btn-edit btn-mini" href="{{ url_for('insumo.editar', id=r['insumo_id']) }}#medidas">Cadastrar medida</a>{% endif %}
                 {% endif %}</td>
             <td>{% if r['valor_total'] is not none %}{{ r['valor_total']|brl }}<br><span class="sub">{{ (r['valor_total'] / r['quantidade'])|brl }}/{{ r['unidade'] }}</span>{% else %}<span class="sub">sem valor</span>{% endif %}{% if r['nota'] %}<br><span class="sub" title="Valor tirado da nota fiscal">📄 da nota</span>{% endif %}</td>
             <td>{{ r['fornecedor'] }}{% if r['registrado_por'] %}<br><span class="sub">lançado por {{ r['registrado_por'] }}</span>{% endif %}</td>
