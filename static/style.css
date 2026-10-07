@@ -708,3 +708,7 @@ tr.inativo td { opacity: 0.6; }
     .tabela-precos select { max-width: 52vw; }
 }
 .valor-total .ver-sem-preco { color: var(--amarelo); font-weight: 700; }
+.lista-fora { margin: 8px 0 0; padding-left: 18px; }
+.lista-fora li { margin-bottom: 10px; }
+.form-medida { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.form-medida input[type=text] { width: 80px; margin: 0; }

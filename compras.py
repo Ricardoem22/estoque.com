@@ -181,6 +181,18 @@ def compras():
     fora = fora_do_estoque(conn, registros)
     salvo = request.args.get("salvo", type=int)
     resultado = resultado_compra(conn, salvo) if salvo else None
+    # Depois de lançar uma nota: itens que entraram nas compras mas não somaram no estoque
+    ids_nota = [int(i) for i in request.args.get("ids", "").split(",") if i.isdigit()][:200]
+    nota_fora, nota_pulados = [], []
+    if request.args.get("lancados") is not None:
+        nota_pulados = session.pop("nota_pulados", [])
+        if ids_nota:
+            lancadas = conn.execute(f"""
+                SELECT c.*, i.nome AS insumo_nome FROM compras c JOIN insumos i ON i.id = c.insumo_id
+                WHERE c.id IN ({",".join("?" * len(ids_nota))})
+            """, ids_nota).fetchall()
+            motivos = fora_do_estoque(conn, lancadas)
+            nota_fora = [{"compra": c, **motivos[c["id"]]} for c in lancadas if c["id"] in motivos]
     conn.close()
     return render_template(
         "compras.html", grupos=grupos, unidades=UNIDADES, registros=registros, mes=mes, erro=erro, form=form,
@@ -188,7 +200,8 @@ def compras():
         total_mes=sum(r["valor_total"] or 0 for r in registros),
         data_padrao=form.get("data") or request.args.get("data") or config.hoje().isoformat(),
         fornecedor=form.get("fornecedor") or request.args.get("fornecedor", ""),
-        salvo=salvo, lancados=request.args.get("lancados", type=int),
+        salvo=salvo, lancados=request.args.get("lancados", type=int), nota_fora=nota_fora,
+        nota_pulados=nota_pulados, voltar=request.full_path,
     )
 
 
@@ -333,23 +346,30 @@ def confirmar_nota():
     agora = config.agora().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_connection()
     lancados = 0
+    ids, pulados = [], []
     for i in range(form.get("total", 0, type=int)):
         destino = form.get(f"insumo_{i}", "")
-        if not form.get(f"incluir_{i}") or not destino:
+        nome_nota = form.get(f"nome_{i}", "").strip()
+        if not form.get(f"incluir_{i}"):
+            continue
+        if not destino:
+            pulados.append([nome_nota, "nenhum insumo escolhido"])
             continue
         try:
             quantidade = parse_quantidade(form.get(f"qtd_{i}"))
             valor = parse_valor(form.get(f"valor_{i}"))
         except ValueError:
+            pulados.append([nome_nota, "quantidade ou valor inválido"])
             continue
         if not quantidade:
+            pulados.append([nome_nota, "quantidade zerada"])
             continue
         unidade = form.get(f"unidade_{i}", "").strip() or "un"
-        nome_nota = form.get(f"nome_{i}", "").strip()
         if destino == "novo":
             nome = form.get(f"novo_nome_{i}", "").strip() or nome_nota
             categoria = form.get(f"categoria_{i}", "").strip()
             if not nome or not categoria:
+                pulados.append([nome_nota, "insumo novo sem nome ou categoria"])
                 continue
             existente = conn.execute("SELECT id FROM insumos WHERE nome = ?", (nome,)).fetchone()
             insumo_id = existente["id"] if existente else conn.execute(
@@ -358,16 +378,21 @@ def confirmar_nota():
         else:
             insumo_id = int(destino) if destino.isdigit() else None
             if not insumo_id or not conn.execute("SELECT 1 FROM insumos WHERE id = ?", (insumo_id,)).fetchone():
+                pulados.append([nome_nota, "insumo não encontrado"])
                 continue
-        conn.execute("""
+        ids.append(conn.execute("""
             INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total, nota,
                                  registrado_por, anexo)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (data, insumo_id, quantidade, unidade, fornecedor, agora, valor, nota, session.get("nome", ""), anexo))
+        """, (data, insumo_id, quantidade, unidade, fornecedor, agora, valor, nota, session.get("nome", ""),
+              anexo)).lastrowid)
         if nome_nota:
             conn.execute("INSERT OR REPLACE INTO nota_apelidos (chave, insumo_id) VALUES (?, ?)",
                          (chave_nome(nome_nota), insumo_id))
         lancados += 1
     conn.commit()
     conn.close()
-    return redirect(url_for("compras.compras", mes=data[:7], lancados=lancados))
+    # O que não entrou fica guardado para a tela das compras explicar
+    session["nota_pulados"] = pulados[:30]
+    return redirect(url_for("compras.compras", mes=data[:7], lancados=lancados,
+                            ids=",".join(str(i) for i in ids)))
