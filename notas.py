@@ -7,6 +7,7 @@ import re
 import xml.etree.ElementTree as ET
 
 from importador import chave_nome, ler_csv, ler_xlsx, normalizar_unidade, parse_numero, sem_acento
+from unidades import converter
 
 EXTENSOES_NOTA = {"xml", "pdf", "xlsx", "xlsm", "csv"}
 PALAVRAS_IGNORADAS = {"de", "da", "do", "das", "dos", "e", "com", "em", "a", "o", "kg", "un", "cx", "pct", "g", "l"}
@@ -229,8 +230,10 @@ def palavras(nome):
     return {p for p in chave_nome(nome).split() if p not in PALAVRAS_IGNORADAS and not p.isdigit()}
 
 
-def achar_insumo(nome_nota, insumos, apelidos):
-    """Insumo do item da nota: apelido salvo antes, nome igual ou todas as palavras do insumo no item."""
+def achar_insumo(nome_nota, insumos, apelidos, unidade=None, conversoes=None):
+    """Insumo do item da nota: apelido salvo antes, nome igual ou todas as palavras do insumo no item.
+    Com a unidade do item, a busca por palavras só aceita insumo cuja medida converte dela
+    (ex.: "BEBIDA MISTA ABACAXI" em cx não cai no insumo Abacaxi em kg)."""
     chave = chave_nome(nome_nota)
     if chave in apelidos:
         return apelidos[chave]
@@ -242,6 +245,8 @@ def achar_insumo(nome_nota, insumos, apelidos):
     for insumo in insumos:
         do_insumo = palavras(insumo["nome"])
         if do_insumo and do_insumo <= do_item and len(do_insumo) > tamanho:
+            if unidade and converter(1, unidade, insumo["unidade"], (conversoes or {}).get(insumo["id"], ())) is None:
+                continue
             melhor, tamanho = insumo["id"], len(do_insumo)
     return melhor
 
