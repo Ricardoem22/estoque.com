@@ -1,6 +1,7 @@
 """Ouvir pelo microfone e transformar a fala em texto, sem internet (faster-whisper)."""
 import math
 import os
+import threading
 
 # Aviso inofensivo do Windows sobre atalhos de arquivo no cache do modelo de voz
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
@@ -48,6 +49,7 @@ class Ouvido:
         self.motivo = ""  # por que a última tentativa não deu certo
         self.idioma = None if idioma == "auto" else idioma
         self._modelo = None
+        self._trava = threading.Lock()
         self.erro = None
         try:
             import faster_whisper  # noqa: F401
@@ -61,11 +63,18 @@ class Ouvido:
         return self.erro is None
 
     def _carregar(self):
+        with self._trava:
+            return self._carregar_sem_trava()
+
+    def aquecer(self) -> None:
+        """Carrega o reconhecimento de voz em segundo plano, para a primeira fala ser rápida."""
+        if self.disponivel:
+            threading.Thread(target=self._carregar, daemon=True).start()
+
+    def _carregar_sem_trava(self):
         if self._modelo is None:
             from faster_whisper import WhisperModel
 
-            print(f"(carregando o reconhecimento de voz '{self.tamanho}'; "
-                  "na primeira vez ele baixa o modelo, aguarde...)")
             self._modelo = WhisperModel(self.tamanho, device="cpu", compute_type="int8")
         return self._modelo
 
@@ -127,7 +136,8 @@ class Ouvido:
             return None
         if audio is None:
             return None
-        trechos, _ = modelo.transcribe(audio, language=self.idioma, vad_filter=True)
+        trechos, _ = modelo.transcribe(audio, language=self.idioma, vad_filter=True,
+                                     beam_size=1)  # bem mais rápido, quase sem perder precisão
         texto = " ".join(t.text.strip() for t in trechos).strip()
         if not texto:
             self.motivo = "Ouvi um som, mas não reconheci palavras. Tente falar de novo, um pouco mais devagar."

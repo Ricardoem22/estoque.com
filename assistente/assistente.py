@@ -3,6 +3,8 @@
 Rode com:  python assistente.py
 """
 import os
+import threading
+import time
 from pathlib import Path
 
 from datetime import datetime
@@ -106,6 +108,11 @@ def main() -> None:
 
     ouvido = Ouvido(os.environ.get("OUVIR_MODELO", "small"), os.environ.get("OUVIR_IDIOMA", "pt"),
                     os.environ.get("OUVIR_DISPOSITIVO") or str(memoria.get("microfone", "")))
+    # Carrega a IA e o reconhecimento de voz em segundo plano enquanto você lê a saudação
+    ouvido.aquecer()
+    if modelo.nome == "local":
+        threading.Thread(target=modelo.aquecer, daemon=True).start()
+    mostrar_tempo = os.environ.get("MOSTRAR_TEMPO", "sim").lower() == "sim"
 
     historico: list = []
     while True:
@@ -118,11 +125,13 @@ def main() -> None:
             if not ouvido.disponivel:
                 print(f"[aviso] {ouvido.erro}")
                 continue
+            t0 = time.monotonic()
             texto = ouvido.ouvir()
+            t_ouvir = time.monotonic() - t0
             if not texto:
                 print(f"{nome_assistente}: {ouvido.motivo or 'Não ouvi nada.'} Aperte Enter para tentar de novo.")
                 continue
-            print(f"Você (voz): {texto}")
+            print(f"Você (voz): {texto}" + (f"   (entendi em {t_ouvir:.1f} s, contando a sua fala)" if mostrar_tempo else ""))
 
         if texto.startswith("/"):
             cmd, _, arg = texto.partition(" ")
@@ -193,6 +202,7 @@ def main() -> None:
             continue
 
         tamanho = len(historico)
+        t0 = time.monotonic()
         try:
             resposta = modelo.conversar(montar_sistema(nome_assistente, memoria, falta_gmail is None), historico, texto, executar)
         except ModeloIndisponivel as e:
@@ -200,6 +210,8 @@ def main() -> None:
             print(f"[aviso] {e}")
             continue
         print(f"{nome_assistente}: {resposta}")
+        if mostrar_tempo:
+            print(f"   (pensei em {time.monotonic() - t0:.1f} s)")
         if falar_respostas:
             voz.falar(resposta)
 

@@ -38,6 +38,16 @@ class ModeloLocal:
         except (urllib.error.URLError, OSError):
             return False
 
+    def aquecer(self) -> None:
+        """Carrega o modelo na memória antes da primeira pergunta (roda em segundo plano)."""
+        corpo = json.dumps({"model": self.modelo, "keep_alive": "30m"}).encode("utf-8")
+        req = urllib.request.Request(f"{self.url}/api/generate", data=corpo,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=300).close()
+        except (urllib.error.URLError, OSError):
+            pass
+
     def instalados(self) -> list[str]:
         try:
             with urllib.request.urlopen(f"{self.url}/api/tags", timeout=5) as resp:
@@ -67,6 +77,7 @@ class ModeloLocal:
         corpo = json.dumps({
             "model": self.modelo,
             "stream": False,
+            "keep_alive": "30m",  # mantém o modelo carregado na memória entre as perguntas
             "messages": [{"role": "system", "content": sistema}, *historico],
             "tools": self.ferramentas,
         }).encode("utf-8")
