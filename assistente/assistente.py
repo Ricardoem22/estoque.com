@@ -22,6 +22,7 @@ Comandos:
   /memoria           mostra o que eu guardei
   /esquecer          apaga toda a memória
   /voz               liga ou desliga a minha voz
+  /microfone         lista os microfones e testa o volume
   /gmail             conecta ao Gmail (ou mostra o que falta)
   /gmail sair        desconecta o Gmail deste computador
   /sair              encerra"""
@@ -102,7 +103,8 @@ def main() -> None:
     print(f"{nome_assistente}: {ola} (modelo: {modelo.nome}; digite /ajuda para ver os comandos)")
     voz.falar(ola)
 
-    ouvido = Ouvido(os.environ.get("OUVIR_MODELO", "small"), os.environ.get("OUVIR_IDIOMA", "pt"))
+    ouvido = Ouvido(os.environ.get("OUVIR_MODELO", "small"), os.environ.get("OUVIR_IDIOMA", "pt"),
+                    os.environ.get("OUVIR_DISPOSITIVO", ""))
 
     historico: list = []
     while True:
@@ -117,7 +119,7 @@ def main() -> None:
                 continue
             texto = ouvido.ouvir()
             if not texto:
-                print(f"{nome_assistente}: Não ouvi nada. Aperte Enter e fale de novo.")
+                print(f"{nome_assistente}: {ouvido.motivo or 'Não ouvi nada.'} Aperte Enter para tentar de novo.")
                 continue
             print(f"Você (voz): {texto}")
 
@@ -153,6 +155,20 @@ def main() -> None:
                         print(f"{nome_assistente}: Gmail conectado.")
                     except Exception as e:
                         print(f"[aviso] Não consegui conectar ao Gmail: {e}")
+            elif cmd == "/microfone":
+                if not ouvido.disponivel:
+                    print(f"[aviso] {ouvido.erro}")
+                    continue
+                try:
+                    print("Microfones (* = o padrão do Windows):")
+                    print(ouvido.microfones())
+                    print(f"Usando: {ouvido.dispositivo if ouvido.dispositivo is not None else 'o padrão'}. "
+                          "Fale algo nos próximos 4 segundos:")
+                    ouvido.medir()
+                    print("Se a barra quase não se mexeu, escolha outro microfone no .env, "
+                          "por exemplo OUVIR_DISPOSITIVO=2, e abra o Jarvis de novo.")
+                except Exception as e:
+                    print(f"[aviso] Não consegui usar o microfone: {e}")
             elif cmd == "/voz":
                 falar_respostas = not falar_respostas
                 print(f"{nome_assistente}: Voz {'ligada' if falar_respostas else 'desligada'}.")
