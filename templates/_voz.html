@@ -113,14 +113,20 @@
         }).catch(function () { mostrar("Sem conexão com o app. Nada foi gravado.", true); });
     });
 
+    // iPhone/iPad: só o Safari reconhece voz na página, e precisa do Ditado ligado. O microfone do
+    // teclado (ditado) funciona em qualquer navegador e escreve o comando no campo.
+    var IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    var DICA_IOS = "No iPhone: toque no campo de texto e use o 🎤 do teclado para falar o comando, depois toque em Ir.";
     if (!Reconhecer) {
         mic.hidden = true;
-        document.getElementById("voz-dica").textContent = "Este navegador não tem microfone para comandos. Escreva o comando, ex.: \"comprei 2 caixas de cerveja\". No celular, use o Chrome.";
+        document.getElementById("voz-dica").textContent = IOS ? DICA_IOS
+            : "Este navegador não tem microfone para comandos. Escreva o comando, ex.: \"comprei 2 caixas de cerveja\". No celular, use o Chrome.";
         return;
     }
     var ERROS = {
         "not-allowed": "O microfone está bloqueado para este site. Toque no cadeado ao lado do endereço, em Microfone escolha Permitir e recarregue a página.",
         "service-not-allowed": "Este navegador não deixa usar o reconhecimento de voz. No celular use o Chrome; no computador, o Google Chrome.",
+        "service-not-allowed-ios": "O iPhone não deixou usar o reconhecimento de voz. Use o Safari e ligue o Ditado em Ajustes > Geral > Teclado > Ativar Ditado. Ou toque no campo de texto e use o 🎤 do teclado.",
         "audio-capture": "Não achei microfone neste aparelho. Confira se ele está ligado e liberado para o navegador.",
         "network": "O reconhecimento de voz precisa de internet e não conseguiu conectar. Tente de novo; se continuar, use o Google Chrome.",
         "no-speech": "Não ouvi nada. Toque no 🎙️ e fale logo em seguida, perto do celular."
@@ -145,7 +151,9 @@
         };
         atual.onerror = function (ev) {
             if (ev.error !== "aborted") {
-                mostrar((ERROS[ev.error] || "Não consegui ouvir. Tente de novo ou escreva o comando.") + " (erro: " + ev.error + ")", true);
+                var msg = (IOS && ERROS[ev.error + "-ios"]) || ERROS[ev.error] || "Não consegui ouvir. Tente de novo ou escreva o comando.";
+                if (IOS && ev.error !== "service-not-allowed") msg += " " + DICA_IOS;
+                mostrar(msg + " (erro: " + ev.error + ")", true);
             }
             if (rec === atual) parar();
         };
