@@ -62,17 +62,25 @@
     {% endif %}
 
     {% if novos %}
-    <h2>❔ Não estão na lista de insumos</h2>
-    <p class="sub">Marque os que quiser cadastrar como insumo novo. Os desmarcados são ignorados.</p>
+    <h2>❔ Nome diferente da lista de insumos</h2>
+    <p class="sub">Escolha o que fazer com cada um: lançar num insumo de nome parecido, cadastrar como novo ou ignorar.
+        Quando só um insumo tem o nome do arquivo inteiro (ex.: "Bife do Vazio" → Bife do Vazio Empanado), ele já vem
+        escolhido. Confira antes de gravar.</p>
     <table class="tabela-importar tabela-contagem">
         <thead><tr><th></th><th>Insumo</th><th>Qtd.</th><th>Un.</th></tr></thead>
         <tbody>
             {% for item in novos %}
             {% set i = encontrados|length + loop.index0 %}
             <tr>
-                <td><input type="checkbox" name="criar_{{ i }}" value="1" aria-label="Cadastrar"></td>
+                <td></td>
                 <td>
-                    <input type="text" name="nome_{{ i }}" value="{{ item.nome }}">
+                    <label class="sub" for="destino_{{ i }}">No arquivo: <strong>{{ item.nome }}</strong></label>
+                    <select id="destino_{{ i }}" name="destino_{{ i }}" class="destino-importar">
+                        <option value="">Ignorar</option>
+                        {% for p in item.parecidos %}<option value="{{ p['id'] }}" {% if item.sugestao and item.sugestao['id'] == p['id'] %}selected{% endif %}>Lançar em: {{ p['nome'] }}</option>{% endfor %}
+                        <option value="novo">Cadastrar como insumo novo</option>
+                    </select>
+                    <input type="text" name="nome_{{ i }}" value="{{ item.nome }}" aria-label="Nome do insumo novo">
                     <input type="hidden" name="obs_{{ i }}" value="{{ item.observacao or '' }}">
                     <select name="categoria_{{ i }}">
                         {% for c in categorias %}<option value="{{ c }}" {% if c == item.categoria %}selected{% endif %}>{{ c }}</option>{% endfor %}
@@ -96,4 +104,17 @@
     </div>
 </form>
 {% endif %}
+<script>
+// Nome e categoria só servem para "Cadastrar como insumo novo"
+document.querySelectorAll(".destino-importar").forEach(function (sel) {
+    var td = sel.closest("td");
+    function atualizar() {
+        td.querySelectorAll("input[type=text], select:not(.destino-importar)").forEach(function (el) {
+            el.hidden = sel.value !== "novo";
+        });
+    }
+    sel.addEventListener("change", atualizar);
+    atualizar();
+});
+</script>
 {% endblock %}

@@ -759,3 +759,4 @@ input.busca-contagem { width: 100%; padding: 10px 12px; border: 1px solid #D3CBB
     font-size: 16px; line-height: 1; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 .ditar-botao.ouvindo { background: #D62300; animation: voz-pulso 1s infinite; }
 input.com-ditado, textarea.com-ditado { padding-right: 42px !important; }
+select.destino-importar { width: 100%; margin: 4px 0; }

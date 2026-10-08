@@ -267,6 +267,28 @@ def salvar_item(conn, contagem_id, insumo_id, quantidade, unidade, observacao=No
     conn.execute("UPDATE insumos SET unidade = ? WHERE id = ?", (unidade, insumo_id))
 
 
+PALAVRAS_VAZIAS = {"de", "do", "da", "dos", "das", "com", "e", "p", "para", "em"}
+
+
+def insumos_parecidos(nome, insumos, usados=()):
+    """Insumos cujo nome contém todas as palavras do nome do arquivo, ou o contrário:
+    "Bife do Vazio" → "Bife do Vazio Empanado". Os mais próximos primeiro.
+    Devolve (lista, sugestão): a sugestão só existe quando um único insumo contém o nome do arquivo inteiro."""
+    palavras = set(chave_nome(nome).split()) - PALAVRAS_VAZIAS
+    if not palavras:
+        return []
+    achados = []
+    for insumo in insumos:
+        if insumo["id"] in usados:
+            continue
+        outras = set(chave_nome(insumo["nome"]).split()) - PALAVRAS_VAZIAS
+        if outras and (palavras <= outras or outras <= palavras):
+            achados.append((len(palavras ^ outras), insumo["nome"].lower(), insumo, palavras <= outras))
+    achados.sort(key=lambda a: a[:2])
+    contem = [a[2] for a in achados if a[3]]
+    return [a[2] for a in achados][:5], (contem[0] if len(contem) == 1 else None)
+
+
 @bp.route("/contagens/<int:id>/importar", methods=["GET", "POST"])
 def importar_contagem(id):
     conn = get_connection()
@@ -309,6 +331,19 @@ def importar_contagem(id):
                     item["categoria"] = item["categoria"] or categorias[0]
                     item["unidade"] = item["unidade"] or unidade_padrao(item["categoria"])
                     novos.append(item)
+            # Nome diferente do cadastro ("Bife do Vazio" x "Bife do Vazio Empanado"): sugere o parecido
+            usados = {i["insumo"]["id"] for i in encontrados}
+            ativos = [i for i in insumos if i["ativo"]]
+            for item in novos:
+                item["parecidos"], item["sugestao"] = insumos_parecidos(item["nome"], ativos, usados)
+            # Dois nomes do arquivo apontando para o mesmo insumo: nenhum vem escolhido
+            vezes = {}
+            for item in novos:
+                if item["sugestao"]:
+                    vezes[item["sugestao"]["id"]] = vezes.get(item["sugestao"]["id"], 0) + 1
+            for item in novos:
+                if item["sugestao"] and vezes[item["sugestao"]["id"]] > 1:
+                    item["sugestao"] = None
             if erro:
                 encontrados = novos = None
             elif novos:
@@ -340,11 +375,14 @@ def confirmar_importacao_contagem(id):
         unidade = unidade_digitada(form.get(f"qtd_{i}"), form.get(f"unidade_{i}")) or "un"
         observacao = form.get(f"obs_{i}", "").strip() or None
         insumo_id = form.get(f"insumo_{i}", type=int)
-        if form.get(f"incluir_{i}") and insumo_id:
+        destino = form.get(f"destino_{i}", "")
+        if destino.isdigit():
+            insumo_id = int(destino)
+        if (form.get(f"incluir_{i}") or destino.isdigit()) and insumo_id:
             if conn.execute("SELECT 1 FROM insumos WHERE id = ?", (insumo_id,)).fetchone():
                 salvar_item(conn, id, insumo_id, quantidade, unidade, observacao)
                 preenchidos += 1
-        elif form.get(f"criar_{i}"):
+        elif form.get(f"criar_{i}") or destino == "novo":
             nome = form.get(f"nome_{i}", "").strip()
             categoria = form.get(f"categoria_{i}", "").strip()
             if not nome or not categoria:
