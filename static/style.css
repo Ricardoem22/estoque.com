@@ -735,5 +735,7 @@ tr.inativo td { opacity: 0.6; }
 .voz-confirma select, .voz-confirma input { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 8px; font-size: 16px; }
 .voz-campos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .voz-campos > div { flex: 1 1 100px; }
+.voz-confirma [hidden] { display: none !important; }
+#voz-novo-caixa label { display: block; margin-top: 6px; }
 .voz-botoes { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 @media print { .voz-botao, .voz-painel { display: none !important; } }
