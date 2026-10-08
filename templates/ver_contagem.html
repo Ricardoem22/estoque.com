@@ -29,7 +29,13 @@
 <p class="sub">Primeira contagem: ainda não há estoque anterior para comparar. Ela vira o seu estoque inicial.</p>
 {% endif %}
 
+<div class="contagem-topo nao-imprimir">
+    <input type="search" id="filtro" class="busca-contagem" placeholder="🔍 Buscar item do estoque..." aria-label="Buscar item" autocomplete="off">
+</div>
+<p class="vazio" id="nada-encontrado" hidden>Nenhum item com esse nome.</p>
+
 {% for categoria, itens in grupos %}
+<section class="categoria-ver">
 <h2>{{ categoria }}</h2>
 <table class="tabela-ver-contagem">
     <thead>
@@ -37,7 +43,7 @@
     </thead>
     <tbody>
         {% for item in itens %}
-        <tr {% if item['quantidade'] is none %}class="nao-contado"{% endif %}>
+        <tr class="linha-ver{% if item['quantidade'] is none %} nao-contado{% endif %}" data-busca="{{ item['nome'] }}">
             {% set d = sistema.get(item['id'], {}) %}
             <td>{{ item['nome'] }}</td>
             <td>{{ (item['quantidade']|qtd ~ ' ' ~ item['unidade']) if item['quantidade'] is not none else '—' }}</td>
@@ -48,5 +54,8 @@
         {% endfor %}
     </tbody>
 </table>
+</section>
 {% endfor %}
+<script src="{{ url_for('static', filename='busca.js') }}"></script>
+<script>ligarBusca("filtro", ".linha-ver", ".categoria-ver", "nada-encontrado");</script>
 {% endblock %}

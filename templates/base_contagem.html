@@ -11,6 +11,6 @@
     <div class="container">
         {% block conteudo %}{% endblock %}
     </div>
-    {% if session.get('logado') %}{% include "_voz.html" %}{% endif %}
+    {% if session.get('logado') %}{% include "_voz.html" %}<script src="{{ url_for('static', filename='ditado.js') }}"></script>{% endif %}
 </body>
 </html>
