@@ -10,10 +10,12 @@ from datetime import datetime
 
 from ferramentas import Executor
 from modelos import ModeloIndisponivel, escolher_modelo
+from ouvido import Ouvido
 from saudacao import saudar
 from voz import Voz
 
-AJUDA = """Comandos:
+AJUDA = """Para falar em vez de digitar, aperte Enter sem escrever nada.
+Comandos:
   /nome <seu nome>   muda como eu te chamo
   /lembrar <algo>    guarda uma preferência (fica só neste computador)
   /memoria           mostra o que eu guardei
@@ -90,6 +92,8 @@ def main() -> None:
     print(f"{nome_assistente}: {ola} (modelo: {modelo.nome}; digite /ajuda para ver os comandos)")
     voz.falar(ola)
 
+    ouvido = Ouvido(os.environ.get("OUVIR_MODELO", "small"), os.environ.get("OUVIR_IDIOMA", "pt"))
+
     historico: list = []
     while True:
         try:
@@ -98,7 +102,14 @@ def main() -> None:
             print()
             break
         if not texto:
-            continue
+            if not ouvido.disponivel:
+                print(f"[aviso] {ouvido.erro}")
+                continue
+            texto = ouvido.ouvir()
+            if not texto:
+                print(f"{nome_assistente}: Não ouvi nada. Aperte Enter e fale de novo.")
+                continue
+            print(f"Você (voz): {texto}")
 
         if texto.startswith("/"):
             cmd, _, arg = texto.partition(" ")

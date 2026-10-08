@@ -1,4 +1,4 @@
-# Assistente pessoal (protótipo — Etapas 2 e 3)
+# Assistente pessoal (protótipo — Etapas 2, 3 e 5)
 
 Chat por texto no Windows. Ao abrir, ele diz **"Bom dia"**, **"Boa tarde"** ou **"Boa noite"** conforme o horário, com o seu nome, e fala isso em voz alta.
 Conversa em português ou em inglês. Usa uma IA **local** (Ollama) e, se ela não estiver disponível, uma **API externa** (Anthropic).
@@ -39,6 +39,8 @@ Ainda não tem acesso ao Gmail, à Alexa nem aos dispositivos da casa.
 python assistente.py
 ```
 
+**Para falar em vez de digitar:** no `Você:`, aperte **Enter sem escrever nada**, fale e faça uma pausa. O reconhecimento de voz roda no seu computador, sem internet; na primeira vez, ele baixa o modelo (cerca de 500 MB). Se ficar lento, use `OUVIR_MODELO=base` no `.env`.
+
 Ou dê dois cliques em **`Iniciar Jarvis.bat`** (pode copiá-lo para a Área de Trabalho). Ele espera que esta pasta esteja em `C:\Users\<você>\assistente-pessoal`.
 
 Na primeira vez, ele pergunta como deve te chamar. O nome fica guardado em `%APPDATA%\Assistente\memoria.json`, somente no seu computador.
@@ -51,6 +53,10 @@ Na primeira vez, ele pergunta como deve te chamar. O nome fica guardado em `%APP
 | `/esquecer` | apaga tudo (pede confirmação) |
 | `/voz` | liga ou desliga a fala das respostas |
 | `/sair` | encerra |
+
+## Atualizar
+
+Dê dois cliques em **`Atualizar Jarvis.bat`**. Ele baixa a versão mais nova do GitHub e instala o que faltar. O seu `.env` e a sua memória são mantidos.
 
 ## Testes
 

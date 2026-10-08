@@ -1,2 +1,4 @@
 anthropic
 pyttsx3
+faster-whisper
+sounddevice
