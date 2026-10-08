@@ -11,6 +11,8 @@
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 {% if salvo %}<div class="sucesso">Ficha salva.</div>{% endif %}
+{% if aviso == 'contagem' %}<div class="aviso">A última contagem deste insumo foi feita em outra unidade, com quantidade.
+    As compras em {{ insumo['unidade'] }} só somam depois de uma contagem nova dele em {{ insumo['unidade'] }}.</div>{% endif %}
 
 <form method="post" class="form-desperdicio form-ficha">
     <label for="nome">Nome</label>
@@ -30,7 +32,7 @@
             </select>
         </div>
     </div>
-    <p class="sub dica">É a medida em que você conta e vê o saldo. Mudar a unidade não converte contagens antigas.</p>
+    <p class="sub dica">É a medida em que você conta e vê o saldo. Mudar a unidade não converte contagens antigas (as que deram zero passam para a unidade nova).</p>
 
     <div class="linha">
         <div>
