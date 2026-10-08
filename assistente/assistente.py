@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 
 from memoria import Memoria
+from datetime import datetime
+
+from ferramentas import Executor
 from modelos import ModeloIndisponivel, escolher_modelo
 from saudacao import saudar
 from voz import Voz
@@ -36,8 +39,13 @@ def montar_sistema(nome_assistente: str, memoria: Memoria) -> str:
         f"Você está conversando com {memoria.get('nome', 'o usuário')}. "
         "Responda em português do Brasil, a não ser que o usuário escreva em inglês; nesse caso responda em inglês. "
         "Seja breve: suas respostas podem ser lidas em voz alta. "
+        "Você pode agir no computador do usuário (Windows) com as ferramentas disponíveis: "
+        "abrir programas e sites, mexer em arquivos e pastas e rodar comandos no PowerShell. "
+        "Use-as quando o usuário pedir algo que dependa delas, e conte o resultado real; "
+        "se uma ação falhar ou não for autorizada, diga isso. "
         "Você ainda não tem acesso a e-mail, agenda, Alexa ou dispositivos da casa; "
-        "se pedirem algo assim, diga que essa integração ainda não foi conectada e não finja ter feito."
+        "se pedirem algo assim, diga que essa integração ainda não foi conectada e não finja ter feito.\n"
+        f"Agora são {datetime.now():%d/%m/%Y %H:%M}."
     )
     fatos = memoria.get("fatos", [])
     if fatos:
@@ -54,6 +62,11 @@ def main() -> None:
     falar_respostas = os.environ.get("FALAR_RESPOSTAS", "sim").lower() == "sim"
     modelo = escolher_modelo(os.environ.get("MODO", "auto").lower())
 
+    def confirmar(acao: str) -> bool:
+        return input(f"{nome_assistente} quer fazer -> {acao}\nAutorizar? (s/n) ").strip().lower() == "s"
+
+    executar = Executor(confirmar, os.environ.get("CONFIRMAR_ACOES", "sim").lower() != "nao")
+
     if not memoria.get("nome"):
         nome = input(f"{nome_assistente}: Olá! Como você quer que eu te chame? ").strip()
         if nome:
@@ -63,7 +76,7 @@ def main() -> None:
     print(f"{nome_assistente}: {ola} (modelo: {modelo.nome}; digite /ajuda para ver os comandos)")
     voz.falar(ola)
 
-    historico: list[dict] = []
+    historico: list = []
     while True:
         try:
             texto = input("Você: ").strip()
@@ -100,14 +113,13 @@ def main() -> None:
                 print(AJUDA)
             continue
 
-        historico.append({"role": "user", "content": texto})
+        tamanho = len(historico)
         try:
-            resposta = modelo.responder(montar_sistema(nome_assistente, memoria), historico)
+            resposta = modelo.conversar(montar_sistema(nome_assistente, memoria), historico, texto, executar)
         except ModeloIndisponivel as e:
-            historico.pop()
+            del historico[tamanho:]  # descarta a pergunta que não teve resposta
             print(f"[aviso] {e}")
             continue
-        historico.append({"role": "assistant", "content": resposta})
         print(f"{nome_assistente}: {resposta}")
         if falar_respostas:
             voz.falar(resposta)

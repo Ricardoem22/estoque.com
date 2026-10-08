@@ -1,9 +1,21 @@
-# Assistente pessoal (protótipo — Etapa 2)
+# Assistente pessoal (protótipo — Etapas 2 e 3)
 
 Chat por texto no Windows. Ao abrir, ele diz **"Bom dia"**, **"Boa tarde"** ou **"Boa noite"** conforme o horário, com o seu nome, e fala isso em voz alta.
 Conversa em português ou em inglês. Usa uma IA **local** (Ollama) e, se ela não estiver disponível, uma **API externa** (Anthropic).
 
-Por enquanto ele **não executa nenhuma ação**: ainda não tem acesso ao Gmail, à Alexa nem aos dispositivos da casa.
+Ele também **age no computador**: basta pedir em linguagem normal ("abre o Chrome", "organiza minha pasta Downloads por tipo", "quanto espaço tem no disco C?").
+
+| Ação | Pede confirmação? |
+|---|---|
+| abrir programa, arquivo, pasta ou site | não |
+| listar pasta, ler arquivo, criar pasta | não |
+| escrever, mover, copiar arquivo | sim |
+| apagar (definitivo, não vai para a lixeira) | sim |
+| rodar comando no PowerShell | sim |
+
+Nada é proibido. A confirmação aparece como `Autorizar? (s/n)` e mostra exatamente o que será feito. Para executar sem perguntar, coloque `CONFIRMAR_ACOES=nao` no `.env`. Assim, um erro de interpretação da IA pode apagar ou alterar arquivos sem aviso.
+
+Ainda não tem acesso ao Gmail, à Alexa nem aos dispositivos da casa.
 
 ## Instalação no Windows
 
