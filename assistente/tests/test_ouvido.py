@@ -32,6 +32,11 @@ class TestDetector(unittest.TestCase):
         self.assertEqual(estados.index("fim"), 19)
 
 
+    def test_barulho_de_fundo_nao_impede_o_fim(self):
+        # ruído calibrado baixo, mas depois da fala fica um barulho constante (ventilador, TV)
+        estados = rodar([0.2] * 10 + [0.03] * 50, silencio_fim=1.0)
+        self.assertEqual(estados.index("fim"), 10 + 9)
+
     def test_espera_infinita(self):
         estados = rodar([0.001] * 500, espera_max=None)
         self.assertNotIn("nada", estados)

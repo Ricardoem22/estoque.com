@@ -16,7 +16,7 @@ BLOCO = 0.1           # segundos por bloco lido do microfone
 class DetectorDeFala:
     """Decide quando a pessoa começou e terminou de falar, pelo volume de cada bloco."""
 
-    def __init__(self, ruido: float, espera_max=8.0, silencio_fim=1.2, fala_max=20.0):
+    def __init__(self, ruido: float, espera_max=8.0, silencio_fim=1.0, fala_max=15.0):
         self.limiar = max(0.004, ruido * 2.5)
         self.blocos_espera = int(espera_max / BLOCO) if espera_max else None  # None = espera para sempre
         self.blocos_silencio = int(silencio_fim / BLOCO)
@@ -25,6 +25,7 @@ class DetectorDeFala:
         self.esperou = 0
         self.silencio = 0
         self.gravados = 0
+        self.pico = 0.0  # volume mais alto da fala; o silêncio é medido em relação a ele
 
     def bloco(self, volume: float) -> str:
         """Devolve 'esperando', 'gravando', 'fim' ou 'nada' (ninguém falou)."""
@@ -37,7 +38,10 @@ class DetectorDeFala:
                     return "nada"
                 return "esperando"
         self.gravados += 1
-        self.silencio = 0 if volume >= self.limiar else self.silencio + 1
+        self.pico = max(self.pico, volume)
+        # Conta como silêncio o que for bem mais baixo que a fala, mesmo com ventilador ou TV ao fundo
+        limiar_fim = max(self.limiar, self.pico * 0.25)
+        self.silencio = 0 if volume >= limiar_fim else self.silencio + 1
         if self.silencio >= self.blocos_silencio or self.gravados >= self.blocos_max:
             return "fim"
         return "gravando"
@@ -150,6 +154,8 @@ class Ouvido:
                 if estado != "esperando":
                     partes.append(bloco)
                 if estado == "fim":
+                    if avisar:
+                        print("(entendendo...)")
                     return np.concatenate(partes)
 
     def ouvir(self, espera_max: float | None = 8.0, avisar: bool = True) -> str | None:
