@@ -25,12 +25,16 @@
     <button class="btn" type="submit">+ Adicionar</button>
 </form>
 
+<input type="search" id="busca-insumos" class="busca" placeholder="🔎 Procurar insumo..." aria-label="Procurar insumo">
+<p class="vazio" id="nada-encontrado" hidden>Nenhum insumo com esse nome.</p>
+
 {% for categoria, itens in grupos %}
+<section class="categoria-insumos">
 <h2>{{ categoria }} <span class="sub">({{ itens|length }})</span></h2>
 <table>
     <tbody>
         {% for item in itens %}
-        <tr{% if not item['ativo'] %} class="inativo"{% endif %}>
+        <tr class="linha-insumo{% if not item['ativo'] %} inativo{% endif %}" data-busca="{{ item['nome'] }} {{ item['local'] or '' }} {{ item['codigo'] or '' }}">
             <td><a class="nome-insumo" href="{{ url_for('insumo.editar', id=item['id']) }}">{{ item['nome'] }}</a>
                 {% if not item['ativo'] %}<span class="tag tag-recusado">inativo</span>{% endif %}
                 {% if item['local'] or item['minimo'] is not none %}<br><span class="sub">
@@ -49,5 +53,29 @@
         {% endfor %}
     </tbody>
 </table>
+</section>
 {% endfor %}
+
+<script>
+(function () {
+    var busca = document.getElementById("busca-insumos");
+    function limpar(t) { return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+    busca.addEventListener("input", function () {
+        var palavras = limpar(busca.value.trim()).split(/\s+/).filter(Boolean);
+        var total = 0;
+        document.querySelectorAll(".categoria-insumos").forEach(function (sec) {
+            var visiveis = 0;
+            sec.querySelectorAll(".linha-insumo").forEach(function (tr) {
+                var texto = limpar(tr.dataset.busca);
+                var mostra = palavras.every(function (p) { return texto.indexOf(p) !== -1; });
+                tr.hidden = !mostra;
+                if (mostra) visiveis++;
+            });
+            sec.hidden = !visiveis;
+            total += visiveis;
+        });
+        document.getElementById("nada-encontrado").hidden = total > 0;
+    });
+})();
+</script>
 {% endblock %}
