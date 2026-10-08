@@ -15,7 +15,9 @@ Ele também **age no computador**: basta pedir em linguagem normal ("abre o Chro
 
 Nada é proibido. A confirmação aparece como `Autorizar? (s/n)` e mostra exatamente o que será feito. Para executar sem perguntar, coloque `CONFIRMAR_ACOES=nao` no `.env`. Assim, um erro de interpretação da IA pode apagar ou alterar arquivos sem aviso.
 
-Ainda não tem acesso ao Gmail, à Alexa nem aos dispositivos da casa.
+Com o Gmail conectado (veja abaixo), ele busca, lê e resume e-mails, salva rascunhos e envia. **Enviar e salvar rascunho sempre pedem confirmação**, mostrando destinatário, assunto e texto.
+
+Ainda não tem acesso à Alexa nem aos dispositivos da casa.
 
 ## Instalação no Windows
 
@@ -53,6 +55,25 @@ Na primeira vez, ele pergunta como deve te chamar. O nome fica guardado em `%APP
 | `/esquecer` | apaga tudo (pede confirmação) |
 | `/voz` | liga ou desliga a fala das respostas |
 | `/sair` | encerra |
+
+## Gmail
+
+O Google exige que cada pessoa crie a própria "chave" de acesso. É gratuito e leva uns 10 minutos, uma vez só.
+
+1. Abra <https://console.cloud.google.com/> com a sua conta do Gmail e crie um projeto chamado **Jarvis**.
+2. Em **APIs e serviços › Biblioteca**, procure **Gmail API** e clique em **Ativar**.
+3. Em **Google Auth Platform** (ou **Tela de consentimento OAuth**), clique em **Começar**: nome do app **Jarvis**, o seu e-mail como suporte e contato, público **Externo**. Conclua.
+4. Em **Público › Usuários de teste**, adicione o seu próprio endereço do Gmail.
+5. Em **Clientes › Criar cliente**, escolha o tipo **App para computador**, dê o nome **Jarvis**, crie e clique em **Baixar JSON**.
+6. No PowerShell, mova o arquivo baixado para a pasta do assistente com o nome certo:
+   ```
+   Move-Item "$HOME\Downloads\client_secret_*.json" "$HOME\assistente-pessoal\credentials.json"
+   ```
+7. Abra o Jarvis e digite `/gmail`. O navegador abre: escolha a sua conta. No aviso "O Google não verificou este app", clique em **Continuar** (o app é seu) e depois em **Permitir**.
+
+Pronto. Peça, por exemplo, "resuma meus e-mails não lidos de hoje".
+
+Enquanto o app estiver em modo de teste, o Google pede para autorizar de novo a cada 7 dias: é só digitar `/gmail` outra vez. A autorização fica em `%APPDATA%\Assistente\gmail_token.json`; `/gmail sair` apaga.
 
 ## Atualizar
 

@@ -1,14 +1,15 @@
-"""Assistente pessoal — protótipo de chat por texto (Etapa 2).
+"""Assistente pessoal — chat por texto ou voz.
 
 Rode com:  python assistente.py
 """
 import os
 from pathlib import Path
 
-from memoria import Memoria
 from datetime import datetime
 
+import gmail
 from ferramentas import Executor
+from memoria import Memoria
 from modelos import ModeloIndisponivel, escolher_modelo
 from ouvido import Ouvido
 from saudacao import saudar
@@ -21,6 +22,8 @@ Comandos:
   /memoria           mostra o que eu guardei
   /esquecer          apaga toda a memória
   /voz               liga ou desliga a minha voz
+  /gmail             conecta ao Gmail (ou mostra o que falta)
+  /gmail sair        desconecta o Gmail deste computador
   /sair              encerra"""
 
 
@@ -39,7 +42,13 @@ def carregar_env(arquivo: Path) -> None:
             os.environ.setdefault(chave.strip(), valor.strip().strip('"').strip("'"))
 
 
-def montar_sistema(nome_assistente: str, memoria: Memoria) -> str:
+def montar_sistema(nome_assistente: str, memoria: Memoria, com_gmail: bool) -> str:
+    integracoes = (
+        "Você tem acesso ao Gmail do usuário pelas ferramentas gmail_*: para resumir e-mails, "
+        "busque primeiro e leia os que importam. Você ainda não tem acesso a agenda, Alexa ou dispositivos da casa; "
+        if com_gmail else
+        "Você ainda não tem acesso a e-mail, agenda, Alexa ou dispositivos da casa; "
+    )
     texto = (
         f"Você é {nome_assistente}, um assistente pessoal educado e direto. "
         f"Você está conversando com {memoria.get('nome', 'o usuário')}. "
@@ -49,7 +58,7 @@ def montar_sistema(nome_assistente: str, memoria: Memoria) -> str:
         "abrir programas e sites, mexer em arquivos e pastas e rodar comandos no PowerShell. "
         "Use-as quando o usuário pedir algo que dependa delas, e conte o resultado real; "
         "se uma ação falhar ou não for autorizada, diga isso. "
-        "Você ainda não tem acesso a e-mail, agenda, Alexa ou dispositivos da casa; "
+        + integracoes +
         "se pedirem algo assim, diga que essa integração ainda não foi conectada e não finja ter feito.\n"
         f"Agora são {datetime.now():%d/%m/%Y %H:%M}."
     )
@@ -66,6 +75,7 @@ def main() -> None:
     memoria = Memoria()
     voz = Voz(os.environ.get("VOZ", "Daniel"), os.environ.get("VOZ_ATIVA", "sim").lower() == "sim")
     falar_respostas = os.environ.get("FALAR_RESPOSTAS", "sim").lower() == "sim"
+    falta_gmail = gmail.registrar()  # precisa vir antes de escolher o modelo
     modelo = escolher_modelo(os.environ.get("MODO", "auto").lower())
 
     def confirmar(acao: str) -> bool:
@@ -131,6 +141,18 @@ def main() -> None:
                 if input("Apagar toda a memória? (s/n) ").strip().lower() == "s":
                     memoria.apagar_tudo()
                     print(f"{nome_assistente}: Memória apagada.")
+            elif cmd == "/gmail" and arg == "sair":
+                gmail.desconectar()
+                print(f"{nome_assistente}: Gmail desconectado deste computador.")
+            elif cmd == "/gmail":
+                if falta_gmail:
+                    print(f"{nome_assistente}: Ainda não dá para usar o Gmail: {falta_gmail}.")
+                else:
+                    try:
+                        gmail.servico()
+                        print(f"{nome_assistente}: Gmail conectado.")
+                    except Exception as e:
+                        print(f"[aviso] Não consegui conectar ao Gmail: {e}")
             elif cmd == "/voz":
                 falar_respostas = not falar_respostas
                 print(f"{nome_assistente}: Voz {'ligada' if falar_respostas else 'desligada'}.")
@@ -145,7 +167,7 @@ def main() -> None:
 
         tamanho = len(historico)
         try:
-            resposta = modelo.conversar(montar_sistema(nome_assistente, memoria), historico, texto, executar)
+            resposta = modelo.conversar(montar_sistema(nome_assistente, memoria, falta_gmail is None), historico, texto, executar)
         except ModeloIndisponivel as e:
             del historico[tamanho:]  # descarta a pergunta que não teve resposta
             print(f"[aviso] {e}")

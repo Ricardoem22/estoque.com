@@ -2,3 +2,5 @@ anthropic
 pyttsx3
 faster-whisper
 sounddevice
+google-api-python-client
+google-auth-oauthlib
