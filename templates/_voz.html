@@ -6,7 +6,7 @@
         <button type="button" class="voz-fechar" id="voz-fechar" aria-label="Fechar">✕</button>
     </div>
     <p class="sub" id="voz-dica">Toque no microfone e fale, ou escreva. Ex.: "comprei 2 caixas de cerveja por 90 reais",
-        "quanto tem de tomate", "saída de 3 quilos de cebola".</p>
+        "quanto tem de tomate", "adicione 2 quilos de cebola no estoque", "exclua a compra de tomate".</p>
     <form id="voz-form" class="voz-linha" autocomplete="off">
         <button type="button" class="voz-mic" id="voz-mic" aria-label="Falar">🎙️</button>
         <input type="text" id="voz-texto" placeholder="O que você quer fazer?" aria-label="Comando">
@@ -14,10 +14,13 @@
     </form>
     <div id="voz-resposta" class="voz-resposta" hidden></div>
     <form id="voz-confirma" class="voz-confirma" hidden>
-        <label for="voz-insumo">Insumo</label>
-        <select id="voz-insumo"></select>
-        <div class="voz-campos">
-            <div><label for="voz-qtd">Quantidade</label><input type="text" id="voz-qtd" inputmode="decimal"></div>
+        <div id="voz-insumo-caixa"><label for="voz-insumo">Insumo</label><select id="voz-insumo"></select></div>
+        <div id="voz-novo-caixa">
+            <label for="voz-nome">Nome do insumo</label><input type="text" id="voz-nome" maxlength="80">
+            <label for="voz-categoria">Categoria</label><select id="voz-categoria"></select>
+        </div>
+        <div class="voz-campos" id="voz-campos">
+            <div id="voz-qtd-caixa"><label for="voz-qtd">Quantidade</label><input type="text" id="voz-qtd" inputmode="decimal"></div>
             <div><label for="voz-un">Unidade</label><input type="text" id="voz-un" list="voz-unidades"></div>
             <div id="voz-valor-caixa"><label for="voz-valor">Valor pago (R$)</label><input type="text" id="voz-valor" inputmode="decimal" placeholder="Opcional"></div>
         </div>
@@ -78,17 +81,31 @@
             if (r.tipo === "consulta" || r.tipo === "erro") { falar(r.resposta); return; }
             var sel = document.getElementById("voz-insumo");
             sel.innerHTML = "";
-            r.opcoes.forEach(function (o) {
+            (r.opcoes || []).forEach(function (o) {
                 var op = document.createElement("option");
                 op.value = o.id; op.textContent = o.nome + " (" + o.unidade + ")";
                 sel.appendChild(op);
             });
             sel.value = r.insumo_id;
+            var cat = document.getElementById("voz-categoria");
+            cat.innerHTML = "";
+            (r.categorias || []).forEach(function (c) {
+                var op = document.createElement("option"); op.value = c; op.textContent = c; cat.appendChild(op);
+            });
+            cat.value = r.categoria || "";
+            document.getElementById("voz-nome").value = r.nome || "";
             document.getElementById("voz-qtd").value = numero(r.quantidade);
             document.getElementById("voz-un").value = r.unidade || "";
             document.getElementById("voz-valor").value = numero(r.valor);
+            // Cada ação mostra só os campos que usa
+            var novo = r.tipo === "novo_insumo", semCampos = r.tipo === "excluir_compra" || r.tipo === "desativar";
+            document.getElementById("voz-insumo-caixa").hidden = novo || r.tipo === "excluir_compra";
+            document.getElementById("voz-novo-caixa").hidden = !novo;
+            document.getElementById("voz-campos").hidden = semCampos;
+            document.getElementById("voz-qtd-caixa").hidden = novo;
             document.getElementById("voz-valor-caixa").hidden = r.tipo !== "compra";
-            document.getElementById("voz-ok").textContent = r.tipo === "desperdicio" ? "📷 Abrir com foto" : "✅ Confirmar";
+            document.getElementById("voz-ok").textContent = {desperdicio: "📷 Abrir com foto", excluir_compra: "🗑️ Excluir compra",
+                desativar: "🗑️ Tirar da lista", novo_insumo: "✅ Cadastrar"}[r.tipo] || "✅ Confirmar";
             confirma.hidden = false;
             falar(r.resposta);
         }).catch(function () { mostrar("Não consegui falar com o app. Recarregue a página e, se pedir, entre de novo.", true); });
@@ -100,7 +117,9 @@
         var dados = {tipo: pedido.tipo, insumo_id: document.getElementById("voz-insumo").value,
                      quantidade: lerNumero(document.getElementById("voz-qtd").value),
                      unidade: document.getElementById("voz-un").value.trim(),
-                     valor: lerNumero(document.getElementById("voz-valor").value)};
+                     valor: lerNumero(document.getElementById("voz-valor").value),
+                     compra_id: pedido.compra_id, nome: document.getElementById("voz-nome").value,
+                     categoria: document.getElementById("voz-categoria").value};
         if (pedido.tipo === "desperdicio") {
             window.location = "{{ url_for('desperdicio.desperdicio') }}?insumo_id=" + encodeURIComponent(dados.insumo_id)
                 + "&quantidade=" + encodeURIComponent(numero(dados.quantidade)) + "&unidade=" + encodeURIComponent(dados.unidade);

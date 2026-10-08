@@ -735,5 +735,19 @@ tr.inativo td { opacity: 0.6; }
 .voz-confirma select, .voz-confirma input { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 8px; font-size: 16px; }
 .voz-campos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .voz-campos > div { flex: 1 1 100px; }
+.voz-confirma [hidden] { display: none !important; }
+#voz-novo-caixa label { display: block; margin-top: 6px; }
 .voz-botoes { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 @media print { .voz-botao, .voz-painel { display: none !important; } }
+
+/* Refeição da equipe */
+.item-refeicao { border: 1px solid #E6DFD2; border-radius: 10px; padding: 8px; margin-bottom: 8px; background: #fff; }
+.item-refeicao select, .item-refeicao input { width: 100%; }
+.item-refeicao-qtd { display: flex; gap: 6px; margin-top: 6px; }
+.item-refeicao-qtd input { flex: 1 1 auto; min-width: 0; }
+.item-refeicao-qtd select { flex: 0 0 96px; width: 96px; }
+.item-refeicao-qtd .tirar-item { flex: 0 0 auto; padding: 6px 12px; }
+.item-refeicao .previa-unidade:empty { display: none; }
+.refeicao-lancada { border: 1px solid #E6DFD2; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+.refeicao-lancada ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.refeicao-lancada li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid #F0EADF; }

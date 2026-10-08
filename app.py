@@ -12,6 +12,7 @@ from mural import bp as mural_bp, init_db as init_db_mural
 from funcionarios import autenticar, bp as funcionarios_bp, conferir_sessao, init_db as init_db_funcionarios
 from insumo_cadastro import bp as insumo_bp
 from movimentos import bp as movimentos_bp, init_db as init_db_movimentos
+from refeicao import bp as refeicao_bp
 from voz import bp as voz_bp
 
 app = Flask(__name__)
@@ -32,6 +33,7 @@ app.register_blueprint(funcionarios_bp)
 app.register_blueprint(mural_bp)
 app.register_blueprint(insumo_bp)
 app.register_blueprint(movimentos_bp)
+app.register_blueprint(refeicao_bp)
 app.register_blueprint(voz_bp)
 
 

@@ -268,18 +268,22 @@ def mover_para_contagem(id):
     return redirect(url_for("compras.compras", mes=data[:7], salvo=id, data=data))
 
 
-@bp.route("/compras/<int:id>/excluir", methods=["POST"])
-def excluir_compra(id):
-    conn = get_connection()
+def apagar_compra(conn, id):
+    """Apaga a compra (sem commit). O arquivo só sai da pasta quando nenhuma outra compra (da mesma nota) usa."""
     compra = conn.execute("SELECT anexo FROM compras WHERE id = ?", (id,)).fetchone()
     conn.execute("DELETE FROM compras WHERE id = ?", (id,))
-    # O arquivo só sai da pasta quando nenhuma outra compra (da mesma nota) usa
     if compra and compra["anexo"] and not conn.execute("SELECT 1 FROM compras WHERE anexo = ?",
                                                        (compra["anexo"],)).fetchone():
         try:
             os.remove(os.path.join(config.UPLOAD_DIR, compra["anexo"]))
         except OSError:
             pass
+
+
+@bp.route("/compras/<int:id>/excluir", methods=["POST"])
+def excluir_compra(id):
+    conn = get_connection()
+    apagar_compra(conn, id)
     conn.commit()
     conn.close()
     return redirect(url_for("compras.compras", mes=request.form.get("mes", "")))

@@ -2,6 +2,7 @@
 {%- if 'insumo' in ep or ep == 'contagem.confirmar_importacao' %}{% set aba = 'insumos' -%}
 {%- elif ep.startswith('contagem.') %}{% set aba = 'contagens' -%}
 {%- elif ep.startswith('movimentos.') %}{% set aba = 'movimentos' -%}
+{%- elif ep.startswith('refeicao.') %}{% set aba = 'refeicao' -%}
 {%- elif ep.startswith('compras.') %}{% set aba = 'compras' -%}
 {%- elif ep.startswith('desperdicio.') or ep.startswith('gerencia') %}{% set aba = 'desperdicio' -%}
 {%- elif ep == 'relatorio.estoque' %}{% set aba = 'estoque' -%}
@@ -30,6 +31,7 @@
         </div>
         <div class="menu-linha">
             <a href="{{ url_for('movimentos.movimentacoes') }}" {% if aba == 'movimentos' %}class="ativo"{% endif %}><i>🔄</i> Movimentações</a>
+            <a href="{{ url_for('refeicao.refeicao') }}" {% if aba == 'refeicao' %}class="ativo"{% endif %}><i>🍽️</i> Refeição</a>
             <a href="{{ url_for('relatorio.relatorio') }}" {% if aba == 'relatorio' %}class="ativo"{% endif %}><i>📊</i> Relatório</a>
             <a href="{{ url_for('mural.mural') }}" {% if aba == 'mural' %}class="ativo"{% endif %}><i>💬</i> Mural</a>
             {% if session.get('gerente') %}<a href="{{ url_for('funcionarios.cadastro') }}" {% if aba == 'funcionarios' %}class="ativo"{% endif %}><i>👥</i> Funcionários</a>{% endif %}
