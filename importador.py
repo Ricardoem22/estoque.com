@@ -60,13 +60,30 @@ def normalizar_unidade(texto):
     return None
 
 
+def separar_quantidade(texto):
+    """'4,5 kg' -> (4.5, 'kg'); '4,5' -> (4.5, None); '4,5KG.' -> (4.5, 'kg'). Número com a unidade escrita
+    junto vale o mesmo que o número sozinho. (None, None) se não for número."""
+    if isinstance(texto, (int, float)):
+        return parse_numero(texto), None
+    texto = str(texto or "").strip()
+    m = re.fullmatch(r"([\d][\d.,\s]*?)\s*([^\W\d_]+)\.?", texto)
+    if m:
+        unidade = normalizar_unidade(m.group(2))
+        if unidade:
+            return parse_numero(m.group(1)), unidade
+    return parse_numero(texto), None
+
+
 def parse_numero(texto):
-    """'1,5' / '1.5' / '1.250,5' -> float. None se não for número."""
+    """'1,5' / '1.5' / '1.250,5' / '1,5 kg' -> float. None se não for número."""
     if isinstance(texto, (int, float)):
         return float(texto) if texto >= 0 else None
     texto = str(texto or "").strip()
     if not texto:
         return None
+    m = re.fullmatch(r"([\d][\d.,\s]*?)\s*([^\W\d_]+)\.?", texto)
+    if m and normalizar_unidade(m.group(2)):
+        texto = m.group(1).strip()
     texto = texto.replace(" ", "")
     if re.fullmatch(r"\d{1,3}(\.\d{3})+(,\d+)?", texto):
         texto = texto.replace(".", "")
@@ -217,6 +234,8 @@ def interpretar_sem_cabecalho(celulas):
             linha["unidade"] = unidade
         elif numero is not None and linha["quantidade"] is None:
             linha["quantidade"] = numero
+            # "2 kg" junto na mesma célula
+            linha["unidade"] = linha["unidade"] or separar_quantidade(celula)[1]
         else:
             # "2 kg" junto na mesma célula
             m = re.fullmatch(r"([\d.,]+)\s*([^\d\s].*)", celula.strip())
@@ -265,7 +284,7 @@ def extrair_itens(linhas, categorias):
             item = {
                 "nome": celula(linha, "nome"),
                 "categoria": celula(linha, "categoria"),
-                "unidade": normalizar_unidade(celula(linha, "unidade")),
+                "unidade": normalizar_unidade(celula(linha, "unidade")) or separar_quantidade(celula(linha, "quantidade"))[1],
                 "quantidade": parse_numero(celula(linha, "quantidade")),
                 "observacao": celula(linha, "observacao"),
             }

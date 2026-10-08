@@ -8,7 +8,8 @@ import uuid
 
 from flask import Blueprint, abort, redirect, render_template, request, send_from_directory, session, url_for
 
-from contagem import agrupar_por_categoria, get_connection, lista_categorias, parse_quantidade, unidade_padrao
+from contagem import (agrupar_por_categoria, get_connection, lista_categorias, parse_quantidade, unidade_digitada,
+                      unidade_padrao)
 import config
 from importador import chave_nome
 from insumos_iniciais import UNIDADES
@@ -136,7 +137,7 @@ def compras():
         else:
             from insumo_cadastro import carregar_conversoes
             from unidades import converter
-            unidade = form.get("unidade", "").strip() or insumo["unidade"]
+            unidade = unidade_digitada(form.get("quantidade"), form.get("unidade")) or insumo["unidade"]
             # O estoque soma na unidade da última contagem do insumo
             ultima = ultimas_contagens(conn).get(insumo["id"])
             destino = ultima["unidade"] if ultima else insumo["unidade"]
@@ -158,7 +159,8 @@ def compras():
                                      nota, observacao, registrado_por, anexo)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                data, insumo["id"], quantidade, form.get("unidade", "").strip() or insumo["unidade"],
+                data, insumo["id"], quantidade,
+                unidade_digitada(form.get("quantidade"), form.get("unidade")) or insumo["unidade"],
                 form.get("fornecedor", "").strip(), config.agora().strftime("%Y-%m-%d %H:%M:%S"), valor_total,
                 None, form.get("observacao", "").strip(), session.get("nome", ""),
                 anexo,
@@ -371,7 +373,7 @@ def confirmar_nota():
         if not quantidade:
             pulados.append([nome_nota, "quantidade zerada"])
             continue
-        unidade = form.get(f"unidade_{i}", "").strip() or "un"
+        unidade = unidade_digitada(form.get(f"qtd_{i}"), form.get(f"unidade_{i}")) or "un"
         if destino == "novo":
             nome = form.get(f"novo_nome_{i}", "").strip() or nome_nota
             categoria = form.get(f"categoria_{i}", "").strip()

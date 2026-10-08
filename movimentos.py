@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Blueprint, redirect, render_template, request, session, url_for
 
 import config
-from contagem import get_connection, parse_quantidade
+from contagem import get_connection, parse_quantidade, unidade_digitada
 from insumo_cadastro import carregar_conversoes, insumos_para_formulario
 from unidades import UNIDADES_COMUNS, converter
 
@@ -65,7 +65,7 @@ def movimentacoes():
         tipo = form.get("tipo", "")
         insumo = conn.execute("SELECT * FROM insumos WHERE id = ?", (form.get("insumo_id", type=int),)).fetchone()
         data = form.get("data", "")
-        unidade = form.get("unidade", "").strip()
+        unidade = unidade_digitada(form.get("quantidade"), form.get("unidade"))
         motivo = form.get("motivo", "").strip()
         try:
             quantidade = parse_quantidade(form.get("quantidade"))

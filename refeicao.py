@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint, redirect, render_template, request, session, url_for
 
 import config
-from contagem import get_connection, parse_quantidade
+from contagem import get_connection, parse_quantidade, unidade_digitada
 from insumo_cadastro import carregar_conversoes, insumos_para_formulario
 from movimentos import mes_selecionado
 from unidades import UNIDADES_COMUNS, converter
@@ -23,7 +23,7 @@ def ler_itens(form):
         insumo_id = form.get(f"insumo_{i}", type=int)
         quantidade = form.get(f"qtd_{i}", "").strip()
         if insumo_id or quantidade:
-            itens.append((insumo_id, quantidade, form.get(f"un_{i}", "").strip()))
+            itens.append((insumo_id, quantidade, unidade_digitada(quantidade, form.get(f"un_{i}"))))
     return itens
 
 

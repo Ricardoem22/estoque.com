@@ -95,14 +95,28 @@ def agrupar_por_categoria(linhas):
 
 
 def parse_quantidade(valor):
-    """Aceita '1,5' ou '1.5'. Retorna None se vazio."""
-    valor = (valor or "").strip().replace(",", ".")
+    """Aceita '1,5', '1.5', '1.250,5' e também com a unidade junto: '4,5 kg' vale 4,5. None se vazio."""
+    import re
+    from importador import normalizar_unidade
+    valor = (valor or "").strip()
     if not valor:
         return None
+    m = re.fullmatch(r"(\d[\d.,\s]*?)\s*([^\W\d_]+)\.?", valor)
+    if m and normalizar_unidade(m.group(2)):
+        valor = m.group(1)
+    valor = valor.replace(" ", "")
+    # "1.250,5" (ponto de milhar com vírgula decimal); sem vírgula, o ponto é decimal: "1.5" = 1,5
+    valor = valor.replace(".", "").replace(",", ".") if "," in valor and "." in valor else valor.replace(",", ".")
     quantidade = float(valor)
     if quantidade < 0:
         raise ValueError
     return quantidade
+
+
+def unidade_digitada(valor, outra=""):
+    """A unidade escrita junto da quantidade ('4,5 kg' -> 'kg') vale mais que a do seletor ao lado."""
+    from importador import separar_quantidade
+    return separar_quantidade(valor or "")[1] or (outra or "").strip()
 
 
 def formatar_quantidade(valor):
@@ -207,7 +221,7 @@ def contar(id):
             except ValueError:
                 erros.append(f"Quantidade inválida para {insumo['nome']}.")
                 continue
-            unidade = request.form.get(f"un_{iid}", "").strip() or insumo["unidade"]
+            unidade = unidade_digitada(request.form.get(f"qtd_{iid}"), request.form.get(f"un_{iid}")) or insumo["unidade"]
             observacao = request.form.get(f"obs_{iid}", "").strip()
             conn.execute("""
                 INSERT INTO contagem_itens (contagem_id, insumo_id, unidade, quantidade, observacao)
@@ -323,7 +337,7 @@ def confirmar_importacao_contagem(id):
             continue
         if quantidade is None:
             continue
-        unidade = form.get(f"unidade_{i}", "").strip() or "un"
+        unidade = unidade_digitada(form.get(f"qtd_{i}"), form.get(f"unidade_{i}")) or "un"
         observacao = form.get(f"obs_{i}", "").strip() or None
         insumo_id = form.get(f"insumo_{i}", type=int)
         if form.get(f"incluir_{i}") and insumo_id:
