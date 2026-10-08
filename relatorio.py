@@ -550,8 +550,19 @@ def estoque():
         SELECT insumo_id, quantidade, unidade, data FROM desperdicios
         WHERE status = 'pendente' AND insumo_id IS NOT NULL
     """).fetchall()
+    # Compras cuja medida não converte para a do estoque (ex.: cx para un sem "1 cx = 12 un"): não somaram
+    from compras import fora_do_estoque
+    compras = conn.execute("SELECT id, insumo_id, data, unidade FROM compras ORDER BY data").fetchall()
+    fora = fora_do_estoque(conn, compras)
     conn.close()
     por_id = {l["id"]: l for l in linhas}
+    for c in compras:
+        motivo = fora.get(c["id"])
+        linha = por_id.get(c["insumo_id"])
+        if linha is not None and motivo and motivo["motivo"] == "unidade":
+            linha["nao_somou"] = linha.get("nao_somou", 0) + 1
+            linha["nao_somou_unidade"] = c["unidade"]
+            linha["nao_somou_mes"] = c["data"][:7]
     total_pendentes = 0
     for d in pendentes:
         linha = por_id.get(d["insumo_id"])

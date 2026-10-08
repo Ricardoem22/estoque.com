@@ -41,7 +41,7 @@
 
 {% if alertas.abaixo_minimo or alertas.sem_saldo %}
 <div class="lista-alertas">
-    {% for l in alertas.sem_saldo %}<a class="tag tag-recusado" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}: acabou</a>{% endfor %}
+    {% for l in alertas.sem_saldo %}<a class="tag tag-recusado" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}: acabou{% if l.nao_somou %} ⚠️ compra não somou{% endif %}</a>{% endfor %}
     {% for l in alertas.abaixo_minimo %}<a class="tag tag-aberta" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}: {{ l.estoque|round(2)|qtd }} de {{ l.minimo|qtd }} {{ l.unidade }}</a>{% endfor %}
 </div>
 {% endif %}
@@ -90,6 +90,7 @@
                 {%- if l.compras_desde %} · + {{ l.compras_desde|round(2)|qtd }} comprado{% endif %}
                 {%- if l.movimentos and l.movimentos < 0 %} · − {{ (-l.movimentos)|round(2)|qtd }} saídas/ajustes{% elif l.movimentos and l.movimentos > 0 %} · + {{ l.movimentos|round(2)|qtd }} ajuste{% endif %}
                 {%- if l.desperdicio %} · − {{ l.desperdicio|round(2)|qtd }} desperdício{% endif %}
+                {%- if l.nao_somou %}<br><a class="nao-somou" href="{{ url_for('compras.compras', mes=l.nao_somou_mes) }}">⚠️ {{ l.nao_somou }} compra{{ 's' if l.nao_somou != 1 }} em {{ l.nao_somou_unidade }} {{ 'não somaram' if l.nao_somou != 1 else 'não somou' }}: o estoque é em {{ l.unidade }}. Toque para cadastrar a medida.</a>{% endif %}
                 {%- if l.pendente %} · ⏳ {{ l.pendente|round(2)|qtd }} de desperdício esperando aprovação{% endif %}
             </span>
         </td>

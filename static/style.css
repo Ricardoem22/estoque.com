@@ -712,3 +712,4 @@ tr.inativo td { opacity: 0.6; }
 .lista-fora li { margin-bottom: 10px; }
 .form-medida { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .form-medida input[type=text] { width: 80px; margin: 0; }
+.tabela-estoque a.nao-somou { color: #B3261E; font-weight: 600; }
