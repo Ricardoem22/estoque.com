@@ -18,6 +18,8 @@ from ouvido import Ouvido, extrair_chamado
 from saudacao import saudar
 from voz import Voz
 
+VERSAO = "8"  # aumenta a cada atualização; aparece na abertura
+
 AJUDA = """Para falar em vez de digitar, aperte Enter sem escrever nada.
 No modo mãos-livres, é só dizer "Jarvis, ..." (Ctrl+C ou "Jarvis, pare de ouvir" volta ao teclado).
 Comandos:
@@ -107,7 +109,7 @@ def main() -> None:
             memoria.set("nome", nome)
 
     ola = saudar(memoria.get("nome", ""), idioma)
-    print(f"{nome_assistente}: {ola} (modelo: {modelo.nome}; digite /ajuda para ver os comandos)")
+    print(f"{nome_assistente}: {ola} (versão {VERSAO}; modelo: {modelo.nome}; digite /ajuda para ver os comandos)")
     if not voz.ativa and os.environ.get("VOZ_ATIVA", "sim").lower() == "sim":
         print(f"[aviso] A voz não funcionou{f' ({voz.erro})' if voz.erro else ''}. Digite /voz teste.")
     elif not falar_respostas:
