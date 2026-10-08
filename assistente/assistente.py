@@ -11,6 +11,7 @@ from pathlib import Path
 from datetime import datetime
 
 import gmail
+import tv
 from ferramentas import Executor
 from memoria import Memoria
 from modelos import ModeloIndisponivel, escolher_modelo
@@ -18,7 +19,7 @@ from ouvido import Ouvido, extrair_chamado
 from saudacao import saudar
 from voz import Voz
 
-VERSAO = "8"  # aumenta a cada atualização; aparece na abertura
+VERSAO = "9"  # aumenta a cada atualização; aparece na abertura
 
 AJUDA = """Para falar em vez de digitar, aperte Enter sem escrever nada.
 No modo mãos-livres, é só dizer "Jarvis, ..." (Ctrl+C ou "Jarvis, pare de ouvir" volta ao teclado).
@@ -28,6 +29,10 @@ Comandos:
   /memoria           mostra o que eu guardei
   /esquecer          apaga toda a memória
   /voz               liga ou desliga a minha voz
+  /tv                mostra as TVs cadastradas
+  /tv procurar       procura as TVs na rede (deixe-as ligadas)
+  /tv nome <nº> <nome>   dá um nome, ex.: /tv nome 1 sala
+  /tv adicionar <lg|samsung|roku> <ip>   cadastra uma TV à mão
   /voz teste         testa a voz e mostra as vozes instaladas
   /maoslivres        fico ouvindo e respondo quando você disser o meu nome
   /microfone         lista os microfones e testa o volume
@@ -53,11 +58,18 @@ def carregar_env(arquivo: Path) -> None:
 
 
 def montar_sistema(nome_assistente: str, memoria: Memoria, com_gmail: bool) -> str:
-    integracoes = (
+    lista_tvs = memoria.get("tvs", [])
+    sobre_tvs = (
+        "Você controla as TVs da casa com tv_controlar (TVs: "
+        + ", ".join(t["nome"] for t in lista_tvs) + "). "
+        if lista_tvs else
+        "Ainda não há TVs cadastradas; se pedirem para controlar a TV, diga para usar /tv procurar. "
+    )
+    integracoes = sobre_tvs + (
         "Você tem acesso ao Gmail do usuário pelas ferramentas gmail_*: para resumir e-mails, "
-        "busque primeiro e leia os que importam. Você ainda não tem acesso a agenda, Alexa ou dispositivos da casa; "
+        "busque primeiro e leia os que importam. Você ainda não tem acesso a agenda, Alexa ou às lâmpadas; "
         if com_gmail else
-        "Você ainda não tem acesso a e-mail, agenda, Alexa ou dispositivos da casa; "
+        "Você ainda não tem acesso a e-mail, agenda, Alexa ou às lâmpadas; "
     )
     texto = (
         f"Você é {nome_assistente}, um assistente pessoal educado e direto. "
@@ -86,6 +98,7 @@ def main() -> None:
     voz = Voz(os.environ.get("VOZ", "Daniel"), os.environ.get("VOZ_ATIVA", "sim").lower() == "sim")
     falar_respostas = os.environ.get("FALAR_RESPOSTAS", "sim").lower() == "sim"
     falta_gmail = gmail.registrar()  # precisa vir antes de escolher o modelo
+    tv.registrar(memoria)
     modelo = escolher_modelo(os.environ.get("MODO", "auto").lower())
 
     def confirmar(acao: str) -> bool:
@@ -247,6 +260,36 @@ def main() -> None:
                     maos_livres = True
                     print(f"{nome_assistente}: Modo mãos-livres ligado. Diga \"{nome_assistente}\" e o seu pedido, "
                           f"por exemplo \"{nome_assistente}, que horas são?\".")
+            elif cmd == "/tv":
+                partes = arg.split()
+                if not partes:
+                    print(tv.descrever())
+                elif partes[0] == "procurar":
+                    print(f"{nome_assistente}: Procurando TVs na rede (uns 5 segundos)...")
+                    achadas = tv.procurar()
+                    novas = tv.adicionar(achadas)
+                    ignoradas = [a for a in achadas if a["marca"] not in tv.DRIVERS]
+                    print(tv.descrever())
+                    if novas:
+                        print(f"{nome_assistente}: Achei {len(novas)} TV(s) nova(s). Dê nomes com /tv nome <nº> <nome>.")
+                    if ignoradas:
+                        print(f"(também vi {len(ignoradas)} aparelho(s) Android/Google TV, que ainda não sei controlar)")
+                    if not achadas:
+                        print("Não achei nenhuma. As TVs estão ligadas e no mesmo Wi-Fi do computador?")
+                elif partes[0] == "nome" and len(partes) >= 3 and partes[1].isdigit():
+                    lista = tv.tvs()
+                    i = int(partes[1]) - 1
+                    if 0 <= i < len(lista):
+                        lista[i]["nome"] = " ".join(partes[2:])
+                        tv.salvar()
+                        print(tv.descrever())
+                    else:
+                        print("Número de TV inválido. Veja a lista com /tv.")
+                elif partes[0] == "adicionar" and len(partes) == 3 and partes[1] in tv.DRIVERS:
+                    tv.adicionar([{"ip": partes[2], "marca": partes[1]}])
+                    print(tv.descrever())
+                else:
+                    print(AJUDA)
             elif cmd == "/voz" and arg == "teste":
                 if not voz.ativa:
                     print(f"{nome_assistente}: A voz está desligada"

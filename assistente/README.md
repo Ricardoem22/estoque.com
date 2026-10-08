@@ -77,6 +77,18 @@ Pronto. Peça, por exemplo, "resuma meus e-mails não lidos de hoje".
 
 Enquanto o app estiver em modo de teste, o Google pede para autorizar de novo a cada 7 dias: é só digitar `/gmail` outra vez. A autorização fica em `%APPDATA%\Assistente\gmail_token.json`; `/gmail sair` apaga.
 
+## TVs
+
+Funciona com **LG (webOS)**, **Samsung (Tizen, 2016 em diante)** e TVs com **Roku** (como as Philips Roku TV), pela rede de casa, sem internet.
+
+1. Deixe as TVs ligadas e no mesmo Wi-Fi do computador.
+2. No Jarvis, digite `/tv procurar`. Se o Windows perguntar sobre o Firewall, clique em **Permitir**.
+3. Dê nomes: `/tv nome 1 sala`, `/tv nome 2 quarto`.
+4. Peça: "Jarvis, abre o YouTube na TV da sala", "abaixa o volume da TV do quarto", "desliga a TV".
+
+Na primeira vez, LG e Samsung mostram na tela um pedido para permitir o Jarvis: aceite com o controle remoto.
+Para **ligar** uma TV desligada, ative nela a opção de ligar pela rede (LG: "Ligar via Wi-Fi"; Samsung: "Ligar com dispositivo móvel"). Na Roku, deixe "Controle por apps móveis" ativado.
+
 ## Atualizar
 
 Dê dois cliques em **`Atualizar Jarvis.bat`**. Ele baixa a versão mais nova do GitHub e instala o que faltar. O seu `.env` e a sua memória são mantidos.
