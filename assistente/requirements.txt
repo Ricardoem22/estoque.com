@@ -4,3 +4,4 @@ faster-whisper
 sounddevice
 google-api-python-client
 google-auth-oauthlib
+pywin32; sys_platform == "win32"

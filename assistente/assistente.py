@@ -26,6 +26,7 @@ Comandos:
   /memoria           mostra o que eu guardei
   /esquecer          apaga toda a memória
   /voz               liga ou desliga a minha voz
+  /voz teste         testa a voz e mostra as vozes instaladas
   /maoslivres        fico ouvindo e respondo quando você disser o meu nome
   /microfone         lista os microfones e testa o volume
   /microfone <nº>    passa a usar o microfone desse número (e testa)
@@ -107,6 +108,10 @@ def main() -> None:
 
     ola = saudar(memoria.get("nome", ""), idioma)
     print(f"{nome_assistente}: {ola} (modelo: {modelo.nome}; digite /ajuda para ver os comandos)")
+    if not voz.ativa and os.environ.get("VOZ_ATIVA", "sim").lower() == "sim":
+        print(f"[aviso] A voz não funcionou{f' ({voz.erro})' if voz.erro else ''}. Digite /voz teste.")
+    elif not falar_respostas:
+        print("(as respostas não serão faladas: FALAR_RESPOSTAS=nao no .env; /voz liga)")
     voz.falar(ola)
 
     ouvido = Ouvido(os.environ.get("OUVIR_MODELO", "small"), os.environ.get("OUVIR_IDIOMA", "pt"),
@@ -240,6 +245,17 @@ def main() -> None:
                     maos_livres = True
                     print(f"{nome_assistente}: Modo mãos-livres ligado. Diga \"{nome_assistente}\" e o seu pedido, "
                           f"por exemplo \"{nome_assistente}, que horas são?\".")
+            elif cmd == "/voz" and arg == "teste":
+                if not voz.ativa:
+                    print(f"{nome_assistente}: A voz está desligada"
+                          + (f" ({voz.erro})." if voz.erro else ". Confira VOZ_ATIVA=sim no .env."))
+                else:
+                    print(f"{nome_assistente}: Usando: {voz.nome_voz}")
+                    for v in voz.vozes():
+                        print(f"   - {v}")
+                    falar_respostas = True
+                    voz.falar("Teste de voz. Se você está me ouvindo, está tudo certo.")
+                    print(f"{nome_assistente}: Se não ouviu nada, confira o volume e a saída de som do Windows.")
             elif cmd == "/voz":
                 falar_respostas = not falar_respostas
                 print(f"{nome_assistente}: Voz {'ligada' if falar_respostas else 'desligada'}.")
