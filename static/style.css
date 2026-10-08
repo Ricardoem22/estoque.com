@@ -713,3 +713,27 @@ tr.inativo td { opacity: 0.6; }
 .form-medida { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .form-medida input[type=text] { width: 80px; margin: 0; }
 .tabela-estoque a.nao-somou { color: #B3261E; font-weight: 600; }
+
+/* Assistente por voz */
+.voz-botao { position: fixed; right: 16px; bottom: 16px; z-index: 50; width: 58px; height: 58px; border-radius: 50%;
+    border: none; background: #D62300; color: #fff; font-size: 26px; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; }
+.voz-painel { position: fixed; right: 16px; bottom: 86px; z-index: 51; width: min(420px, calc(100vw - 32px));
+    max-height: calc(100vh - 110px); overflow-y: auto; background: #fff; border-radius: 14px; padding: 14px 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25); border-top: 5px solid #FFC72C; }
+.voz-painel[hidden], .voz-painel [hidden] { display: none; }
+.voz-cabeca { display: flex; justify-content: space-between; align-items: center; }
+.voz-fechar { border: none; background: none; font-size: 20px; cursor: pointer; }
+.voz-linha { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.voz-linha input { flex: 1; min-width: 0; padding: 10px; border: 1px solid #D3CBBB; border-radius: 8px; font-size: 16px; }
+.voz-mic { flex: none; width: 46px; height: 46px; border-radius: 50%; border: 2px solid #D62300; background: #fff;
+    font-size: 22px; cursor: pointer; }
+.voz-mic.ouvindo { background: #D62300; animation: voz-pulso 1s infinite; }
+@keyframes voz-pulso { 50% { box-shadow: 0 0 0 8px rgba(214,35,0,.2); } }
+.voz-resposta { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #FFF6DB; }
+.voz-resposta.voz-erro { background: #FDE7E4; color: #8B1A10; }
+.voz-confirma { margin-top: 10px; }
+.voz-confirma select, .voz-confirma input { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 8px; font-size: 16px; }
+.voz-campos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.voz-campos > div { flex: 1 1 100px; }
+.voz-botoes { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+@media print { .voz-botao, .voz-painel { display: none !important; } }
