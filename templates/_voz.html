@@ -66,8 +66,8 @@
         confirma.hidden = true; pedido = null; mostrar("Cancelado. Nada foi gravado.");
     });
 
-    document.getElementById("voz-form").addEventListener("submit", function (e) {
-        e.preventDefault();
+    document.getElementById("voz-form").addEventListener("submit", function (e) { e.preventDefault(); processar(); });
+    function processar() {
         var t = texto.value.trim();
         if (!t) return;
         confirma.hidden = true; mostrar("Entendendo…");
@@ -91,8 +91,8 @@
             document.getElementById("voz-ok").textContent = r.tipo === "desperdicio" ? "📷 Abrir com foto" : "✅ Confirmar";
             confirma.hidden = false;
             falar(r.resposta);
-        }).catch(function () { mostrar("Sem conexão com o app. Tente de novo.", true); });
-    });
+        }).catch(function () { mostrar("Não consegui falar com o app. Recarregue a página e, se pedir, entre de novo.", true); });
+    }
 
     confirma.addEventListener("submit", function (e) {
         e.preventDefault();
@@ -118,24 +118,43 @@
         document.getElementById("voz-dica").textContent = "Este navegador não tem microfone para comandos. Escreva o comando, ex.: \"comprei 2 caixas de cerveja\". No celular, use o Chrome.";
         return;
     }
-    var rec = new Reconhecer(), ouvindo = false;
-    rec.lang = "pt-BR"; rec.interimResults = true; rec.maxAlternatives = 1;
-    rec.onresult = function (ev) {
-        var t = "";
-        for (var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
-        texto.value = t;
-        if (ev.results[ev.results.length - 1].isFinal) document.getElementById("voz-form").requestSubmit();
+    var ERROS = {
+        "not-allowed": "O microfone está bloqueado para este site. Toque no cadeado ao lado do endereço, em Microfone escolha Permitir e recarregue a página.",
+        "service-not-allowed": "Este navegador não deixa usar o reconhecimento de voz. No celular use o Chrome; no computador, o Google Chrome.",
+        "audio-capture": "Não achei microfone neste aparelho. Confira se ele está ligado e liberado para o navegador.",
+        "network": "O reconhecimento de voz precisa de internet e não conseguiu conectar. Tente de novo; se continuar, use o Google Chrome.",
+        "no-speech": "Não ouvi nada. Toque no 🎙️ e fale logo em seguida, perto do celular."
     };
-    rec.onstart = function () { ouvindo = true; mic.classList.add("ouvindo"); mostrar("Ouvindo… fale o comando."); };
-    rec.onend = function () { ouvindo = false; mic.classList.remove("ouvindo"); };
-    rec.onerror = function (ev) {
-        mostrar(ev.error === "not-allowed" ? "O microfone foi bloqueado. Libere o microfone para este site nas configurações do navegador."
-                                           : "Não consegui ouvir. Tente de novo ou escreva o comando.", true);
-    };
+    var rec = null;
+    function parar() { mic.classList.remove("ouvindo"); rec = null; }
     mic.addEventListener("click", function () {
-        if (ouvindo) { rec.stop(); return; }
+        if (rec) { try { rec.stop(); } catch (e) {} parar(); return; }
+        // Um reconhecedor novo a cada toque: o anterior pode ter ficado preso em alguns celulares
+        var atual = new Reconhecer(), enviado = false;
+        rec = atual;
+        atual.lang = "pt-BR"; atual.interimResults = true; atual.maxAlternatives = 1;
+        atual.onstart = function () { mic.classList.add("ouvindo"); mostrar("Ouvindo… fale o comando."); };
+        atual.onresult = function (ev) {
+            var ultimo = ev.results[ev.results.length - 1];
+            texto.value = ultimo[0].transcript.trim();
+            if (ultimo.isFinal && !enviado) {
+                enviado = true;
+                try { atual.stop(); } catch (e) {}
+                processar();
+            }
+        };
+        atual.onerror = function (ev) {
+            if (ev.error !== "aborted") {
+                mostrar((ERROS[ev.error] || "Não consegui ouvir. Tente de novo ou escreva o comando.") + " (erro: " + ev.error + ")", true);
+            }
+            if (rec === atual) parar();
+        };
+        atual.onend = function () {
+            if (rec === atual) parar();
+            if (!enviado && texto.value.trim()) { enviado = true; processar(); }
+        };
         texto.value = ""; confirma.hidden = true;
-        try { rec.start(); } catch (e) {}
+        try { atual.start(); } catch (e) { parar(); mostrar("Não consegui ligar o microfone. Toque de novo ou escreva o comando. (" + e.name + ")", true); }
     });
 })();
 </script>
