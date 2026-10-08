@@ -15,7 +15,8 @@ CABECALHOS = {
     "nome": ["insumo", "nome", "produto", "item", "descricao", "mercadoria", "material"],
     "categoria": ["categoria", "grupo", "setor", "tipo", "secao"],
     "unidade": ["unidade", "und", "unid", "un", "medida", "um"],
-    "quantidade": ["quantidade", "qtd", "qtde", "quant", "contada", "estoque", "saldo"],
+    "quantidade": ["quantidade", "qtd", "qtde", "quant", "contada", "contado", "contagem", "fisico", "peso", "estoque",
+                   "saldo"],
     "observacao": ["observacoes", "observacao", "obs", "validade"],
 }
 
@@ -222,19 +223,65 @@ def ler_arquivo(nome_arquivo, dados):
 
 # ---------- Interpretação das linhas ----------
 
+# Cabeçalho que diz que a coluna é a contagem feita ganha de "Estoque"/"Saldo" (o estoque do sistema).
+CABECALHO_CONTAGEM = {"contada", "contado", "contagem", "fisico", "peso", "conferido", "conferida"}
+
+
 def achar_cabecalho(linhas):
-    """Procura nas primeiras linhas um cabeçalho. Retorna (índice, {campo: coluna})."""
+    """Procura nas primeiras linhas um cabeçalho. Retorna (índice, {campo: coluna}).
+    As colunas que podem ser a quantidade ficam em mapa["_quantidades"], a preferida primeiro."""
     for i, linha in enumerate(linhas[:30]):
-        mapa = {}
+        mapa, quantidades = {}, []
         for col, celula in enumerate(linha):
             palavras = re.findall(r"[a-z]+", sem_acento(celula))
             for campo, chaves in CABECALHOS.items():
-                if campo not in mapa and any(p in chaves for p in palavras):
-                    mapa[campo] = col
-                    break
+                if any(p in chaves for p in palavras):
+                    if campo == "quantidade":
+                        contagem = any(p in CABECALHO_CONTAGEM for p in palavras) and "ultima" not in palavras
+                        quantidades.insert(len([c for c in quantidades if c[1]]) if contagem else len(quantidades),
+                                           (col, contagem))
+                    if campo not in mapa:
+                        mapa[campo] = col
+                        break
         if "nome" in mapa and len(mapa) >= 2:
+            if quantidades:
+                mapa["quantidade"] = quantidades[0][0]
+                mapa["_quantidades"] = [c for c, _ in quantidades]
             return i, mapa
     return None, {}
+
+
+def escolher_coluna_quantidade(corpo, mapa):
+    """A coluna da quantidade precisa ter números. Se a escolhida pelo cabeçalho está toda zerada ou sem números
+    (ex.: "Estoque" do sistema = 0 e a contagem ao lado), usa outra coluna depois do nome que tenha valores."""
+    if "nome" not in mapa:
+        return
+
+    def contar(col):
+        numeros = nao_zero = 0
+        for linha in corpo:
+            if col < len(linha) and str(linha[col]).strip():
+                valor = parse_numero(linha[col])
+                if valor is not None:
+                    numeros += 1
+                    nao_zero += valor > 0
+        return numeros, nao_zero
+
+    atual = mapa.get("quantidade")
+    if atual is not None and contar(atual)[1] > 0:
+        return
+    proibidas = {mapa.get(c) for c in ("nome", "categoria", "unidade", "observacao")}
+    candidatas = [c for c in mapa.get("_quantidades", []) if c != atual] + \
+                 list(range(mapa["nome"] + 1, max((len(l) for l in corpo), default=0)))
+    melhor, melhor_nao_zero = None, 0
+    for col in candidatas:
+        if col in proibidas or col == atual:
+            continue
+        numeros, nao_zero = contar(col)
+        if nao_zero > melhor_nao_zero and numeros * 2 >= len([l for l in corpo if col < len(l) and str(l[col]).strip()]):
+            melhor, melhor_nao_zero = col, nao_zero
+    if melhor is not None:
+        mapa["quantidade"] = melhor
 
 
 def achar_categoria(texto, categorias):
@@ -249,28 +296,37 @@ def achar_categoria(texto, categorias):
     return None
 
 
-def interpretar_sem_cabecalho(celulas):
-    """Sem cabeçalho: o primeiro texto é o nome; um número é a quantidade; uma unidade é a unidade."""
+def interpretar_sem_cabecalho(celulas, categorias=()):
+    """Sem cabeçalho: o primeiro texto é o nome; um número é a quantidade; uma unidade é a unidade.
+    Planilha "código; grupo; nome; un; 0; 3,3 KG": o código antes do nome não é quantidade, o grupo vira a
+    categoria, e entre vários números depois do nome vale o que tem a unidade escrita junto ou o que não é zero."""
     linha = {"nome": "", "unidade": None, "quantidade": None, "categoria": ""}
+    textos = [c for c in celulas if c.strip() and parse_numero(c) is None and normalizar_unidade(c) is None]
+    numeros_antes, depois = [], []  # (valor, unidade escrita junto)
     for celula in celulas:
         if not celula.strip():
             continue
         numero = parse_numero(celula)
         unidade = normalizar_unidade(celula)
         if not linha["nome"] and numero is None and unidade is None:
+            if len(textos) > 1 and not linha["categoria"] and achar_categoria(celula, categorias):
+                linha["categoria"] = celula.strip()
+                continue
             linha["nome"] = celula.strip()
         elif unidade and not linha["unidade"]:
             linha["unidade"] = unidade
-        elif numero is not None and linha["quantidade"] is None:
-            linha["quantidade"] = numero
-            # "2 kg" junto na mesma célula
-            linha["unidade"] = linha["unidade"] or separar_quantidade(celula)[1]
+        elif numero is not None:
+            (depois if linha["nome"] else numeros_antes).append((numero, separar_quantidade(celula)[1]))
         else:
             # "2 kg" junto na mesma célula
             m = re.fullmatch(r"([\d.,]+)\s*([^\d\s].*)", celula.strip())
             if m and parse_numero(m.group(1)) is not None and normalizar_unidade(m.group(2)):
-                linha["quantidade"] = linha["quantidade"] if linha["quantidade"] is not None else parse_numero(m.group(1))
-                linha["unidade"] = linha["unidade"] or normalizar_unidade(m.group(2))
+                depois.append((parse_numero(m.group(1)), normalizar_unidade(m.group(2))))
+    numeros = depois or numeros_antes
+    if numeros:
+        escolhido = next((n for n in numeros if n[1]), None) or next((n for n in numeros if n[0] > 0), numeros[0])
+        linha["quantidade"] = escolhido[0]
+        linha["unidade"] = escolhido[1] or linha["unidade"]
     # "Lentilha 2 kg", "Lentilha: 2kg", "Lentilha - 2" numa célula só
     m = re.fullmatch(r"(.+?)[\s:=\-]+([\d.,]+)\s*([^\d\s.]*)\.?", linha["nome"])
     if m and parse_numero(m.group(2)) is not None and (not m.group(3) or normalizar_unidade(m.group(3))):
@@ -291,6 +347,7 @@ def extrair_itens(linhas, categorias):
     """Transforma as linhas do arquivo em itens {nome, categoria, unidade, quantidade}."""
     inicio, mapa = achar_cabecalho(linhas)
     corpo = linhas[inicio + 1:] if inicio is not None else linhas
+    escolher_coluna_quantidade(corpo, mapa)
     itens, vistos = [], set()
     categoria_atual = ""
 
@@ -313,7 +370,8 @@ def extrair_itens(linhas, categorias):
             item = {
                 "nome": celula(linha, "nome"),
                 "categoria": celula(linha, "categoria"),
-                "unidade": normalizar_unidade(celula(linha, "unidade")) or separar_quantidade(celula(linha, "quantidade"))[1],
+                # "3,3 KG" escrito na quantidade vale mais que a coluna da unidade
+                "unidade": separar_quantidade(celula(linha, "quantidade"))[1] or normalizar_unidade(celula(linha, "unidade")),
                 "quantidade": parse_numero(celula(linha, "quantidade")),
                 "observacao": celula(linha, "observacao"),
             }
@@ -326,7 +384,7 @@ def extrair_itens(linhas, categorias):
                 item["unidade"] = next((normalizar_unidade(c) or separar_quantidade(c)[1] for c in depois
                                         if normalizar_unidade(c) or separar_quantidade(c)[1]), None)
         else:
-            item = interpretar_sem_cabecalho([str(c) for c in linha])
+            item = interpretar_sem_cabecalho([str(c) for c in linha], categorias)
 
         nome = re.sub(r"\s+", " ", item["nome"]).strip(" -:•*")
         nome, unidade_no_nome = tirar_unidade_do_nome(nome)
