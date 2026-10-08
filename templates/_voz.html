@@ -1,0 +1,141 @@
+{# Assistente por voz: botão 🎤 fixo no canto e painel com o que foi entendido. Nada grava sem "Confirmar". #}
+<button type="button" class="voz-botao nao-imprimir" id="voz-abrir" aria-label="Assistente por voz" title="Falar um comando">🎤</button>
+<div class="voz-painel" id="voz-painel" hidden>
+    <div class="voz-cabeca">
+        <strong>🎤 Assistente</strong>
+        <button type="button" class="voz-fechar" id="voz-fechar" aria-label="Fechar">✕</button>
+    </div>
+    <p class="sub" id="voz-dica">Toque no microfone e fale, ou escreva. Ex.: "comprei 2 caixas de cerveja por 90 reais",
+        "quanto tem de tomate", "saída de 3 quilos de cebola".</p>
+    <form id="voz-form" class="voz-linha" autocomplete="off">
+        <button type="button" class="voz-mic" id="voz-mic" aria-label="Falar">🎙️</button>
+        <input type="text" id="voz-texto" placeholder="O que você quer fazer?" aria-label="Comando">
+        <button type="submit" class="btn">Ir</button>
+    </form>
+    <div id="voz-resposta" class="voz-resposta" hidden></div>
+    <form id="voz-confirma" class="voz-confirma" hidden>
+        <label for="voz-insumo">Insumo</label>
+        <select id="voz-insumo"></select>
+        <div class="voz-campos">
+            <div><label for="voz-qtd">Quantidade</label><input type="text" id="voz-qtd" inputmode="decimal"></div>
+            <div><label for="voz-un">Unidade</label><input type="text" id="voz-un" list="voz-unidades"></div>
+            <div id="voz-valor-caixa"><label for="voz-valor">Valor pago (R$)</label><input type="text" id="voz-valor" inputmode="decimal" placeholder="Opcional"></div>
+        </div>
+        <datalist id="voz-unidades">{% for u in ["kg", "g", "L", "ml", "un", "cx", "pct", "fardo", "lata", "garrafa", "saco", "dz", "bandeja", "peça"] %}<option value="{{ u }}">{% endfor %}</datalist>
+        <div class="voz-botoes">
+            <button type="submit" class="btn" id="voz-ok">✅ Confirmar</button>
+            <button type="button" class="btn btn-edit" id="voz-cancelar">Cancelar</button>
+        </div>
+    </form>
+</div>
+<script>
+(function () {
+    var painel = document.getElementById("voz-painel"), texto = document.getElementById("voz-texto");
+    var resposta = document.getElementById("voz-resposta"), confirma = document.getElementById("voz-confirma");
+    var mic = document.getElementById("voz-mic"), pedido = null;
+    var Reconhecer = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    function mostrar(msg, erro) {
+        resposta.textContent = msg;
+        resposta.className = "voz-resposta" + (erro ? " voz-erro" : "");
+        resposta.hidden = !msg;
+    }
+    function falar(msg) {
+        try {
+            if (!window.speechSynthesis) return;
+            var u = new SpeechSynthesisUtterance(msg.replace(/[✅⚠️]/g, ""));
+            u.lang = "pt-BR"; speechSynthesis.cancel(); speechSynthesis.speak(u);
+        } catch (e) {}
+    }
+    function numero(v) { return v === null || v === undefined ? "" : String(v).replace(".", ","); }
+    function lerNumero(v) {
+        v = (v || "").trim();
+        if (v.indexOf(",") !== -1) v = v.replace(/\./g, "").replace(",", ".");
+        return v === "" ? null : Number(v);
+    }
+    function enviar(url, dados) {
+        return fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(dados),
+                           credentials: "same-origin"}).then(function (r) { return r.json(); });
+    }
+
+    document.getElementById("voz-abrir").addEventListener("click", function () {
+        painel.hidden = false; texto.focus();
+    });
+    document.getElementById("voz-fechar").addEventListener("click", function () { painel.hidden = true; });
+    document.getElementById("voz-cancelar").addEventListener("click", function () {
+        confirma.hidden = true; pedido = null; mostrar("Cancelado. Nada foi gravado.");
+    });
+
+    document.getElementById("voz-form").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var t = texto.value.trim();
+        if (!t) return;
+        confirma.hidden = true; mostrar("Entendendo…");
+        enviar("{{ url_for('voz.entender') }}", {texto: t}).then(function (r) {
+            pedido = r;
+            if (r.tipo === "navegar") { window.location = r.url; return; }
+            mostrar(r.resposta, r.tipo === "erro");
+            if (r.tipo === "consulta" || r.tipo === "erro") { falar(r.resposta); return; }
+            var sel = document.getElementById("voz-insumo");
+            sel.innerHTML = "";
+            r.opcoes.forEach(function (o) {
+                var op = document.createElement("option");
+                op.value = o.id; op.textContent = o.nome + " (" + o.unidade + ")";
+                sel.appendChild(op);
+            });
+            sel.value = r.insumo_id;
+            document.getElementById("voz-qtd").value = numero(r.quantidade);
+            document.getElementById("voz-un").value = r.unidade || "";
+            document.getElementById("voz-valor").value = numero(r.valor);
+            document.getElementById("voz-valor-caixa").hidden = r.tipo !== "compra";
+            document.getElementById("voz-ok").textContent = r.tipo === "desperdicio" ? "📷 Abrir com foto" : "✅ Confirmar";
+            confirma.hidden = false;
+            falar(r.resposta);
+        }).catch(function () { mostrar("Sem conexão com o app. Tente de novo.", true); });
+    });
+
+    confirma.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (!pedido) return;
+        var dados = {tipo: pedido.tipo, insumo_id: document.getElementById("voz-insumo").value,
+                     quantidade: lerNumero(document.getElementById("voz-qtd").value),
+                     unidade: document.getElementById("voz-un").value.trim(),
+                     valor: lerNumero(document.getElementById("voz-valor").value)};
+        if (pedido.tipo === "desperdicio") {
+            window.location = "{{ url_for('desperdicio.desperdicio') }}?insumo_id=" + encodeURIComponent(dados.insumo_id)
+                + "&quantidade=" + encodeURIComponent(numero(dados.quantidade)) + "&unidade=" + encodeURIComponent(dados.unidade);
+            return;
+        }
+        enviar("{{ url_for('voz.confirmar') }}", dados).then(function (r) {
+            mostrar(r.resposta, !r.ok);
+            falar(r.resposta);
+            if (r.ok) { confirma.hidden = true; pedido = null; texto.value = ""; }
+        }).catch(function () { mostrar("Sem conexão com o app. Nada foi gravado.", true); });
+    });
+
+    if (!Reconhecer) {
+        mic.hidden = true;
+        document.getElementById("voz-dica").textContent = "Este navegador não tem microfone para comandos. Escreva o comando, ex.: \"comprei 2 caixas de cerveja\". No celular, use o Chrome.";
+        return;
+    }
+    var rec = new Reconhecer(), ouvindo = false;
+    rec.lang = "pt-BR"; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.onresult = function (ev) {
+        var t = "";
+        for (var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+        texto.value = t;
+        if (ev.results[ev.results.length - 1].isFinal) document.getElementById("voz-form").requestSubmit();
+    };
+    rec.onstart = function () { ouvindo = true; mic.classList.add("ouvindo"); mostrar("Ouvindo… fale o comando."); };
+    rec.onend = function () { ouvindo = false; mic.classList.remove("ouvindo"); };
+    rec.onerror = function (ev) {
+        mostrar(ev.error === "not-allowed" ? "O microfone foi bloqueado. Libere o microfone para este site nas configurações do navegador."
+                                           : "Não consegui ouvir. Tente de novo ou escreva o comando.", true);
+    };
+    mic.addEventListener("click", function () {
+        if (ouvindo) { rec.stop(); return; }
+        texto.value = ""; confirma.hidden = true;
+        try { rec.start(); } catch (e) {}
+    });
+})();
+</script>

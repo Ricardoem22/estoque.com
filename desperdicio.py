@@ -166,7 +166,9 @@ def desperdicio():
     return render_template(
         "desperdicio.html", gerente=session.get("gerente"),
         pendentes=sum(1 for r in registros if r["status"] == "pendente"), grupos=grupos, unidades=UNIDADES, motivos=MOTIVOS,
-        registros=registros, resumo=resumo(registros), mes=mes, erro=erro, form=form,
+        registros=registros, resumo=resumo(registros), mes=mes, erro=erro,
+        # Pelo assistente de voz o formulário chega preenchido pelo endereço
+        form=form if request.method == "POST" else request.args,
         hoje=config.hoje().isoformat(), salvo=request.args.get("salvo"),
     )
 
