@@ -10,7 +10,8 @@ from flask import Blueprint, Response, abort, redirect, render_template, request
 
 import config
 
-from contagem import agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection, parse_quantidade
+from contagem import (agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection, parse_quantidade,
+                      unidade_digitada)
 from insumos_iniciais import UNIDADES
 
 bp = Blueprint("desperdicio", __name__)
@@ -124,11 +125,11 @@ def desperdicio():
             erro = "Informe uma quantidade maior que zero."
         elif motivo not in MOTIVOS:
             erro = "Escolha o motivo."
-        elif form.get("unidade", "").strip():
+        elif unidade_digitada(form.get("quantidade"), form.get("unidade")):
             # Unidade sem conversão para a do estoque faria o desperdício não descontar nada
             from insumo_cadastro import carregar_conversoes
             from unidades import converter
-            unidade = form.get("unidade").strip()
+            unidade = unidade_digitada(form.get("quantidade"), form.get("unidade"))
             if converter(1, unidade, insumo["unidade"], carregar_conversoes(conn).get(insumo["id"], [])) is None:
                 erro = (f"{unidade} não converte para {insumo['unidade']} (a unidade do estoque de "
                         f"{insumo['nome']}). Use {insumo['unidade']} ou cadastre a medida na ficha do insumo.")
@@ -151,7 +152,7 @@ def desperdicio():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data, insumo["id"], insumo["nome"], insumo["categoria"], quantidade,
-                form.get("unidade", "").strip() or insumo["unidade"], motivo,
+                unidade_digitada(form.get("quantidade"), form.get("unidade")) or insumo["unidade"], motivo,
                 form.get("responsavel", "").strip(), form.get("observacao", "").strip(),
                 nome_foto, agora, "aprovado" if gerente else "pendente", gerente, agora if gerente else "",
             ))

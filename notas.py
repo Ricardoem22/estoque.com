@@ -6,7 +6,7 @@
 import re
 import xml.etree.ElementTree as ET
 
-from importador import chave_nome, ler_csv, ler_xlsx, normalizar_unidade, parse_numero, sem_acento
+from importador import chave_nome, ler_csv, ler_xlsx, normalizar_unidade, parse_numero, sem_acento, separar_quantidade
 from unidades import converter
 
 EXTENSOES_NOTA = {"xml", "pdf", "xlsx", "xlsm", "csv"}
@@ -217,7 +217,8 @@ def ler_planilha(linhas):
             unitario = parse_numero(str(celula(linha, "valor_unitario")).replace("R$", ""))
             total = round(unitario * quantidade, 2) if unitario is not None else None
         nota["itens"].append(item_nota(
-            nome, quantidade, str(celula(linha, "unidade")).strip(), total,
+            nome, quantidade,
+            str(celula(linha, "unidade")).strip() or separar_quantidade(celula(linha, "quantidade"))[1] or "", total,
             codigo=str(celula(linha, "codigo")).strip(), ncm=str(celula(linha, "ncm")),
             ean=str(celula(linha, "ean")),
         ))
