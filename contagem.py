@@ -97,10 +97,11 @@ def agrupar_por_categoria(linhas):
 def parse_quantidade(valor):
     """Aceita '1,5', '1.5', '1.250,5' e também com a unidade junto: '4,5 kg' vale 4,5. None se vazio."""
     import re
-    from importador import normalizar_unidade
+    from importador import _unidade_antes, normalizar_unidade
     valor = (valor or "").strip()
     if not valor:
         return None
+    valor = _unidade_antes(valor)[0]  # "kg 4,5"
     m = re.fullmatch(r"(\d[\d.,\s]*?)\s*([^\W\d_]+)\.?", valor)
     if m and normalizar_unidade(m.group(2)):
         valor = m.group(1)

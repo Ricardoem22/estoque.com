@@ -60,12 +60,40 @@ def normalizar_unidade(texto):
     return None
 
 
+# Abreviações de unidade que aparecem coladas ao nome ("Bife do Vazio Empanado kg", "Arroz (kg)").
+# Palavras inteiras como "Lata" ficam no nome: "Coca Cola Lata" é o nome do produto.
+SIGLAS_UNIDADE = {"kg", "kgs", "g", "gr", "grs", "mg", "l", "lt", "lts", "ml", "un", "und", "unid", "cx", "pct",
+                  "pc", "dz", "fd", "gf", "mc"}
+
+
+def _unidade_antes(texto):
+    """'kg 4,5' / 'KG: 4,5' -> ('4,5', 'kg'); senão (texto, None)."""
+    m = re.fullmatch(r"([^\W\d_]+)\.?\s*[:\-]?\s*(\d[\d.,\s]*)", texto)
+    if m and normalizar_unidade(m.group(1)):
+        return m.group(2).strip(), normalizar_unidade(m.group(1))
+    return texto, None
+
+
+def tirar_unidade_do_nome(nome):
+    """'Bife do Vazio Empanado kg' / 'Arroz (kg)' / 'Feijão - KG' -> ('Bife do Vazio Empanado', 'kg')."""
+    m = re.fullmatch(r"(.+?)[\s\-–:,]*[(\[]?\s*([^\W\d_]+)\.?\s*[)\]]?", nome.strip())
+    if m and m.group(1).strip() and sem_acento(m.group(2)) in SIGLAS_UNIDADE and normalizar_unidade(m.group(2)) \
+            and (m.group(1) != nome.strip()):
+        resto = m.group(1).strip(" -–:,")
+        if resto and re.search(r"[^\W\d_]", resto):
+            return resto, normalizar_unidade(m.group(2))
+    return nome, None
+
+
 def separar_quantidade(texto):
     """'4,5 kg' -> (4.5, 'kg'); '4,5' -> (4.5, None); '4,5KG.' -> (4.5, 'kg'). Número com a unidade escrita
     junto vale o mesmo que o número sozinho. (None, None) se não for número."""
     if isinstance(texto, (int, float)):
         return parse_numero(texto), None
     texto = str(texto or "").strip()
+    texto, antes = _unidade_antes(texto)
+    if antes:
+        return parse_numero(texto), antes
     m = re.fullmatch(r"([\d][\d.,\s]*?)\s*([^\W\d_]+)\.?", texto)
     if m:
         unidade = normalizar_unidade(m.group(2))
@@ -81,6 +109,7 @@ def parse_numero(texto):
     texto = str(texto or "").strip()
     if not texto:
         return None
+    texto = _unidade_antes(texto)[0]
     m = re.fullmatch(r"([\d][\d.,\s]*?)\s*([^\W\d_]+)\.?", texto)
     if m and normalizar_unidade(m.group(2)):
         texto = m.group(1).strip()
@@ -300,6 +329,8 @@ def extrair_itens(linhas, categorias):
             item = interpretar_sem_cabecalho([str(c) for c in linha])
 
         nome = re.sub(r"\s+", " ", item["nome"]).strip(" -:•*")
+        nome, unidade_no_nome = tirar_unidade_do_nome(nome)
+        item["unidade"] = item["unidade"] or unidade_no_nome
         if not nome or parse_numero(nome) is not None or len(nome) > 80:
             continue
         # Linhas de total/rodapé
