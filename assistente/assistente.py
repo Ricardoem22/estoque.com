@@ -23,6 +23,7 @@ Comandos:
   /esquecer          apaga toda a memória
   /voz               liga ou desliga a minha voz
   /microfone         lista os microfones e testa o volume
+  /microfone <nº>    passa a usar o microfone desse número (e testa)
   /gmail             conecta ao Gmail (ou mostra o que falta)
   /gmail sair        desconecta o Gmail deste computador
   /sair              encerra"""
@@ -104,7 +105,7 @@ def main() -> None:
     voz.falar(ola)
 
     ouvido = Ouvido(os.environ.get("OUVIR_MODELO", "small"), os.environ.get("OUVIR_IDIOMA", "pt"),
-                    os.environ.get("OUVIR_DISPOSITIVO", ""))
+                    os.environ.get("OUVIR_DISPOSITIVO") or str(memoria.get("microfone", "")))
 
     historico: list = []
     while True:
@@ -159,14 +160,24 @@ def main() -> None:
                 if not ouvido.disponivel:
                     print(f"[aviso] {ouvido.erro}")
                     continue
+                if arg.isdigit():
+                    ouvido.dispositivo = int(arg)
+                    memoria.set("microfone", int(arg))
+                    print(f"{nome_assistente}: Vou usar o microfone {arg}. Fale algo nos próximos 4 segundos:")
+                    try:
+                        ouvido.medir()
+                        print("Se a barra encheu quando você falou, está pronto: aperte Enter vazio para falar comigo.")
+                    except Exception as e:
+                        print(f"[aviso] Esse microfone não funcionou ({e}). Tente outro número.")
+                    continue
                 try:
                     print("Microfones (* = o padrão do Windows):")
                     print(ouvido.microfones())
                     print(f"Usando: {ouvido.dispositivo if ouvido.dispositivo is not None else 'o padrão'}. "
                           "Fale algo nos próximos 4 segundos:")
                     ouvido.medir()
-                    print("Se a barra quase não se mexeu, escolha outro microfone no .env, "
-                          "por exemplo OUVIR_DISPOSITIVO=2, e abra o Jarvis de novo.")
+                    print("Se a barra quase não se mexeu, teste outro microfone com /microfone <número>, "
+                          "por exemplo /microfone 2.")
                 except Exception as e:
                     print(f"[aviso] Não consegui usar o microfone: {e}")
             elif cmd == "/voz":
