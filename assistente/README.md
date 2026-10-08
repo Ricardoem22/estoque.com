@@ -87,6 +87,5 @@ python -m unittest discover -s tests
 
 ## Próximas etapas
 
-- Entrada por microfone (falar em vez de digitar).
-- Gmail: ler e resumir e-mails. Enviar exigirá confirmação.
-- Casa (Alexa, Ekaza, Positivo, Intelbras): lâmpadas e TVs, sempre com permissões limitadas.
+- Modo mãos-livres: ficar ouvindo e responder quando ouvir "Jarvis".
+- Casa (Positivo/Tuya, Intelbras, Ekaza): lâmpadas e TVs.
