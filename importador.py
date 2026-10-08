@@ -288,6 +288,14 @@ def extrair_itens(linhas, categorias):
                 "quantidade": parse_numero(celula(linha, "quantidade")),
                 "observacao": celula(linha, "observacao"),
             }
+            # PDF perde as células vazias (ex.: Local em branco) e as seguintes andam para a esquerda:
+            # se a coluna da quantidade não tem número, usa o primeiro número depois do nome.
+            depois = [str(c) for c in linha[mapa["nome"] + 1:]] if "nome" in mapa else []
+            if item["quantidade"] is None:
+                item["quantidade"] = next((parse_numero(c) for c in depois if parse_numero(c) is not None), None)
+            if not item["unidade"]:
+                item["unidade"] = next((normalizar_unidade(c) or separar_quantidade(c)[1] for c in depois
+                                        if normalizar_unidade(c) or separar_quantidade(c)[1]), None)
         else:
             item = interpretar_sem_cabecalho([str(c) for c in linha])
 
