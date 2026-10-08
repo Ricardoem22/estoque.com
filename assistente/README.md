@@ -39,6 +39,8 @@ Ainda não tem acesso ao Gmail, à Alexa nem aos dispositivos da casa.
 python assistente.py
 ```
 
+Ou dê dois cliques em **`Iniciar Jarvis.bat`** (pode copiá-lo para a Área de Trabalho). Ele espera que esta pasta esteja em `C:\Users\<você>\assistente-pessoal`.
+
 Na primeira vez, ele pergunta como deve te chamar. O nome fica guardado em `%APPDATA%\Assistente\memoria.json`, somente no seu computador.
 
 | Comando | O que faz |
