@@ -3,6 +3,7 @@
 Rode com:  python assistente.py
 """
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -13,17 +14,19 @@ import gmail
 from ferramentas import Executor
 from memoria import Memoria
 from modelos import ModeloIndisponivel, escolher_modelo
-from ouvido import Ouvido
+from ouvido import Ouvido, extrair_chamado
 from saudacao import saudar
 from voz import Voz
 
 AJUDA = """Para falar em vez de digitar, aperte Enter sem escrever nada.
+No modo mãos-livres, é só dizer "Jarvis, ..." (Ctrl+C ou "Jarvis, pare de ouvir" volta ao teclado).
 Comandos:
   /nome <seu nome>   muda como eu te chamo
   /lembrar <algo>    guarda uma preferência (fica só neste computador)
   /memoria           mostra o que eu guardei
   /esquecer          apaga toda a memória
   /voz               liga ou desliga a minha voz
+  /maoslivres        fico ouvindo e respondo quando você disser o meu nome
   /microfone         lista os microfones e testa o volume
   /microfone <nº>    passa a usar o microfone desse número (e testa)
   /gmail             conecta ao Gmail (ou mostra o que falta)
@@ -113,14 +116,55 @@ def main() -> None:
     if modelo.nome == "local":
         threading.Thread(target=modelo.aquecer, daemon=True).start()
     mostrar_tempo = os.environ.get("MOSTRAR_TEMPO", "sim").lower() == "sim"
+    ouvido.dica = f"{nome_assistente}."
+    maos_livres = ouvido.disponivel and os.environ.get("MAOS_LIVRES", "nao").lower() == "sim"
+    if maos_livres:
+        print(f"{nome_assistente}: Modo mãos-livres ligado: diga \"{nome_assistente}\" e o seu pedido.")
+
+    def esperar_chamado() -> str | None:
+        """Ouve sem parar até alguém dizer o nome do assistente; devolve o pedido."""
+        frase = ouvido.ouvir(espera_max=None, avisar=False)
+        if not frase:
+            return None
+        chamou, pedido = extrair_chamado(frase, nome_assistente)
+        if not chamou:
+            return None
+        if not pedido:
+            print(f"{nome_assistente}: Sim?")
+            voz.falar("Sim?")
+            pedido = ouvido.ouvir(espera_max=8.0)
+            if not pedido:
+                return None
+        print(f"Você (voz): {pedido}")
+        return pedido
 
     historico: list = []
+    avisou_ouvindo = False
     while True:
-        try:
-            texto = input("Você: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
+        if maos_livres:
+            if not avisou_ouvindo:
+                print(f"(ouvindo... diga \"{nome_assistente}\"; Ctrl+C volta ao teclado)")
+                avisou_ouvindo = True
+            try:
+                texto = esperar_chamado()
+            except KeyboardInterrupt:
+                maos_livres = False
+                print(f"\n{nome_assistente}: Modo mãos-livres desligado. Pode digitar.")
+                continue
+            if not texto:
+                continue
+            avisou_ouvindo = False
+            if re.search(r"(?i)\b(pare|parar|para) de (ouvir|escutar)\b|modo texto", texto):
+                maos_livres = False
+                print(f"{nome_assistente}: Certo, parei de ouvir. Pode digitar.")
+                voz.falar("Certo, parei de ouvir.")
+                continue
+        else:
+            try:
+                texto = input("Você: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
         if not texto:
             if not ouvido.disponivel:
                 print(f"[aviso] {ouvido.erro}")
@@ -189,6 +233,13 @@ def main() -> None:
                           "por exemplo /microfone 2.")
                 except Exception as e:
                     print(f"[aviso] Não consegui usar o microfone: {e}")
+            elif cmd == "/maoslivres":
+                if not ouvido.disponivel:
+                    print(f"[aviso] {ouvido.erro}")
+                else:
+                    maos_livres = True
+                    print(f"{nome_assistente}: Modo mãos-livres ligado. Diga \"{nome_assistente}\" e o seu pedido, "
+                          f"por exemplo \"{nome_assistente}, que horas são?\".")
             elif cmd == "/voz":
                 falar_respostas = not falar_respostas
                 print(f"{nome_assistente}: Voz {'ligada' if falar_respostas else 'desligada'}.")

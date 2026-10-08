@@ -43,6 +43,8 @@ python assistente.py
 
 **Para falar em vez de digitar:** no `Você:`, aperte **Enter sem escrever nada**, fale e faça uma pausa. O reconhecimento de voz roda no seu computador, sem internet; na primeira vez, ele baixa o modelo (cerca de 500 MB). Se ficar lento, use `OUVIR_MODELO=base` no `.env`.
 
+**Modo mãos-livres:** digite `/maoslivres` (ou coloque `MAOS_LIVRES=sim` no `.env` para já abrir assim). Ele fica ouvindo e só responde quando você diz **"Jarvis, ..."**; se disser só "Jarvis", ele pergunta "Sim?" e espera o pedido. Para voltar ao teclado: `Ctrl+C` ou "Jarvis, pare de ouvir".
+
 Ou dê dois cliques em **`Iniciar Jarvis.bat`** (pode copiá-lo para a Área de Trabalho). Ele espera que esta pasta esteja em `C:\Users\<você>\assistente-pessoal`.
 
 Na primeira vez, ele pergunta como deve te chamar. O nome fica guardado em `%APPDATA%\Assistente\memoria.json`, somente no seu computador.
@@ -87,5 +89,4 @@ python -m unittest discover -s tests
 
 ## Próximas etapas
 
-- Modo mãos-livres: ficar ouvindo e responder quando ouvir "Jarvis".
 - Casa (Positivo/Tuya, Intelbras, Ekaza): lâmpadas e TVs.
