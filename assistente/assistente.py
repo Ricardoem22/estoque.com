@@ -22,6 +22,10 @@ AJUDA = """Comandos:
   /sair              encerra"""
 
 
+# Comandos de terminal que às vezes são digitados no chat por engano
+COMANDOS_TERMINAL = {"ollama", "pip", "python", "notepad", "cd", "dir", "copy", "expand-archive", "git"}
+
+
 def carregar_env(arquivo: Path) -> None:
     """Lê o arquivo .env (CHAVE=valor) sem sobrescrever variáveis já definidas."""
     if not arquivo.exists():
@@ -67,6 +71,16 @@ def main() -> None:
 
     executar = Executor(confirmar, os.environ.get("CONFIRMAR_ACOES", "sim").lower() != "nao")
 
+    if modelo.nome == "local" and modelo.disponivel() and not modelo.tem_modelo():
+        outros = modelo.instalados()
+        print(f"{nome_assistente}: O modelo de IA '{modelo.modelo}' ainda não está baixado.")
+        if input("Quer que eu baixe agora? (s/n) ").strip().lower() == "s":
+            if not modelo.baixar():
+                print("[aviso] Não consegui baixar. Verifique a internet e abra o assistente de novo.")
+        elif outros:
+            modelo.modelo = outros[0]
+            print(f"{nome_assistente}: Certo, vou usar o '{modelo.modelo}', que já está baixado.")
+
     if not memoria.get("nome"):
         nome = input(f"{nome_assistente}: Olá! Como você quer que eu te chame? ").strip()
         if nome:
@@ -111,6 +125,11 @@ def main() -> None:
                 print(f"{nome_assistente}: Voz {'ligada' if falar_respostas else 'desligada'}.")
             else:
                 print(AJUDA)
+            continue
+
+        if texto.split()[0].lower() in COMANDOS_TERMINAL:
+            print(f"{nome_assistente}: Isso parece um comando do PowerShell. Aqui é o nosso chat; "
+                  "digite /sair para voltar ao PowerShell e rodar o comando lá.")
             continue
 
         tamanho = len(historico)

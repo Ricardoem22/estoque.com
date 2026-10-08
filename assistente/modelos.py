@@ -38,6 +38,31 @@ class ModeloLocal:
         except (urllib.error.URLError, OSError):
             return False
 
+    def instalados(self) -> list[str]:
+        try:
+            with urllib.request.urlopen(f"{self.url}/api/tags", timeout=5) as resp:
+                return [m["name"] for m in json.loads(resp.read().decode("utf-8")).get("models", [])]
+        except (urllib.error.URLError, OSError, ValueError, KeyError):
+            return []
+
+    def tem_modelo(self) -> bool:
+        nomes = self.instalados()
+        return self.modelo in nomes or f"{self.modelo}:latest" in nomes
+
+    def baixar(self, tentativas: int = 3) -> bool:
+        """Roda 'ollama pull', repetindo se a internet falhar (o download continua de onde parou)."""
+        import subprocess
+
+        for _ in range(tentativas):
+            try:
+                if subprocess.run(["ollama", "pull", self.modelo]).returncode == 0:
+                    return True
+            except FileNotFoundError:
+                print("[aviso] Não encontrei o comando 'ollama'. Instale em https://ollama.com/download")
+                return False
+            print("[aviso] O download falhou. Tentando de novo...")
+        return False
+
     def _chat(self, sistema: str, historico: list[dict]) -> dict:
         corpo = json.dumps({
             "model": self.modelo,
