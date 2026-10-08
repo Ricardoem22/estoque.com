@@ -1,5 +1,9 @@
 """Ouvir pelo microfone e transformar a fala em texto, sem internet (faster-whisper)."""
 import math
+import os
+
+# Aviso inofensivo do Windows sobre atalhos de arquivo no cache do modelo de voz
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 TAXA = 16000          # amostras por segundo
 BLOCO = 0.1           # segundos por bloco lido do microfone
