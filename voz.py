@@ -49,6 +49,7 @@ PAGINAS = [
     (("insumo",), "contagem.insumos"),
     (("compra", "nota"), "compras.compras"),
     (("desperdicio",), "desperdicio.desperdicio"),
+    (("refeic",), "refeicao.refeicao"),
     (("movimenta", "saida"), "movimentos.movimentacoes"),
     (("relatorio",), "relatorio.relatorio"),
     (("divergen",), "relatorio.divergencias"),

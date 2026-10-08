@@ -18,6 +18,7 @@ bp = Blueprint("movimentos", __name__)
 # sinal: + soma no estoque, − desconta, ⇄ não muda o total
 TIPOS = {
     "saida": {"nome": "Saída / consumo", "sinal": "−", "fator": -1},
+    "refeicao": {"nome": "Refeição da equipe", "sinal": "−", "fator": -1},
     "devolucao": {"nome": "Devolução ao fornecedor", "sinal": "−", "fator": -1},
     "ajuste_menos": {"nome": "Ajuste: faltou", "sinal": "−", "fator": -1, "justificar": True},
     "ajuste_mais": {"nome": "Ajuste: sobrou", "sinal": "+", "fator": 1, "justificar": True},
@@ -137,4 +138,5 @@ def excluir(id):
     conn.execute("DELETE FROM movimentacoes WHERE id = ?", (id,))
     conn.commit()
     conn.close()
-    return redirect(url_for("movimentos.movimentacoes", mes=request.form.get("mes", "")))
+    destino = "refeicao.refeicao" if request.form.get("voltar") == "refeicao" else "movimentos.movimentacoes"
+    return redirect(url_for(destino, mes=request.form.get("mes", "")))

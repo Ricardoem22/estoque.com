@@ -1,0 +1,122 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Refeição da equipe{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>🍽️ Refeição da equipe</h1>
+</div>
+<p class="sub">Lance o que foi usado na refeição dos funcionários. Cada item já sai do estoque ao salvar.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if salvo %}<div class="sucesso">Refeição lançada: {{ salvo }} {{ 'item saiu' if salvo == '1' else 'itens saíram' }} do estoque.</div>{% endif %}
+
+<form method="post" class="form-desperdicio" id="form-refeicao">
+    <div class="linha">
+        <div>
+            <label for="data">Data</label>
+            <input type="date" id="data" name="data" value="{{ data_padrao }}" required>
+        </div>
+        <div>
+            <label for="refeicao">Refeição</label>
+            <input type="text" id="refeicao" name="refeicao" list="lista-refeicoes" placeholder="Ex.: almoço"
+                   value="{{ form.get('refeicao', '') }}">
+            <datalist id="lista-refeicoes"><option value="Café da manhã"><option value="Almoço"><option value="Jantar"><option value="Lanche"></datalist>
+        </div>
+    </div>
+
+    <label>Itens usados</label>
+    <div id="itens-refeicao">
+        {% for insumo_id, qtd, un in itens %}
+        <div class="item-refeicao" data-i="{{ loop.index0 }}">
+            <select id="insumo_{{ loop.index0 }}" name="insumo_{{ loop.index0 }}" aria-label="Item">
+                <option value="">Escolha o item...</option>
+                {% for categoria, lista in grupos %}
+                <optgroup label="{{ categoria }}">
+                    {% for item in lista %}
+                    <option value="{{ item['id'] }}" data-unidade="{{ item['unidade'] }}" data-unidades="{{ item['unidades_json'] }}"
+                            data-conv="{{ item['conv_json'] }}" {% if insumo_id == item['id'] %}selected{% endif %}>{{ item['nome'] }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+            <div class="item-refeicao-qtd">
+                <input type="text" id="qtd_{{ loop.index0 }}" name="qtd_{{ loop.index0 }}" inputmode="decimal"
+                       placeholder="Qtd." value="{{ qtd }}" aria-label="Quantidade usada">
+                <select id="un_{{ loop.index0 }}" name="un_{{ loop.index0 }}" aria-label="Unidade" data-escolhida="{{ un }}">
+                    {% for u in unidades %}<option value="{{ u }}" {% if un == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                </select>
+                <button type="button" class="btn btn-delete tirar-item" aria-label="Tirar linha">✕</button>
+            </div>
+            <p id="previa_{{ loop.index0 }}" class="previa-unidade" aria-live="polite"></p>
+        </div>
+        {% endfor %}
+    </div>
+    <input type="hidden" name="total" id="total" value="{{ itens|length }}">
+    <button type="button" class="btn btn-edit" id="mais-item">➕ Mais um item</button>
+    <p class="sub">Linhas sem item e sem quantidade são ignoradas.</p>
+
+    <div class="form-actions">
+        <button class="btn" type="submit">✅ Lançar refeição</button>
+    </div>
+</form>
+
+<form method="get" class="top-bar filtro-mes">
+    <h2>Refeições do mês</h2>
+    <input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()">
+</form>
+
+{% if lancamentos %}
+{% for l in lancamentos %}
+<div class="refeicao-lancada">
+    <div class="refeicao-cabeca"><strong>{{ l.data|data_br }}</strong> · {{ l.motivo.replace('Refeição da equipe: ', '').replace('Refeição da equipe', 'Refeição') }}
+        {% if l.responsavel %}<span class="sub">· {{ l.responsavel }}</span>{% endif %}</div>
+    <ul>
+        {% for r in l.itens %}
+        <li><span>{{ r['insumo_nome'] }}: <strong>− {{ r['quantidade']|qtd }} {{ r['unidade'] }}</strong></span>
+            {% if session.get('gerente') %}
+            <form class="inline" method="post" action="{{ url_for('movimentos.excluir', id=r['id']) }}"
+                  onsubmit="return confirm('Excluir este item? Ele volta para o estoque.')">
+                <input type="hidden" name="mes" value="{{ mes }}">
+                <input type="hidden" name="voltar" value="refeicao">
+                <button class="btn btn-delete" type="submit">Excluir</button>
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endfor %}
+{% else %}
+<p class="vazio">Nenhuma refeição lançada neste mês.</p>
+{% endif %}
+
+<script src="{{ url_for('static', filename='unidades.js') }}"></script>
+<script>
+(function () {
+    var caixa = document.getElementById("itens-refeicao"), total = document.getElementById("total");
+    function ligar(linha) {
+        var i = linha.dataset.i, un = document.getElementById("un_" + i), escolhida = un.dataset.escolhida;
+        ligarUnidades("insumo_" + i, "un_" + i, "qtd_" + i, "previa_" + i);
+        if (escolhida && un.querySelector('option[value="' + escolhida + '"]')) un.value = escolhida;  // mantém a medida da última refeição
+        linha.querySelector(".tirar-item").addEventListener("click", function () {
+            document.getElementById("insumo_" + i).value = ""; document.getElementById("qtd_" + i).value = "";
+            linha.hidden = true;
+        });
+    }
+    caixa.querySelectorAll(".item-refeicao").forEach(ligar);
+    document.getElementById("mais-item").addEventListener("click", function () {
+        var modelo = caixa.querySelector(".item-refeicao:last-child"), n = Number(total.value);
+        var nova = modelo.cloneNode(true);
+        nova.dataset.i = n; nova.hidden = false;
+        nova.querySelectorAll("[id]").forEach(function (el) {
+            el.id = el.id.replace(/_\d+$/, "_" + n);
+            if (el.name) el.name = el.id;
+        });
+        nova.querySelector("select").value = ""; nova.querySelector("input").value = "";
+        nova.querySelector("[id^=un_]").dataset.escolhida = "";
+        nova.querySelector(".previa-unidade").textContent = "";
+        caixa.appendChild(nova); total.value = n + 1; ligar(nova);
+        nova.querySelector("select").focus();
+    });
+})();
+</script>
+{% endblock %}
