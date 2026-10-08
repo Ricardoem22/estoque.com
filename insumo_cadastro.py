@@ -89,9 +89,25 @@ def editar(id):
                 form.get("local", "").strip(), minimo, ideal, custo, form.get("observacao", "").strip(),
                 1 if form.get("ativo") else 0, re.sub(r"\D", "", form.get("ncm", "")), id,
             ))
+            nova = form.get("unidade", "").strip() or insumo["unidade"]
+            aviso = ""
+            if nova != insumo["unidade"]:
+                # Contagem zerada vale zero em qualquer medida: passa para a unidade nova, senão o estoque
+                # continuaria na unidade antiga e as compras na nova não somariam
+                antigas = conn.execute("""
+                    SELECT ci.rowid AS id, ci.quantidade, ci.unidade FROM contagem_itens ci
+                    WHERE ci.insumo_id = ? AND ci.quantidade IS NOT NULL
+                """, (id,)).fetchall()
+                for c in antigas:
+                    if converter_fixo(1, c["unidade"], nova) is not None:
+                        continue
+                    if c["quantidade"] == 0:
+                        conn.execute("UPDATE contagem_itens SET unidade = ? WHERE rowid = ?", (nova, c["id"]))
+                    else:
+                        aviso = "contagem"
             conn.commit()
             conn.close()
-            return redirect(url_for("insumo.editar", id=id, salvo=1))
+            return redirect(url_for("insumo.editar", id=id, salvo=1, aviso=aviso or None))
 
     conversoes = conn.execute("SELECT * FROM insumo_conversoes WHERE insumo_id = ? ORDER BY unidade", (id,)).fetchall()
     categorias = lista_categorias(agrupar_por_categoria(conn.execute("SELECT * FROM insumos").fetchall()))
@@ -109,7 +125,7 @@ def editar(id):
     return render_template(
         "insumo_editar.html", insumo=insumo, form=valores, erro=erro,
         conversoes=conversoes, categorias=categorias, locais=locais, unidades=UNIDADES_COMUNS,
-        salvo=request.args.get("salvo"), erro_conversao=request.args.get("erro_conversao"),
+        salvo=request.args.get("salvo"), aviso=request.args.get("aviso"), erro_conversao=request.args.get("erro_conversao"),
     )
 
 
