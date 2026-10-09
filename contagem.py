@@ -676,6 +676,16 @@ def categoria_por_ncm(ncm, categorias):
     return next((c for c in categorias if palavra in sem_acento(c)), None)
 
 
+def eh_danfe(dados):
+    try:
+        from pypdf import PdfReader
+        import io
+        texto = sem_acento(" ".join((p.extract_text() or "") for p in PdfReader(io.BytesIO(dados)).pages[:1]))
+    except Exception:
+        return False
+    return "danfe" in texto or "documento auxiliar da nota fiscal" in texto
+
+
 def itens_da_nota(nome_arquivo, dados):
     """Produtos de uma nota fiscal (XML ou DANFE em PDF). None quando o arquivo não é nota."""
     from notas import ler_nota
@@ -684,9 +694,17 @@ def itens_da_nota(nome_arquivo, dados):
         return None
     try:
         nota = ler_nota(nome_arquivo, dados)
-    except Exception:
+    except Exception as e:
         if ext == "xml":
             raise ValueError("Não consegui ler esse XML. Confira se é o XML da nota fiscal.")
+        if eh_danfe(dados):
+            # Nota fiscal que não deu para ler: melhor avisar do que listar o cabeçalho da nota como insumos
+            import importlib.util
+            if importlib.util.find_spec("pdfplumber") is None:
+                raise ValueError("Esse PDF é uma nota fiscal, mas falta instalar o leitor de notas no site. No Bash "
+                                 "do PythonAnywhere rode: cd ~/estoque.com e depois pip install --user -r "
+                                 "requirements.txt; em seguida clique em Reload na aba Web.")
+            raise ValueError(str(e) if isinstance(e, ValueError) else "Não consegui ler os produtos dessa nota.")
         return None
     itens, vistos = [], set()
     for item in nota["itens"]:

@@ -200,6 +200,10 @@ def ler_danfe(dados):
     nota["itens"] = max(_itens_danfe(texto.splitlines()), _itens_danfe(_linhas_por_posicao(dados)), key=len)
     nota["origem"] = "pdf"
     if not nota["itens"]:
+        import importlib.util
+        if importlib.util.find_spec("pdfplumber") is None:
+            raise ValueError("Falta instalar o leitor de notas no site. No Bash do PythonAnywhere rode: cd ~/estoque.com "
+                             "e depois pip install --user -r requirements.txt; em seguida clique em Reload na aba Web.")
         raise ValueError("Não encontrei os itens nesse PDF. Use o XML da nota (o fornecedor manda por e-mail "
                          "ou dá para baixar no site da Sefaz com a chave de acesso).")
     return nota
