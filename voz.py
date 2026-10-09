@@ -60,6 +60,7 @@ PAGINAS = [
     (("divergen",), "relatorio.divergencias"),
     (("mural", "recado"), "mural.mural"),
 ]
+LANCAR = {"nf", "nfe"}
 # Verbos de excluir/adicionar: decidem a ação junto com "compra" ou "estoque" na frase
 EXCLUIR = ("exclu", "apag", "remov", "delet", "cancel")
 EXCLUIR_PALAVRAS = {"tira", "tire", "tirar", "tirem", "retira", "retire", "retirar"}
@@ -72,7 +73,8 @@ IGNORAR = {
     "reais", "real", "rs", "tem", "temos", "ainda", "hoje", "agora", "lancar", "lanca", "registrar", "registra",
     "ai", "voce", "me", "diz", "fala", "qual", "quanto", "quantos", "quantas", "estoque", "saldo", "sobrou",
     "que", "eu", "nos", "foi", "foram", "mais", "favor", "porfavor", "ok", "um", "uma", "lista", "item", "itens",
-    "insumo", "insumos", "produto", "produtos", "tambem", "ultima", "ultimo",
+    "insumo", "insumos", "produto", "produtos", "tambem", "ultima", "ultimo", "nota", "notas", "fiscal", "nf",
+    "nfe", "lance", "lancei", "lancamos", "anota", "anote", "anotar", "registre",
 }
 
 
@@ -140,6 +142,9 @@ def interpretar(texto, insumos):
     else:
         tipo = next((t for t, chaves in INTENCOES if any(c in limpo for c in chaves)), None)
     todas = re.findall(r"[a-z]+", limpo)
+    # "lança a nota de 5 kg de tomate", "registra 2 caixas de cerveja": sem outra intenção, é compra
+    if tipo is None and any(p in LANCAR or p.startswith(("nota", "lanc", "registr", "anot")) for p in todas):
+        tipo = "compra"
     verbo = None
     if any(p.startswith(EXCLUIR) or p in EXCLUIR_PALAVRAS for p in todas):
         verbo = "excluir"
