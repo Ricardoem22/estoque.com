@@ -236,6 +236,13 @@ def contar(id):
             conn.execute("UPDATE insumos SET unidade = ? WHERE id = ?", (unidade, iid))
 
         if not erros:
+            # Reativar um insumo inativo: salva o que já foi digitado e ele volta para a lista
+            reativar = request.form.get("reativar", type=int)
+            if reativar:
+                conn.execute("UPDATE insumos SET ativo = 1 WHERE id = ?", (reativar,))
+                conn.commit()
+                conn.close()
+                return redirect(url_for("contagem.contar", id=id, salvo=1, _anchor=f"qtd_{reativar}"))
             finalizar = request.form.get("acao") == "finalizar"
             if finalizar:
                 conn.execute("UPDATE contagens SET finalizada = 1 WHERE id = ?", (id,))
@@ -247,9 +254,14 @@ def contar(id):
         conn.rollback()
 
     grupos = agrupar_por_categoria(itens_da_contagem(conn, id))
+    inativos = conn.execute("""
+        SELECT i.id, i.nome FROM insumos i
+        LEFT JOIN contagem_itens ci ON ci.insumo_id = i.id AND ci.contagem_id = ?
+        WHERE i.ativo = 0 AND ci.quantidade IS NULL ORDER BY i.nome
+    """, (id,)).fetchall()
     conn.close()
     return render_template(
-        "contar.html", contagem=contagem, grupos=grupos, unidades=UNIDADES,
+        "contar.html", contagem=contagem, grupos=grupos, unidades=UNIDADES, inativos=inativos,
         erros=erros, salvo=request.args.get("salvo"), importados=request.args.get("importados"),
     )
 
@@ -264,8 +276,8 @@ def salvar_item(conn, contagem_id, insumo_id, quantidade, unidade, observacao=No
             quantidade = excluded.quantidade,
             observacao = COALESCE(?, contagem_itens.observacao)
     """, (contagem_id, insumo_id, unidade, quantidade, observacao or "", observacao))
-    # A unidade escolhida vira o padrão para as próximas contagens
-    conn.execute("UPDATE insumos SET unidade = ? WHERE id = ?", (unidade, insumo_id))
+    # A unidade escolhida vira o padrão para as próximas contagens; insumo inativo que foi contado volta a ser ativo
+    conn.execute("UPDATE insumos SET unidade = ?, ativo = 1 WHERE id = ?", (unidade, insumo_id))
 
 
 PALAVRAS_VAZIAS = {"de", "do", "da", "dos", "das", "com", "e", "p", "para", "em"}
