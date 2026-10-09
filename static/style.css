@@ -795,3 +795,6 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .baixar-opcoes a { padding: 10px 14px; text-decoration: none; color: inherit; font-weight: 600; }
 .baixar-opcoes a + a { border-top: 1px solid var(--borda); }
 .lista-backups { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.cod-ncm { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.cod-ncm label { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--texto-suave, #666); margin: 0; font-weight: normal; }
+.cod-ncm input { width: 110px; padding: 4px 6px; font-size: 13px; }

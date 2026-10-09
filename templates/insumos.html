@@ -12,7 +12,7 @@
 <p class="sub">Toque no nome para abrir a ficha: estoque mínimo, local, código, fornecedor, medidas de compra (saco, peça, fardo) e ativo/inativo.</p>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
-{% if importados is not none %}<div class="sucesso">{{ importados }} insumo(s) importado(s).</div>{% endif %}
+{% if importados is not none %}<div class="sucesso">{{ importados }} insumo(s) importado(s).{% if completados %} {{ completados }} já cadastrado(s) ganharam código ou NCM.{% endif %}</div>{% endif %}
 
 <form method="post" class="form-insumo">
     <input type="text" name="nome" placeholder="Nome do insumo" required>

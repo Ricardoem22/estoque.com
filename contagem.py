@@ -1,5 +1,6 @@
 # contagem.py
 # Módulo de contagem de estoque (insumos do restaurante).
+import re
 import sqlite3
 from datetime import datetime
 from itertools import groupby
@@ -7,7 +8,7 @@ from itertools import groupby
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 import config
-from importador import EXTENSOES, chave_nome, extrair_itens, ler_arquivo, sem_acento
+from importador import EXTENSOES, achar_ncm, chave_nome, extrair_itens, ler_arquivo, normalizar_unidade, sem_acento
 from insumos_iniciais import CATEGORIAS, UNIDADES
 
 DB_NAME = config.DB_PATH
@@ -586,7 +587,7 @@ def insumos():
     categorias = lista_categorias(grupos)
     return render_template(
         "insumos.html", grupos=grupos, categorias=categorias, unidades=UNIDADES, erro=erro,
-        importados=request.args.get("importados"),
+        importados=request.args.get("importados"), completados=request.args.get("completados"),
     )
 
 
@@ -618,8 +619,11 @@ def importar_insumos():
             erro = "Escolha um arquivo."
         else:
             try:
-                linhas = ler_arquivo(arquivo.filename, arquivo.read())
-                itens = extrair_itens(linhas, categorias)
+                dados = arquivo.read()
+                # Nota fiscal (XML ou PDF da DANFE) já traz código e NCM de cada produto
+                itens = itens_da_nota(arquivo.filename, dados)
+                if itens is None:
+                    itens = extrair_itens(ler_arquivo(arquivo.filename, dados), categorias)
                 if not itens:
                     erro = ("Não encontrei nenhum insumo nesse arquivo. Se for um PDF escaneado (foto de papel), "
                             "ele não tem texto para ler.")
@@ -630,9 +634,17 @@ def importar_insumos():
                 erro = "Não consegui ler esse arquivo. Confira se ele não está corrompido ou protegido por senha."
 
     if itens:
-        nomes = {sem_acento(i["nome"]) for i in existentes}
+        por_nome = {sem_acento(i["nome"]): i for i in existentes}
         for item in itens:
-            item["existe"] = sem_acento(item["nome"]) in nomes
+            atual = por_nome.get(sem_acento(item["nome"]))
+            item["existe"] = atual is not None
+            item["codigo"] = (item.get("codigo") or "").strip()[:40]
+            if not re.search(r"[A-Za-z0-9]", item["codigo"]):
+                item["codigo"] = ""  # "###" do Excel com a coluna estreita
+            item["ncm"] = achar_ncm(item.get("ncm"))
+            # Já cadastrado sem código ou NCM: o arquivo completa
+            item["completa"] = bool(atual) and bool((item["codigo"] and not atual["codigo"])
+                                                    or (item["ncm"] and not atual["ncm"]))
             if not item["categoria"]:
                 item["categoria"] = padrao
             item["unidade"] = item["unidade"] or unidade_padrao(item["categoria"])
@@ -641,29 +653,66 @@ def importar_insumos():
 
     return render_template(
         "importar_insumos.html", erro=erro, itens=itens, categorias=categorias, unidades=UNIDADES,
-        padrao=padrao, extensoes=", ".join(sorted("." + e for e in EXTENSOES)),
+        padrao=padrao, extensoes=", ".join(sorted("." + e for e in EXTENSOES | {"xml"})),
     )
+
+
+def itens_da_nota(nome_arquivo, dados):
+    """Produtos de uma nota fiscal (XML ou DANFE em PDF). None quando o arquivo não é nota."""
+    from notas import ler_nota
+    ext = nome_arquivo.rsplit(".", 1)[-1].lower() if "." in nome_arquivo else ""
+    if ext not in ("xml", "pdf") and dados.lstrip()[:1] != b"<":
+        return None
+    try:
+        nota = ler_nota(nome_arquivo, dados)
+    except Exception:
+        if ext == "xml":
+            raise ValueError("Não consegui ler esse XML. Confira se é o XML da nota fiscal.")
+        return None
+    itens, vistos = [], set()
+    for item in nota["itens"]:
+        chave = sem_acento(item["nome"])
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        itens.append({"nome": item["nome"], "categoria": "", "codigo": item["codigo"], "ncm": item["ncm"],
+                      "unidade": normalizar_unidade(re.sub(r"\d+$", "", item["unidade_nota"] or ""))})
+    return itens
 
 
 @bp.route("/insumos/importar/confirmar", methods=["POST"])
 def confirmar_importacao():
     conn = get_connection()
-    nomes = {sem_acento(r["nome"]) for r in conn.execute("SELECT nome FROM insumos")}
-    adicionados = 0
+    por_nome = {sem_acento(r["nome"]): r for r in conn.execute("SELECT id, nome FROM insumos")}
+    adicionados = completados = 0
     for i in range(request.form.get("total", 0, type=int)):
+        nome = request.form.get(f"nome_{i}", "").strip()
+        codigo = request.form.get(f"codigo_{i}", "").strip()[:40]
+        ncm = achar_ncm(request.form.get(f"ncm_{i}", ""))
+        atual = por_nome.get(sem_acento(nome))
+        if atual:
+            # Já cadastrado: só preenche código e NCM que estavam vazios
+            if request.form.get(f"completar_{i}") and (codigo or ncm):
+                antes = conn.total_changes
+                conn.execute("UPDATE insumos SET codigo = ? WHERE id = ? AND COALESCE(codigo, '') = '' AND ? <> ''",
+                             (codigo, atual["id"], codigo))
+                conn.execute("UPDATE insumos SET ncm = ? WHERE id = ? AND COALESCE(ncm, '') = '' AND ? <> ''",
+                             (ncm, atual["id"], ncm))
+                completados += conn.total_changes > antes
+            continue
         if not request.form.get(f"incluir_{i}"):
             continue
-        nome = request.form.get(f"nome_{i}", "").strip()
         categoria = request.form.get(f"categoria_{i}", "").strip()
         unidade = request.form.get(f"unidade_{i}", "").strip() or "un"
-        if not nome or not categoria or sem_acento(nome) in nomes:
+        if not nome or not categoria:
             continue
-        conn.execute("INSERT INTO insumos (nome, categoria, unidade) VALUES (?, ?, ?)", (nome, categoria, unidade))
-        nomes.add(sem_acento(nome))
+        cursor = conn.execute("INSERT INTO insumos (nome, categoria, unidade, codigo, ncm) VALUES (?, ?, ?, ?, ?)",
+                              (nome, categoria, unidade, codigo, ncm))
+        por_nome[sem_acento(nome)] = {"id": cursor.lastrowid, "nome": nome}
         adicionados += 1
     conn.commit()
     conn.close()
-    return redirect(url_for("contagem.insumos", importados=adicionados))
+    return redirect(url_for("contagem.insumos", importados=adicionados, completados=completados or None))
 
 
 @bp.route("/insumos/<int:id>/excluir", methods=["POST"])

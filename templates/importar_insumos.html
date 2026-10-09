@@ -7,9 +7,11 @@
 
 {% if not itens %}
 <p class="sub">
-    Envie uma planilha ou documento com a lista de insumos. Aceita Excel (.xlsx), CSV, Word (.docx) e PDF com texto.
-    O ideal é ter colunas como <strong>Insumo</strong>, <strong>Categoria</strong> e <strong>Unidade</strong>, mas
-    uma lista simples, com um insumo por linha, também funciona. Antes de salvar, você confere tudo.
+    Envie uma planilha ou documento com a lista de insumos. Aceita Excel (.xlsx), CSV, Word (.docx), PDF com texto
+    e nota fiscal (XML ou PDF da DANFE).
+    O ideal é ter colunas como <strong>Insumo</strong>, <strong>Categoria</strong>, <strong>Unidade</strong>,
+    <strong>Código</strong> e <strong>NCM</strong>, mas uma lista simples, com um insumo por linha, também funciona.
+    O código e o NCM vão para a ficha de cada insumo. Antes de salvar, você confere tudo.
 </p>
 <form method="post" enctype="multipart/form-data" class="form-desperdicio">
     <label for="arquivo">Arquivo</label>
@@ -28,10 +30,15 @@
 </form>
 {% else %}
 {% set novos = itens|rejectattr('existe')|list %}
+{% set completam = itens|selectattr('completa')|list %}
+{% set com_ncm = itens|selectattr('ncm')|list %}
+{% set com_codigo = itens|selectattr('codigo')|list %}
 <p class="sub">
     Encontrei <strong>{{ itens|length }}</strong> itens, sendo <strong>{{ novos|length }}</strong> novos.
+    {% if com_codigo or com_ncm %}{{ com_codigo|length }} com código e {{ com_ncm|length }} com NCM.{% endif %}
     Confira os nomes, as categorias e as unidades, e desmarque o que não quiser importar.
     Os que já estão cadastrados aparecem em cinza e não serão duplicados.
+    {% if completam %}Já cadastrados sem código ou NCM no app: {{ completam|length }}, que podem ser completados.{% endif %}
 </p>
 <form method="post" action="{{ url_for('contagem.confirmar_importacao') }}">
     <input type="hidden" name="total" value="{{ itens|length }}">
@@ -42,12 +49,21 @@
             {% set i = loop.index0 %}
             <tr {% if item.existe %}class="nao-contado"{% endif %}>
                 <td>
-                    {% if item.existe %}<span title="Já cadastrado">✔︎</span>
+                    {% if item.completa %}<input type="checkbox" class="incluir" name="completar_{{ i }}" value="1" checked
+                           title="Completar código e NCM" aria-label="Completar código e NCM">
+                    {% elif item.existe %}<span title="Já cadastrado">✔︎</span>
                     {% else %}<input type="checkbox" class="incluir" name="incluir_{{ i }}" value="1" checked>{% endif %}
                 </td>
                 <td>
-                    {% if item.existe %}{{ item.nome }} <span class="sub">(já existe)</span>
+                    {% if item.existe %}{{ item.nome }} <span class="sub">(já existe{% if item.completa %}, completar código/NCM{% endif %})</span>
+                    <input type="hidden" name="nome_{{ i }}" value="{{ item.nome }}">
                     {% else %}<input type="text" name="nome_{{ i }}" value="{{ item.nome }}">{% endif %}
+                    {% if not item.existe or item.completa %}
+                    <div class="cod-ncm">
+                        <label>Cód. <input type="text" name="codigo_{{ i }}" value="{{ item.codigo }}" maxlength="40"></label>
+                        <label>NCM <input type="text" name="ncm_{{ i }}" value="{{ item.ncm }}" inputmode="numeric" maxlength="10"></label>
+                    </div>
+                    {% endif %}
                 </td>
                 <td>
                     {% if not item.existe %}
@@ -69,14 +85,16 @@
     </table>
     <div class="barra-acoes">
         <a class="btn btn-delete" href="{{ url_for('contagem.importar_insumos') }}">Outro arquivo</a>
-        <button class="btn" type="submit" {% if not novos %}disabled{% endif %}>Importar {{ novos|length }} insumo(s)</button>
+        <button class="btn" type="submit" {% if not novos and not completam %}disabled{% endif %}>Importar {{ novos|length }} insumo(s)</button>
     </div>
 </form>
 <script>
     var botao = document.querySelector(".barra-acoes button");
     function atualizar() {
-        var n = document.querySelectorAll(".incluir:checked").length;
-        botao.textContent = "Importar " + n + " insumo(s)";
+        var n = document.querySelectorAll(".incluir[name^=incluir_]:checked").length;
+        var c = document.querySelectorAll(".incluir[name^=completar_]:checked").length;
+        botao.textContent = "Importar " + n + " insumo(s)" + (c ? " e completar " + c : "");
+        n = n + c;
         botao.disabled = n === 0;
     }
     document.getElementById("marcar-todos").addEventListener("change", function () {
@@ -85,6 +103,7 @@
         atualizar();
     });
     document.querySelectorAll(".incluir").forEach(function (c) { c.addEventListener("change", atualizar); });
+    atualizar();
 </script>
 {% endif %}
 {% endblock %}

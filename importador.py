@@ -12,6 +12,10 @@ EXTENSOES = {"xlsx", "xlsm", "csv", "txt", "docx", "pdf"}
 
 # Palavras que identificam cada coluna no cabeçalho
 CABECALHOS = {
+    # Antes do nome: "Código do produto" é o código, não o nome; "Cód. barras" (EAN) fica de fora
+    "ncm": ["ncm"],
+    "_ean": ["ean", "gtin", "barras", "cean"],
+    "codigo": ["codigo", "cod", "cprod", "sku", "referencia", "ref"],
     "nome": ["insumo", "nome", "produto", "item", "descricao", "mercadoria", "material"],
     "categoria": ["categoria", "grupo", "setor", "tipo", "secao"],
     "unidade": ["unidade", "und", "unid", "un", "medida", "um"],
@@ -81,7 +85,8 @@ def tirar_unidade_do_nome(nome):
     if m and m.group(1).strip() and sem_acento(m.group(2)) in SIGLAS_UNIDADE and normalizar_unidade(m.group(2)) \
             and (m.group(1) != nome.strip()):
         resto = m.group(1).strip(" -–:,")
-        if resto and re.search(r"[^\W\d_]", resto):
+        # "Coca Cola Lata 350ml" / "Óleo 900 ML": número antes da sigla é o tamanho, faz parte do nome
+        if resto and re.search(r"[^\W\d_]", resto) and not resto[-1].isdigit():
             return resto, normalizar_unidade(m.group(2))
     return nome, None
 
@@ -401,6 +406,21 @@ def interpretar_sem_cabecalho(celulas, categorias=()):
     return linha
 
 
+NCM_PONTOS = re.compile(r"\d{4}\.\d{2}\.\d{2}")
+
+
+def achar_ncm(texto, linha=()):
+    """NCM tem 8 dígitos (0207.14.00). Se a coluna veio torta (PDF perde células vazias), procura na linha
+    um número no formato com pontos."""
+    digitos = re.sub(r"\D", "", str(texto or ""))
+    if len(digitos) == 8:
+        return digitos
+    for c in linha:
+        if NCM_PONTOS.fullmatch(str(c).strip()):
+            return re.sub(r"\D", "", str(c))
+    return ""
+
+
 def extrair_itens(linhas, categorias):
     """Transforma as linhas do arquivo em itens {nome, categoria, unidade, quantidade}."""
     inicio, mapa = achar_cabecalho(linhas)
@@ -433,6 +453,8 @@ def extrair_itens(linhas, categorias):
                 "unidade": separar_quantidade(celula(linha, "quantidade"))[1] or normalizar_unidade(celula(linha, "unidade")),
                 "quantidade": parse_numero(celula(linha, "quantidade")),
                 "observacao": celula(linha, "observacao"),
+                "codigo": celula(linha, "codigo"),
+                "ncm": achar_ncm(celula(linha, "ncm"), linha),
             }
             # Estoque do sistema negativo ("-14,820"): na prateleira não tem nada
             negativo = re.fullmatch(r"-\s*\d[\d.,]*(\s*[^\W\d_]+\.?)?", celula(linha, "quantidade"))
