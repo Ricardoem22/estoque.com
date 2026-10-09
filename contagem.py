@@ -290,6 +290,19 @@ def insumos_parecidos(nome, insumos, usados=()):
     return [a[2] for a in achados][:5], (contem[0] if len(contem) == 1 else None)
 
 
+def unidade_do_arquivo(item, insumo):
+    """Unidade com que o item do arquivo entra no insumo. A coluna "Un" do arquivo (muitas vezes a do sistema
+    de vendas) não muda a unidade do insumo quando não converte: "Bife do Vazio Empanado | un | 4,5" num insumo
+    em kg entra como 4,5 kg. Unidade escrita junto do número ("4,5 kg") ou que converte (g -> kg) é mantida."""
+    from unidades import converter_fixo
+    unidade = item["unidade"]
+    if not unidade:
+        return insumo["unidade"]
+    if item.get("unidade_na_qtd") or converter_fixo(1, unidade, insumo["unidade"]) is not None:
+        return unidade
+    return insumo["unidade"]
+
+
 @bp.route("/contagens/<int:id>/importar", methods=["GET", "POST"])
 def importar_contagem(id):
     conn = get_connection()
@@ -326,7 +339,7 @@ def importar_contagem(id):
                 insumo = por_nome.get(chave_nome(item["nome"]))
                 if insumo:
                     item["insumo"] = insumo
-                    item["unidade"] = item["unidade"] or insumo["unidade"]
+                    item["unidade"] = unidade_do_arquivo(item, insumo)
                     encontrados.append(item)
                 else:
                     item["categoria"] = item["categoria"] or categorias[0]
@@ -345,6 +358,9 @@ def importar_contagem(id):
             for item in novos:
                 if item["sugestao"] and vezes[item["sugestao"]["id"]] > 1:
                     item["sugestao"] = None
+                item["unidade_arquivo"] = item["unidade"]
+                if item["sugestao"]:
+                    item["unidade"] = unidade_do_arquivo(item, item["sugestao"])
             if erro:
                 encontrados = novos = None
             elif novos:
