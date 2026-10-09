@@ -1,4 +1,5 @@
 {% extends "base_contagem.html" %}
+{% from "_exportar.html" import baixar %}
 {% block titulo %}Desperdício{% endblock %}
 {% block conteudo %}
 <div class="top-bar">
@@ -77,7 +78,7 @@
     <h2>Registros do mês</h2>
     <div>
         <input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()">
-        <a class="btn" href="{{ url_for('desperdicio.exportar_csv', mes=mes) }}">CSV</a>
+        {{ baixar(url_for('desperdicio.exportar_csv', mes=mes)) }}
     </div>
 </form>
 

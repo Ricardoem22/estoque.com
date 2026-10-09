@@ -9,6 +9,24 @@
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 {% if salvo %}<div class="sucesso">Refeição lançada: {{ salvo }} {{ 'item saiu' if salvo == '1' else 'itens saíram' }} do estoque.</div>{% endif %}
 
+<form method="get" class="falar-refeicao">
+    <label for="falado">🎙️ Falar os itens</label>
+    <div class="falar-linha">
+        <input type="text" id="falado" name="falado" value="{{ falado }}" autocomplete="off"
+               placeholder="Ex.: 2 quilos de arroz, 1 quilo de feijão e meio quilo de frango">
+        <button class="btn" type="submit">Preencher</button>
+    </div>
+    <p class="sub">Toque no 🎙️ do campo (ou no microfone do teclado), fale os itens e toque em Preencher.
+        Confira as linhas e toque em <strong>Lançar refeição</strong> para tirar do estoque.</p>
+</form>
+{% if falado %}
+{% if entendidos %}<div class="sucesso">Entendi {{ entendidos|length }} ite{{ 'ns' if entendidos|length != 1 else 'm' }}:
+    {% for i in entendidos %}{{ i.insumo['nome'] }} {{ i.quantidade|qtd }} {{ i.unidade }}{{ ', ' if not loop.last }}{% endfor %}.
+    Confira e toque em Lançar refeição.</div>{% endif %}
+{% if nao_entendi %}<div class="erro">Não entendi: {% for t in nao_entendi %}"{{ t }}"{{ ', ' if not loop.last }}{% endfor %}.
+    Fale a quantidade e o nome como está em Insumos, ou escolha na lista abaixo.</div>{% endif %}
+{% endif %}
+
 <form method="post" class="form-desperdicio" id="form-refeicao">
     <div class="linha">
         <div>

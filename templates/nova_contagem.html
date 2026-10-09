@@ -12,6 +12,15 @@
     <label for="responsavel">Responsável</label>
     <input type="text" id="responsavel" name="responsavel" value="{{ responsavel }}" required autofocus>
 
+    <label class="check"><input type="checkbox" name="parcial" value="1" id="parcial" {% if parcial %}checked{% endif %}>
+        Contar só algumas categorias</label>
+    <fieldset class="abas-escolha" id="escolha-categorias" {% if not parcial %}hidden{% endif %}>
+        <legend class="sub">Categorias desta contagem (os outros insumos continuam com a última contagem deles)</legend>
+        {% for c in todas %}<label class="check"><input type="checkbox" name="categorias" value="{{ c }}" {% if c in escolhidas %}checked{% endif %}> {{ c }}</label>{% endfor %}
+    </fieldset>
+    <script>document.getElementById("parcial").addEventListener("change", function () {
+        document.getElementById("escolha-categorias").hidden = !this.checked; });</script>
+
     <div class="form-actions">
         <button class="btn" type="submit">Começar contagem</button>
         <a class="btn btn-delete" href="{{ url_for('contagem.contagens') }}">Cancelar</a>

@@ -1,13 +1,12 @@
 # insumo_cadastro.py
 # Ficha de cada insumo: código, marca, fornecedor, local, estoque mínimo e ideal, custo de referência,
 # situação (ativo/inativo), medidas de compra ("1 saco = 5 kg") e histórico de movimentações.
-import csv
 import io
 import json
 import re
 from datetime import date
 
-from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from contagem import agrupar_por_categoria, formatar_quantidade, get_connection, lista_categorias, parse_quantidade
 from compras import parse_valor
@@ -390,12 +389,8 @@ def historico_csv(id):
         abort(404)
     eventos = historico_do_insumo(conn, id)
     conn.close()
-    saida = io.StringIO()
-    escritor = csv.writer(saida, delimiter=";")
-    escritor.writerow(["Data", "Movimentação", "Sinal", "Quantidade", "Unidade", "Responsável", "Detalhe"])
-    for e in eventos:
-        escritor.writerow([e["data"], e["tipo"], e["sinal"], str(e["quantidade"]).replace(".", ","), e["unidade"],
-                           e["quem"], e["detalhe"]])
-    nome = f"historico_{insumo['id']}.csv"
-    return Response("﻿" + saida.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": f"attachment; filename={nome}"})
+    from exportar import responder
+    tabela = [[e["data"], e["tipo"], e["sinal"], str(e["quantidade"]).replace(".", ","), e["unidade"], e["quem"],
+               e["detalhe"]] for e in eventos]
+    return responder(f"historico_{insumo['id']}", f"Histórico: {insumo['nome']}",
+                     ["Data", "Movimentação", "Sinal", "Quantidade", "Unidade", "Responsável", "Detalhe"], tabela)

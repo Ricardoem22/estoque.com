@@ -1,0 +1,13 @@
+{# Botões para baixar a mesma tabela em Excel, PDF, Word ou CSV. url: o link do CSV (pode ter ?filtros). #}
+{% macro baixar(url, rotulo="⬇️ Baixar") %}
+{% set sep = '&' if '?' in url else '?' %}
+<details class="baixar nao-imprimir">
+    <summary class="btn btn-edit">{{ rotulo }}</summary>
+    <div class="baixar-opcoes">
+        <a href="{{ url }}{{ sep }}formato=xlsx">📗 Excel</a>
+        <a href="{{ url }}{{ sep }}formato=pdf">📕 PDF</a>
+        <a href="{{ url }}{{ sep }}formato=docx">📘 Word</a>
+        <a href="{{ url }}{{ sep }}formato=csv">📄 CSV</a>
+    </div>
+</details>
+{% endmacro %}

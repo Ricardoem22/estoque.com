@@ -1,12 +1,10 @@
 # contagem.py
 # Módulo de contagem de estoque (insumos do restaurante).
-import csv
-import io
 import sqlite3
 from datetime import datetime
 from itertools import groupby
 
-from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 import config
 from importador import EXTENSOES, chave_nome, extrair_itens, ler_arquivo, sem_acento
@@ -59,6 +57,11 @@ def init_db():
                          ("ncm", "TEXT NOT NULL DEFAULT ''")):
         if coluna not in colunas:
             conn.execute(f"ALTER TABLE insumos ADD COLUMN {coluna} {tipo}")
+    # Contagem só de algumas categorias (vazio = todas) e justificativa de cada diferença
+    if "categorias" not in {c["name"] for c in conn.execute("PRAGMA table_info(contagens)")}:
+        conn.execute("ALTER TABLE contagens ADD COLUMN categorias TEXT NOT NULL DEFAULT ''")
+    if "justificativa" not in {c["name"] for c in conn.execute("PRAGMA table_info(contagem_itens)")}:
+        conn.execute("ALTER TABLE contagem_itens ADD COLUMN justificativa TEXT NOT NULL DEFAULT ''")
     # Medidas de compra de cada insumo: 1 <unidade> = <fator> <unidade_base>
     conn.execute("""
         CREATE TABLE IF NOT EXISTS insumo_conversoes (
@@ -136,15 +139,27 @@ def carregar_contagem(conn, contagem_id):
     return contagem
 
 
+def categorias_da_contagem(contagem):
+    """Categorias escolhidas ao criar a contagem; lista vazia = todas."""
+    return [c for c in (contagem["categorias"] or "").split("\n") if c]
+
+
 def itens_da_contagem(conn, contagem_id):
-    return conn.execute("""
+    contagem = conn.execute("SELECT categorias FROM contagens WHERE id = ?", (contagem_id,)).fetchone()
+    escolhidas = categorias_da_contagem(contagem) if contagem else []
+    filtro, params = "", [contagem_id]
+    if escolhidas:
+        filtro = f" AND (i.categoria IN ({','.join('?' * len(escolhidas))}) OR ci.quantidade IS NOT NULL)"
+        params += escolhidas
+    return conn.execute(f"""
         SELECT i.id, i.nome, i.categoria,
                COALESCE(ci.unidade, i.unidade) AS unidade,
-               ci.quantidade, COALESCE(ci.observacao, '') AS observacao
+               ci.quantidade, COALESCE(ci.observacao, '') AS observacao,
+               COALESCE(ci.justificativa, '') AS justificativa
         FROM insumos i
         LEFT JOIN contagem_itens ci ON ci.insumo_id = i.id AND ci.contagem_id = ?
-        WHERE i.ativo = 1 OR ci.quantidade IS NOT NULL
-    """, (contagem_id,)).fetchall()
+        WHERE (i.ativo = 1 OR ci.quantidade IS NOT NULL){filtro}
+    """, params).fetchall()
 
 
 @bp.app_template_filter("qtd")
@@ -183,6 +198,10 @@ def nova_contagem():
     data = request.form.get("data", config.hoje().isoformat())
     responsavel = request.form.get("responsavel", "").strip()
 
+    conn = get_connection()
+    todas = lista_categorias(agrupar_por_categoria(conn.execute("SELECT * FROM insumos WHERE ativo = 1").fetchall()))
+    conn.close()
+    escolhidas = [c for c in request.form.getlist("categorias") if c in todas]
     if request.method == "POST":
         try:
             datetime.strptime(data, "%Y-%m-%d")
@@ -190,19 +209,24 @@ def nova_contagem():
             erro = "Informe uma data válida."
         if not responsavel:
             erro = "Informe o nome do responsável."
+        elif request.form.get("parcial") and not escolhidas:
+            erro = "Marque pelo menos uma categoria para contar."
 
         if not erro:
+            parcial = request.form.get("parcial") and len(escolhidas) < len(todas)
             conn = get_connection()
             cur = conn.execute(
-                "INSERT INTO contagens (data, responsavel, criada_em) VALUES (?, ?, ?)",
-                (data, responsavel, config.agora().strftime("%Y-%m-%d %H:%M:%S"))
+                "INSERT INTO contagens (data, responsavel, criada_em, categorias) VALUES (?, ?, ?, ?)",
+                (data, responsavel, config.agora().strftime("%Y-%m-%d %H:%M:%S"),
+                 "\n".join(escolhidas) if parcial else "")
             )
             conn.commit()
             contagem_id = cur.lastrowid
             conn.close()
             return redirect(url_for("contagem.contar", id=contagem_id))
 
-    return render_template("nova_contagem.html", erro=erro, data=data, responsavel=responsavel)
+    return render_template("nova_contagem.html", erro=erro, data=data, responsavel=responsavel, todas=todas,
+                           escolhidas=escolhidas, parcial=request.form.get("parcial"))
 
 
 @bp.route("/contagens/<int:id>", methods=["GET", "POST"])
@@ -468,7 +492,22 @@ def ver_contagem(id):
     conn.close()
     from relatorio import divergencias
     sistema, resumo = divergencias(contagem)
-    return render_template("ver_contagem.html", contagem=contagem, grupos=grupos, sistema=sistema, resumo=resumo)
+    return render_template("ver_contagem.html", contagem=contagem, grupos=grupos, sistema=sistema, resumo=resumo,
+                           categorias=categorias_da_contagem(contagem), justificado=request.args.get("justificado"))
+
+
+@bp.route("/contagens/<int:id>/justificar", methods=["POST"])
+def justificar_contagem(id):
+    """Motivo de cada diferença entre o contado e o que o sistema esperava (quebra, erro de lançamento...)."""
+    conn = get_connection()
+    carregar_contagem(conn, id)
+    for chave, texto in request.form.items():
+        if chave.startswith("just_") and chave[5:].isdigit():
+            conn.execute("UPDATE contagem_itens SET justificativa = ? WHERE contagem_id = ? AND insumo_id = ?",
+                         (texto.strip()[:300], id, int(chave[5:])))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("contagem.ver_contagem", id=id, justificado=1))
 
 
 @bp.route("/contagens/<int:id>/reabrir", methods=["POST"])
@@ -498,28 +537,21 @@ def exportar_csv(id):
     from relatorio import divergencias
     sistema, _ = divergencias(contagem)
 
-    saida = io.StringIO()
-    writer = csv.writer(saida, delimiter=";")
-    writer.writerow(["Data da contagem", data_br_filter(contagem["data"]), "Responsável", contagem["responsavel"]])
-    writer.writerow([])
-    writer.writerow(["Categoria", "Insumo", "Unidade", "Qtd. Contada", "No sistema", "Diferença",
-                     "Valor da diferença (R$)", "Observações / Validade"])
+    from exportar import responder
+    tabela = []
     for categoria, itens in grupos:
         for item in itens:
             d = sistema.get(item["id"], {})
-            writer.writerow([
+            tabela.append([
                 categoria, item["nome"], item["unidade"], formatar_quantidade(item["quantidade"]),
                 formatar_quantidade(d.get("esperado")), formatar_quantidade(d.get("diferenca")),
                 f"{d['valor']:.2f}".replace(".", ",") if d.get("valor") is not None else "", item["observacao"],
+                item["justificativa"],
             ])
-
-    nome_arquivo = f"contagem_{contagem['data']}_{id}.csv"
-    # BOM para o Excel reconhecer os acentos
-    return Response(
-        "﻿" + saida.getvalue(),
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
-    )
+    return responder(f"contagem_{contagem['data']}_{id}", f"Contagem de estoque {data_br_filter(contagem['data'])}",
+                     ["Categoria", "Insumo", "Unidade", "Qtd. Contada", "No sistema", "Diferença",
+                      "Valor da diferença (R$)", "Observações / Validade", "Justificativa"], tabela,
+                     subtitulo=f"Responsável: {contagem['responsavel']}")
 
 
 # ---------- Insumos ----------

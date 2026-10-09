@@ -1,10 +1,11 @@
 {% extends "base_contagem.html" %}
+{% from "_exportar.html" import baixar %}
 {% block titulo %}Meu estoque{% endblock %}
 {% block conteudo %}
 <div class="top-bar">
     <h1>🏪 Meu estoque</h1>
     <div class="nao-imprimir">
-        <a class="btn btn-edit" href="{{ url_for('relatorio.estoque_csv') }}">⬇️ Exportar</a>
+        {{ baixar(url_for('relatorio.estoque_csv'), "⬇️ Exportar") }}
         <button class="btn" type="button" onclick="window.print()">🖨️ Imprimir</button>
     </div>
 </div>
@@ -33,6 +34,13 @@
         <strong>{{ ultima_contagem['data']|data_br if ultima_contagem else '—' }}</strong>
         <span>última contagem{% if ultima_contagem %} · {{ ultima_contagem['responsavel'] }}{% endif %}</span></div>
 </div>
+
+{% if validades %}
+<div class="aviso aviso-validade">
+    <strong>⏰ Validade:</strong>
+    {% for v in validades %}<a class="tag {{ 'tag-recusado' if v.vencido else 'tag-aberta' }}" href="{{ url_for('insumo.historico', id=v.insumo_id) }}">{{ v.nome }} ({{ v.quantidade|qtd }} {{ v.unidade }}): {{ 'venceu' if v.vencido else 'vence' }} {{ v.validade|data_br }}</a>{% endfor %}
+</div>
+{% endif %}
 
 {% if total_pendentes %}
 <a class="aviso aviso-link" href="{{ url_for('desperdicio.desperdicio') }}">⏳ {{ total_pendentes }} desperdício{{ 's' if total_pendentes != 1 }}

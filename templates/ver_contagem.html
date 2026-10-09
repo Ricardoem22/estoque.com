@@ -1,15 +1,18 @@
 {% extends "base_contagem.html" %}
+{% from "_exportar.html" import baixar %}
 {% block titulo %}Contagem {{ contagem['data']|data_br }}{% endblock %}
 {% block conteudo %}
 <h1>📋 Contagem de Estoque</h1>
 <p class="sub">
     <strong>Data:</strong> {{ contagem['data']|data_br }} &nbsp;·&nbsp;
     <strong>Responsável:</strong> {{ contagem['responsavel'] }}
+    {% if categorias %}<br><strong>Só:</strong> {{ categorias|join(', ') }}{% endif %}
 </p>
+{% if justificado %}<div class="sucesso">Justificativas salvas.</div>{% endif %}
 
 <div class="top-bar nao-imprimir">
     <div>
-        <a class="btn" href="{{ url_for('contagem.exportar_csv', id=contagem['id']) }}">⬇️ Baixar CSV</a>
+        {{ baixar(url_for('contagem.exportar_csv', id=contagem['id'])) }}
         <button class="btn btn-edit" type="button" onclick="window.print()">🖨️ Imprimir</button>
     </div>
     <form class="inline" method="post" action="{{ url_for('contagem.reabrir_contagem', id=contagem['id']) }}">
@@ -34,6 +37,7 @@
 </div>
 <p class="vazio" id="nada-encontrado" hidden>Nenhum item com esse nome.</p>
 
+<form method="post" action="{{ url_for('contagem.justificar_contagem', id=contagem['id']) }}" id="form-justificar">
 {% for categoria, itens in grupos %}
 <section class="categoria-ver">
 <h2>{{ categoria }}</h2>
@@ -49,13 +53,23 @@
             <td>{{ (item['quantidade']|qtd ~ ' ' ~ item['unidade']) if item['quantidade'] is not none else '—' }}</td>
             <td>{% if d.esperado is not none and d.esperado is defined %}{{ d.esperado|round(2)|qtd }}{% else %}<span class="sub">—</span>{% endif %}</td>
             <td>{% if d.diferenca %}<strong class="{{ 'dif-falta' if d.diferenca < 0 else 'dif-sobra' }}">{{ '+' if d.diferenca > 0 }}{{ d.diferenca|round(2)|qtd }}</strong>{% if d.valor is not none %}<br><span class="sub">{{ d.valor|brl }}</span>{% endif %}{% elif d.diferenca is defined and d.diferenca == 0 %}<span class="tag tag-ok">bate</span>{% else %}<span class="sub">—</span>{% endif %}</td>
-            <td>{{ item['observacao'] }}</td>
+            <td>{{ item['observacao'] }}{% if d.diferenca and item['justificativa'] %}<span class="so-imprimir"> · {{ item['justificativa'] }}</span>{% endif %}</td>
         </tr>
+        {% if d.diferenca %}
+        <tr class="linha-just nao-imprimir" data-busca="{{ item['nome'] }}">
+            <td colspan="5"><input class="justificativa" type="text" name="just_{{ item['id'] }}" value="{{ item['justificativa'] }}"
+                   placeholder="💬 Por que deu diferença em {{ item['nome'] }}? (opcional)" aria-label="Justificativa de {{ item['nome'] }}" maxlength="300"></td>
+        </tr>
+        {% endif %}
         {% endfor %}
     </tbody>
 </table>
 </section>
 {% endfor %}
+{% if resumo and resumo.com_diferenca %}
+<div class="barra-acoes nao-imprimir"><button class="btn" type="submit">💾 Salvar justificativas</button></div>
+{% endif %}
+</form>
 <script src="{{ url_for('static', filename='busca.js') }}"></script>
-<script>ligarBusca("filtro", ".linha-ver", ".categoria-ver", "nada-encontrado");</script>
+<script>ligarBusca("filtro", ".linha-ver, .linha-just", ".categoria-ver", "nada-encontrado");</script>
 {% endblock %}

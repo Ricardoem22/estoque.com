@@ -36,8 +36,10 @@
     <input type="hidden" name="anexo" value="{{ nota.anexo }}">
     <div class="linha-nota">
         <div>
-            <label for="data">Data da entrega</label>
+            <label for="data">Data do recebimento</label>
             <input type="date" id="data" name="data" value="{{ nota.data or hoje }}" required>
+            <input type="hidden" name="data_compra" value="{{ nota.data or '' }}">
+            {% if nota.data %}<span class="sub">nota de {{ nota.data|data_br }}</span>{% endif %}
         </div>
         <div>
             <label for="fornecedor">Fornecedor</label>
@@ -46,6 +48,11 @@
         {% if nota.numero %}<div><label>Nota nº</label><p class="nota-numero">{{ nota.numero }}</p></div>{% endif %}
     </div>
 
+    {% if nota.data and ultima_contagem and nota.data < ultima_contagem %}
+    <div class="aviso">⚠️ A nota é de {{ nota.data|data_br }} e a última contagem foi em {{ ultima_contagem|data_br }}.
+        Se a mercadoria chegou <strong>depois</strong> da contagem, mude a <strong>data do recebimento</strong> para o dia
+        em que chegou; senão ela não soma no estoque (já foi contada).</div>
+    {% endif %}
     <table class="tabela-nota">
         <thead><tr><th></th><th>Item da nota</th><th>Insumo no sistema</th><th>Qtd.</th><th>Un.</th><th>Valor pago (R$)</th></tr></thead>
         <tbody>

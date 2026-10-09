@@ -1,4 +1,5 @@
 {% extends "base_contagem.html" %}
+{% from "_exportar.html" import baixar %}
 {% block titulo %}Saída por Semana{% endblock %}
 {% block conteudo %}
 <h1>📅 Saída por semana</h1>
@@ -40,7 +41,7 @@
 <div class="top-bar">
     <h2>{{ inicio['data']|data_br }} a {{ fim['data']|data_br }} <span class="sub">({{ dias }} dias)</span></h2>
     <div class="nao-imprimir">
-        <a class="btn" href="{{ url_for('relatorio.semanas_csv', inicio=inicio['id'], fim=fim['id']) }}">⬇️ CSV</a>
+        {{ baixar(url_for('relatorio.semanas_csv', inicio=inicio['id'], fim=fim['id'])) }}
         <button class="btn btn-edit" type="button" onclick="window.print()">🖨️ Imprimir</button>
     </div>
 </div>

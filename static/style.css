@@ -361,7 +361,10 @@ tr.nao-contado td { color: #aaa; }
     body { background: #fff; padding: 0; }
     .container { box-shadow: none; padding: 0; }
     .topo, .menu, .nao-imprimir { display: none; }
+    .so-imprimir { display: inline; }
 }
+.so-imprimir { display: none; }
+.justificativa { width: 100%; margin-top: 4px; font-size: 14px; padding: 6px 8px; }
 
 /* ---------- Login ---------- */
 .container.login { max-width: 380px; }
@@ -772,3 +775,23 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .inativos-contagem { margin-top: 18px; padding: 12px; border: 1px dashed var(--borda); border-radius: 10px; }
 .inativos-contagem ul { list-style: none; padding: 0; margin: 8px 0 0; }
 .inativos-contagem li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--borda); }
+.filtro-compras { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 6px 0 12px; }
+.filtro-compras > div { display: flex; flex-direction: column; min-width: 130px; flex: 1 1 130px; }
+.filtro-compras .filtro-botoes { flex-direction: row; gap: 8px; flex: 0 0 auto; }
+.por-fornecedor { margin: 0 0 14px; }
+.por-fornecedor summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.tabela-simples { width: 100%; border-collapse: collapse; }
+.tabela-simples th, .tabela-simples td { text-align: left; padding: 6px; border-bottom: 1px solid var(--borda); }
+.falar-refeicao { margin: 4px 0 14px; padding: 12px; border: 2px dashed var(--amarelo, #ffc72c); border-radius: 12px; }
+.falar-linha { display: flex; gap: 8px; }
+.falar-linha input { flex: 1 1 auto; min-width: 0; }
+.justificado { font-size: 13px; color: #6b4e00; }
+.linha-just td { padding-top: 0 !important; border-top: none; }
+.baixar { position: relative; display: inline-block; }
+.baixar > summary { list-style: none; cursor: pointer; }
+.baixar > summary::-webkit-details-marker { display: none; }
+.baixar-opcoes { position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; background: #fff; border: 1px solid var(--borda);
+    border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.15); display: flex; flex-direction: column; min-width: 140px; }
+.baixar-opcoes a { padding: 10px 14px; text-decoration: none; color: inherit; font-weight: 600; }
+.baixar-opcoes a + a { border-top: 1px solid var(--borda); }
+.lista-backups { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
