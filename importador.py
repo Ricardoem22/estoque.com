@@ -182,15 +182,65 @@ def ler_docx(dados):
 
 
 def ler_pdf(dados):
+    """PDF com tabela (planilha impressa): pdfplumber lê célula por célula, com as células vazias no lugar.
+    Sem tabela, ou sem pdfplumber instalado, lê o texto com pypdf e separa as colunas pelos espaços."""
+    linhas = _ler_pdf_tabelas(dados)
+    if linhas:
+        return linhas
     from pypdf import PdfReader
     leitor = PdfReader(io.BytesIO(dados))
-    linhas = []
     for pagina in leitor.pages:
         texto = pagina.extract_text(extraction_mode="layout") or ""
         for linha in texto.splitlines():
             if linha.strip():
                 linhas.append(dividir_linha(linha))
     return linhas
+
+
+def _celulas_por_palavra(tabela, palavras):
+    """Monta as células com as palavras inteiras, cada uma na célula onde começa. Texto comprido da célula ao
+    lado (ex.: categoria "FRUTAS, VERDURAS, LEGUMES") invade a próxima no PDF; letra por letra ele se mistura
+    com o nome ("MAELSFACE"), palavra por palavra fica certo ("ALFACE")."""
+    linhas = []
+    for linha in tabela.rows:
+        caixas = [c for c in linha.cells]
+        textos = [[] for _ in caixas]
+        topo, base = linha.bbox[1], linha.bbox[3]
+        for p in palavras:
+            meio = (p["top"] + p["bottom"]) / 2
+            if not topo <= meio <= base:
+                continue
+            for i, caixa in enumerate(caixas):
+                if caixa and caixa[0] - 1 <= p["x0"] < caixa[2]:
+                    textos[i].append(p)
+                    break
+        linhas.append([" ".join(p["text"] for p in sorted(t, key=lambda p: (round(p["top"]), p["x0"])))
+                       if caixa else "" for t, caixa in zip(textos, caixas)])
+    return linhas
+
+
+def _ler_pdf_tabelas(dados):
+    try:
+        import pdfplumber
+    except ImportError:
+        return []
+    linhas = []
+    try:
+        with pdfplumber.open(io.BytesIO(dados)) as pdf:
+            for pagina in pdf.pages:
+                palavras = pagina.extract_words(use_text_flow=True, x_tolerance=1.5)
+                for tabela in pagina.find_tables():
+                    for linha in _celulas_por_palavra(tabela, palavras):
+                        celulas = [re.sub(r"\s+", " ", c or "").strip() for c in linha]
+                        # Letras das colunas do Excel (A, B, C...) repetidas no topo de cada página
+                        if [c for c in celulas if c] == [chr(65 + i) for i in range(len([c for c in celulas if c]))]:
+                            continue
+                        if any(celulas):
+                            linhas.append(celulas)
+    except Exception:
+        return []
+    # Tabela de uma coluna só não ajuda: melhor ler o texto
+    return linhas if sum(1 for l in linhas if len([c for c in l if c]) >= 2) >= 2 else []
 
 
 def ler_texto(texto):
@@ -225,6 +275,8 @@ def ler_arquivo(nome_arquivo, dados):
 
 # Cabeçalho que diz que a coluna é a contagem feita ganha de "Estoque"/"Saldo" (o estoque do sistema).
 CABECALHO_CONTAGEM = {"contada", "contado", "contagem", "fisico", "peso", "conferido", "conferida"}
+# "Estoque Mín", "Estoque máximo", "Estoque ideal": é o limite, não a quantidade que tem
+CABECALHO_LIMITE = {"min", "minimo", "max", "maximo", "ideal"}
 
 
 def achar_cabecalho(linhas):
@@ -236,6 +288,9 @@ def achar_cabecalho(linhas):
             palavras = re.findall(r"[a-z]+", sem_acento(celula))
             for campo, chaves in CABECALHOS.items():
                 if any(p in chaves for p in palavras):
+                    if campo == "quantidade" and any(p in CABECALHO_LIMITE for p in palavras):
+                        mapa.setdefault("_limites", []).append(col)
+                        break
                     if campo == "quantidade":
                         contagem = any(p in CABECALHO_CONTAGEM for p in palavras) and "ultima" not in palavras
                         quantidades.insert(len([c for c in quantidades if c[1]]) if contagem else len(quantidades),
@@ -270,7 +325,7 @@ def escolher_coluna_quantidade(corpo, mapa):
     atual = mapa.get("quantidade")
     if atual is not None and contar(atual)[1] > 0:
         return
-    proibidas = {mapa.get(c) for c in ("nome", "categoria", "unidade", "observacao")}
+    proibidas = {mapa.get(c) for c in ("nome", "categoria", "unidade", "observacao")} | set(mapa.get("_limites", []))
     candidatas = [c for c in mapa.get("_quantidades", []) if c != atual] + \
                  list(range(mapa["nome"] + 1, max((len(l) for l in corpo), default=0)))
     melhor, melhor_nao_zero = None, 0
@@ -379,6 +434,12 @@ def extrair_itens(linhas, categorias):
                 "quantidade": parse_numero(celula(linha, "quantidade")),
                 "observacao": celula(linha, "observacao"),
             }
+            # Estoque do sistema negativo ("-14,820"): na prateleira não tem nada
+            negativo = re.fullmatch(r"-\s*\d[\d.,]*(\s*[^\W\d_]+\.?)?", celula(linha, "quantidade"))
+            if item["quantidade"] is None and negativo:
+                item["quantidade"] = 0.0
+                item["observacao"] = (item["observacao"] + " " if item["observacao"] else "") + \
+                    f"negativo no arquivo ({celula(linha, 'quantidade')})"
             # PDF perde as células vazias (ex.: Local em branco) e as seguintes andam para a esquerda:
             # se a coluna da quantidade não tem número, usa o primeiro número depois do nome.
             depois = [str(c) for c in linha[mapa["nome"] + 1:]] if "nome" in mapa else []
