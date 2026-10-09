@@ -361,7 +361,10 @@ tr.nao-contado td { color: #aaa; }
     body { background: #fff; padding: 0; }
     .container { box-shadow: none; padding: 0; }
     .topo, .menu, .nao-imprimir { display: none; }
+    .so-imprimir { display: inline; }
 }
+.so-imprimir { display: none; }
+.justificativa { width: 100%; margin-top: 4px; font-size: 14px; padding: 6px 8px; }
 
 /* ---------- Login ---------- */
 .container.login { max-width: 380px; }
@@ -782,3 +785,5 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .falar-refeicao { margin: 4px 0 14px; padding: 12px; border: 2px dashed var(--amarelo, #ffc72c); border-radius: 12px; }
 .falar-linha { display: flex; gap: 8px; }
 .falar-linha input { flex: 1 1 auto; min-width: 0; }
+.justificado { font-size: 13px; color: #6b4e00; }
+.linha-just td { padding-top: 0 !important; border-top: none; }

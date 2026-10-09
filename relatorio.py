@@ -198,7 +198,7 @@ def divergencias(contagem):
     precos = {l["id"]: l for c in calcular_valor_estoque()["categorias"] for l in c["itens"]}
     conn = get_connection()
     itens = conn.execute("""
-        SELECT ci.insumo_id, ci.quantidade, ci.unidade, i.nome, i.categoria FROM contagem_itens ci
+        SELECT ci.insumo_id, ci.quantidade, ci.unidade, ci.justificativa, i.nome, i.categoria FROM contagem_itens ci
         JOIN insumos i ON i.id = ci.insumo_id WHERE ci.contagem_id = ? AND ci.quantidade IS NOT NULL
     """, (contagem["id"],)).fetchall()
     conversoes = carregar_conversoes(conn)
@@ -207,7 +207,7 @@ def divergencias(contagem):
     for item in itens:
         linha = {"id": item["insumo_id"], "nome": item["nome"], "categoria": item["categoria"],
                  "unidade": item["unidade"], "contado": item["quantidade"], "esperado": None,
-                 "diferenca": None, "valor": None}
+                 "diferenca": None, "valor": None, "justificativa": item["justificativa"]}
         antes = sistema.get(item["insumo_id"])
         conv = conversoes.get(item["insumo_id"], [])
         if antes and antes["estoque"] is not None:

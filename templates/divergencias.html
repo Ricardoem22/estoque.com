@@ -32,7 +32,7 @@
     <tbody>
     {% for l in linhas %}
     <tr>
-        <td><a class="nome-insumo" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}</a><br><span class="sub">{{ l.categoria }}</span></td>
+        <td><a class="nome-insumo" href="{{ url_for('insumo.historico', id=l.id) }}">{{ l.nome }}</a><br><span class="sub">{{ l.categoria }}</span>{% if l.justificativa %}<br><span class="justificado">💬 {{ l.justificativa }}</span>{% else %}<br><span class="sub">sem justificativa</span>{% endif %}</td>
         <td>{{ l.esperado|round(2)|qtd }} {{ l.unidade }}</td>
         <td>{{ l.contado|qtd }} {{ l.unidade }}</td>
         <td><strong class="{{ 'dif-falta' if l.diferenca < 0 else 'dif-sobra' }}">{{ '+' if l.diferenca > 0 }}{{ l.diferenca|round(2)|qtd }}</strong></td>

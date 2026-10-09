@@ -6,6 +6,7 @@
     <strong>Data:</strong> {{ contagem['data']|data_br }} &nbsp;·&nbsp;
     <strong>Responsável:</strong> {{ contagem['responsavel'] }}
     {% if contagem['finalizada'] %}&nbsp;·&nbsp;<span class="tag tag-ok">Finalizada</span>{% endif %}
+    {% if contagem['categorias'] %}<br><strong>Só:</strong> {{ contagem['categorias'].split('\n')|join(', ') }}{% endif %}
 </p>
 
 {% if salvo %}<div class="sucesso">Contagem salva.</div>{% endif %}
