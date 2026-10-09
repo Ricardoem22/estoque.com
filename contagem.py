@@ -269,25 +269,37 @@ def salvar_item(conn, contagem_id, insumo_id, quantidade, unidade, observacao=No
 
 
 PALAVRAS_VAZIAS = {"de", "do", "da", "dos", "das", "com", "e", "p", "para", "em"}
+# Palavras de embalagem ou corte: "Calabresa Peça", "Bisnaga Catupiry" e "Bacon Fatiado" são o mesmo insumo.
+# "Molho de Tomate" ou "Fanta Laranja" não: só estas palavras deixam o nome do arquivo ser maior que o do insumo.
+PALAVRAS_DE_FORMA = {"peca", "ralada", "ralado", "fatiada", "fatiado", "bisnaga", "pote", "balde", "pacote", "pct",
+                     "caixa", "cx", "lata", "bloco", "barra", "frasco", "galao", "sache", "inteira", "inteiro", "kg"}
 
 
 def insumos_parecidos(nome, insumos, usados=()):
     """Insumos cujo nome contém todas as palavras do nome do arquivo, ou o contrário:
-    "Bife do Vazio" → "Bife do Vazio Empanado". Os mais próximos primeiro.
-    Devolve (lista, sugestão): a sugestão só existe quando um único insumo contém o nome do arquivo inteiro."""
+    "Bife do Vazio" → "Bife do Vazio Empanado", "Bisnaga Catupiry" → "Catupiry". Os mais próximos primeiro.
+    Devolve (lista, sugestão). A sugestão é o mais próximo, quando só um fica nessa distância e ele tem o nome do
+    arquivo inteiro, ou só falta a palavra de embalagem ou corte (PALAVRAS_DE_FORMA). Um insumo mais específico
+    que já tem linha própria no arquivo não é sugerido: "Bife do Vazio" não soma no "Bife do Vazio Empanado"
+    quando o arquivo também traz o Empanado; já "Calabresa Peça" soma na "Calabresa"."""
     palavras = set(chave_nome(nome).split()) - PALAVRAS_VAZIAS
     if not palavras:
-        return []
+        return [], None
     achados = []
     for insumo in insumos:
-        if insumo["id"] in usados:
-            continue
         outras = set(chave_nome(insumo["nome"]).split()) - PALAVRAS_VAZIAS
+        junto = "".join(p for p in chave_nome(insumo["nome"]).split() if p not in PALAVRAS_VAZIAS)
+        if len(outras) > 1 and junto in palavras:  # "Creamcheese" no arquivo, "Cream Cheese" no cadastro
+            outras = {junto}
         if outras and (palavras <= outras or outras <= palavras):
-            achados.append((len(palavras ^ outras), insumo["nome"].lower(), insumo, palavras <= outras))
+            especifico_usado = insumo["id"] in usados and palavras < outras
+            sugerivel = not especifico_usado and (palavras <= outras or palavras - outras <= PALAVRAS_DE_FORMA)
+            achados.append((len(palavras ^ outras), insumo["nome"].lower(), insumo, sugerivel))
     achados.sort(key=lambda a: a[:2])
-    contem = [a[2] for a in achados if a[3]]
-    return [a[2] for a in achados][:5], (contem[0] if len(contem) == 1 else None)
+    sugestao = None
+    if achados and achados[0][3] and (len(achados) == 1 or achados[1][0] > achados[0][0]):
+        sugestao = achados[0][2]
+    return [a[2] for a in achados][:5], sugestao
 
 
 def unidade_do_arquivo(item, insumo):
@@ -346,21 +358,22 @@ def importar_contagem(id):
                     item["unidade"] = item["unidade"] or unidade_padrao(item["categoria"])
                     novos.append(item)
             # Nome diferente do cadastro ("Bife do Vazio" x "Bife do Vazio Empanado"): sugere o parecido
-            usados = {i["insumo"]["id"] for i in encontrados}
             ativos = [i for i in insumos if i["ativo"]]
+            usados = {i["insumo"]["id"] for i in encontrados}
             for item in novos:
                 item["parecidos"], item["sugestao"] = insumos_parecidos(item["nome"], ativos, usados)
-            # Dois nomes do arquivo apontando para o mesmo insumo: nenhum vem escolhido
-            vezes = {}
-            for item in novos:
-                if item["sugestao"]:
-                    vezes[item["sugestao"]["id"]] = vezes.get(item["sugestao"]["id"], 0) + 1
-            for item in novos:
-                if item["sugestao"] and vezes[item["sugestao"]["id"]] > 1:
-                    item["sugestao"] = None
                 item["unidade_arquivo"] = item["unidade"]
                 if item["sugestao"]:
                     item["unidade"] = unidade_do_arquivo(item, item["sugestao"])
+            # Várias linhas no mesmo insumo ("Calabresa", "Calabresa Peça", "Calabresa Ralada") são somadas
+            vezes = {}
+            for item in encontrados + novos:
+                alvo = item.get("insumo") or item.get("sugestao")
+                if alvo:
+                    vezes[alvo["id"]] = vezes.get(alvo["id"], 0) + 1
+            for item in encontrados + novos:
+                alvo = item.get("insumo") or item.get("sugestao")
+                item["soma"] = bool(alvo) and vezes[alvo["id"]] > 1
             if erro:
                 encontrados = novos = None
             elif novos:
@@ -382,6 +395,22 @@ def confirmar_importacao_contagem(id):
         return redirect(url_for("contagem.ver_contagem", id=id))
     form = request.form
     preenchidos = 0
+    # Linhas do arquivo que caem no mesmo insumo somam (convertendo g↔kg, ml↔L e as medidas do insumo)
+    from insumo_cadastro import carregar_conversoes
+    from unidades import converter
+    conversoes = carregar_conversoes(conn)
+    somados = {}
+
+    def somar(insumo_id, quantidade, unidade, observacao):
+        if insumo_id in somados:
+            antes, un, obs = somados[insumo_id]
+            convertida = converter(quantidade, unidade, un, conversoes.get(insumo_id, []))
+            if convertida is not None:
+                obs = "; ".join(o for o in (obs, observacao) if o) or None
+                somados[insumo_id] = (antes + convertida, un, obs)
+                return
+        somados[insumo_id] = (quantidade, unidade, observacao)
+
     for i in range(form.get("total", 0, type=int)):
         try:
             quantidade = parse_quantidade(form.get(f"qtd_{i}"))
@@ -397,7 +426,7 @@ def confirmar_importacao_contagem(id):
             insumo_id = int(destino)
         if (form.get(f"incluir_{i}") or destino.isdigit()) and insumo_id:
             if conn.execute("SELECT 1 FROM insumos WHERE id = ?", (insumo_id,)).fetchone():
-                salvar_item(conn, id, insumo_id, quantidade, unidade, observacao)
+                somar(insumo_id, quantidade, unidade, observacao)
                 preenchidos += 1
         elif form.get(f"criar_{i}") or destino == "novo":
             nome = form.get(f"nome_{i}", "").strip()
@@ -410,8 +439,10 @@ def confirmar_importacao_contagem(id):
             else:
                 novo_id = conn.execute("INSERT INTO insumos (nome, categoria, unidade) VALUES (?, ?, ?)",
                                        (nome, categoria, unidade)).lastrowid
-            salvar_item(conn, id, novo_id, quantidade, unidade, observacao)
+            somar(novo_id, quantidade, unidade, observacao)
             preenchidos += 1
+    for insumo_id, (quantidade, unidade, observacao) in somados.items():
+        salvar_item(conn, id, insumo_id, quantidade, unidade, observacao)
     conn.commit()
     conn.close()
     return redirect(url_for("contagem.contar", id=id, importados=preenchidos))
