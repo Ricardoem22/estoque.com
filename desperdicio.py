@@ -1,12 +1,10 @@
 # desperdicio.py
 # Registro de desperdício de insumos (vencido, estragado, erro de preparo...).
-import csv
-import io
 import os
 import uuid
 from datetime import datetime
 
-from flask import Blueprint, Response, abort, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Blueprint, abort, redirect, render_template, request, send_from_directory, session, url_for
 
 import config
 
@@ -226,19 +224,14 @@ def exportar_csv():
     registros = registros_do_mes(conn, mes)
     conn.close()
 
-    saida = io.StringIO()
-    writer = csv.writer(saida, delimiter=";")
-    writer.writerow(["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Motivo", "Responsável", "Observação", "Status", "Aprovado por", "Foto"])
+    from exportar import responder
+    tabela = []
     for r in registros:
-        writer.writerow([
+        tabela.append([
             data_br_filter(r["data"]), r["categoria"], r["insumo_nome"], formatar_quantidade(r["quantidade"]),
             r["unidade"], r["motivo"], r["responsavel"], r["observacao"], r["status"].capitalize(), r["aprovado_por"],
             url_for("desperdicio.foto", nome=r["foto"], _external=True) if r["foto"] else "",
         ])
-
-    # BOM para o Excel reconhecer os acentos
-    return Response(
-        "﻿" + saida.getvalue(),
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename=desperdicio_{mes}.csv"},
-    )
+    return responder(f"desperdicio_{mes}", f"Desperdício {mes[5:]}/{mes[:4]}",
+                     ["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Motivo", "Responsável", "Observação",
+                      "Status", "Aprovado por", "Foto"], tabela)

@@ -1,12 +1,10 @@
 # contagem.py
 # Módulo de contagem de estoque (insumos do restaurante).
-import csv
-import io
 import sqlite3
 from datetime import datetime
 from itertools import groupby
 
-from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 import config
 from importador import EXTENSOES, chave_nome, extrair_itens, ler_arquivo, sem_acento
@@ -539,29 +537,21 @@ def exportar_csv(id):
     from relatorio import divergencias
     sistema, _ = divergencias(contagem)
 
-    saida = io.StringIO()
-    writer = csv.writer(saida, delimiter=";")
-    writer.writerow(["Data da contagem", data_br_filter(contagem["data"]), "Responsável", contagem["responsavel"]])
-    writer.writerow([])
-    writer.writerow(["Categoria", "Insumo", "Unidade", "Qtd. Contada", "No sistema", "Diferença",
-                     "Valor da diferença (R$)", "Observações / Validade", "Justificativa"])
+    from exportar import responder
+    tabela = []
     for categoria, itens in grupos:
         for item in itens:
             d = sistema.get(item["id"], {})
-            writer.writerow([
+            tabela.append([
                 categoria, item["nome"], item["unidade"], formatar_quantidade(item["quantidade"]),
                 formatar_quantidade(d.get("esperado")), formatar_quantidade(d.get("diferenca")),
                 f"{d['valor']:.2f}".replace(".", ",") if d.get("valor") is not None else "", item["observacao"],
                 item["justificativa"],
             ])
-
-    nome_arquivo = f"contagem_{contagem['data']}_{id}.csv"
-    # BOM para o Excel reconhecer os acentos
-    return Response(
-        "﻿" + saida.getvalue(),
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
-    )
+    return responder(f"contagem_{contagem['data']}_{id}", f"Contagem de estoque {data_br_filter(contagem['data'])}",
+                     ["Categoria", "Insumo", "Unidade", "Qtd. Contada", "No sistema", "Diferença",
+                      "Valor da diferença (R$)", "Observações / Validade", "Justificativa"], tabela,
+                     subtitulo=f"Responsável: {contagem['responsavel']}")
 
 
 # ---------- Insumos ----------

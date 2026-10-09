@@ -1,4 +1,5 @@
 {% extends "base_contagem.html" %}
+{% from "_exportar.html" import baixar %}
 {% block titulo %}Contagem {{ contagem['data']|data_br }}{% endblock %}
 {% block conteudo %}
 <h1>📋 Contagem de Estoque</h1>
@@ -11,7 +12,7 @@
 
 <div class="top-bar nao-imprimir">
     <div>
-        <a class="btn" href="{{ url_for('contagem.exportar_csv', id=contagem['id']) }}">⬇️ Baixar CSV</a>
+        {{ baixar(url_for('contagem.exportar_csv', id=contagem['id'])) }}
         <button class="btn btn-edit" type="button" onclick="window.print()">🖨️ Imprimir</button>
     </div>
     <form class="inline" method="post" action="{{ url_for('contagem.reabrir_contagem', id=contagem['id']) }}">

@@ -8,8 +8,8 @@ import uuid
 
 from flask import Blueprint, abort, redirect, render_template, request, send_from_directory, session, url_for
 
-from contagem import (agrupar_por_categoria, get_connection, lista_categorias, parse_quantidade, unidade_digitada,
-                      unidade_padrao)
+from contagem import (agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection, lista_categorias,
+                      parse_quantidade, unidade_digitada, unidade_padrao)
 import config
 from importador import chave_nome
 from insumos_iniciais import UNIDADES
@@ -218,6 +218,19 @@ def compras():
         WHERE {where}
         ORDER BY c.data DESC, c.id DESC
     """, params).fetchall()
+    if request.args.get("formato"):
+        from exportar import responder
+        conn.close()
+        periodo = f"{data_br_filter(de)} a {data_br_filter(ate)}" if request.args.get("de") or request.args.get("ate") \
+            else f"{mes[5:]}/{mes[:4]}"
+        tabela = [[data_br_filter(r["data"]), data_br_filter(r["data_compra"]) if r["data_compra"] else "", r["insumo_nome"],
+                   formatar_quantidade(r["quantidade"]), r["unidade"],
+                   f"{r['valor_total']:.2f}".replace(".", ",") if r["valor_total"] is not None else "", r["fornecedor"],
+                   data_br_filter(r["validade"]) if r["validade"] else "", r["observacao"], r["registrado_por"]]
+                  for r in registros]
+        return responder(f"compras_{mes}", "Compras" + (f" · {filtro_fornecedor}" if filtro_fornecedor else ""),
+                         ["Recebido", "Compra", "Insumo", "Qtd.", "Unidade", "Valor (R$)", "Fornecedor", "Validade",
+                          "Observação", "Lançado por"], tabela, subtitulo=f"Período: {periodo}")
     fornecedores = [r["fornecedor"] for r in conn.execute(
         "SELECT DISTINCT fornecedor FROM compras WHERE fornecedor != '' ORDER BY fornecedor COLLATE NOCASE")]
     por_fornecedor = {}

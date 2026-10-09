@@ -1,11 +1,12 @@
 {% extends "base_contagem.html" %}
+{% from "_exportar.html" import baixar %}
 {% block titulo %}Histórico · {{ insumo['nome'] }}{% endblock %}
 {% block conteudo %}
 <div class="top-bar">
     <h1>📜 {{ insumo['nome'] }}</h1>
     <div class="nao-imprimir">
         <a class="btn btn-edit" href="{{ url_for('insumo.editar', id=insumo['id']) }}">Ficha</a>
-        <a class="btn btn-edit" href="{{ url_for('insumo.historico_csv', id=insumo['id']) }}">⬇️ Exportar (Excel/CSV)</a>
+        {{ baixar(url_for('insumo.historico_csv', id=insumo['id']), "⬇️ Exportar") }}
     </div>
 </div>
 

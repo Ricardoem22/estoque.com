@@ -8,12 +8,14 @@ import secrets
 import sqlite3
 import time
 
-from flask import Blueprint, current_app, redirect, render_template, request, session, url_for
+from flask import (Blueprint, abort, current_app, redirect, render_template, request, send_from_directory, session,
+                   url_for)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import config
 from acesso import ABAS, gravar_abas, ler_abas, pode_ver, primeira_aba
+from backup import lista as lista_backups
 from email_envio import email_configurado, enviar_email
 
 bp = Blueprint("funcionarios", __name__)
@@ -334,7 +336,7 @@ def cadastro():
     funcionarios = listar(conn)
     conn.close()
     return render_template(
-        "funcionarios.html", funcionarios=funcionarios, papeis=PAPEIS, erro=erro,
+        "funcionarios.html", funcionarios=funcionarios, papeis=PAPEIS, erro=erro, backups=lista_backups()[:7],
         form=form, nova_senha=nova_senha, eu=session.get("funcionario_id"), email_ativo=email_configurado(),
         abas=ABAS, ler_abas=ler_abas,
     )
@@ -382,7 +384,7 @@ def cadastro_acao(id, acao):
     conn.close()
     if erro or nova_senha:
         return render_template(
-            "funcionarios.html", funcionarios=funcionarios, papeis=PAPEIS, erro=erro,
+            "funcionarios.html", funcionarios=funcionarios, papeis=PAPEIS, erro=erro, backups=lista_backups()[:7],
             form={}, nova_senha=nova_senha, eu=session.get("funcionario_id"), email_ativo=email_configurado(),
             abas=ABAS, ler_abas=ler_abas,
         )
@@ -442,3 +444,22 @@ def zerar():
             conn.close()
             return render_template("zerar.html", feito=True, copia=copia)
     return render_template("zerar.html", erro=erro, totais=totais)
+
+
+@bp.route("/funcionarios/backup", endpoint="cadastro_backup")
+def backup_agora():
+    """Baixa uma cópia do banco feita agora (só a gerência)."""
+    import tempfile
+    from backup import copiar_banco as copiar_para
+    pasta = tempfile.mkdtemp()
+    nome = f"estoque-{config.agora().strftime('%Y-%m-%d_%H%M')}.db"
+    copiar_para(os.path.join(pasta, nome))
+    return send_from_directory(pasta, nome, as_attachment=True)
+
+
+@bp.route("/funcionarios/backup/<nome>", endpoint="cadastro_backup_baixar")
+def backup_guardado(nome):
+    from backup import pasta
+    if not re.fullmatch(r"estoque-\d{4}-\d{2}-\d{2}\.db", nome):
+        abort(404)
+    return send_from_directory(pasta(), nome, as_attachment=True)

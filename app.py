@@ -5,6 +5,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
 from acesso import abas_do_menu, aba_do_endpoint, conferir_aba, primeira_aba
+from backup import tentar_backup_do_dia
 from contagem import bp as contagem_bp, init_db as init_db_contagem
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
 from compras import bp as compras_bp, init_db as init_db_compras
@@ -44,6 +45,7 @@ def exigir_login():
         return None
     if not session.get("logado"):
         return redirect(url_for("login", proximo=request.full_path.rstrip("?")))
+    tentar_backup_do_dia()
     return conferir_sessao() or conferir_aba()
 
 

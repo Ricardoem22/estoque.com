@@ -1,4 +1,5 @@
 {% extends "base_contagem.html" %}
+{% from "_exportar.html" import baixar %}
 {% block titulo %}Compras{% endblock %}
 {% block conteudo %}
 <div class="top-bar">
@@ -147,7 +148,8 @@
     </div>
 </form>
 
-<h2 class="titulo-compras">{% if de or ate %}Compras do período{% else %}Compras do mês{% endif %}{% if filtro_fornecedor %} · {{ filtro_fornecedor }}{% endif %}{% if total_mes %} <span class="sub">· {{ total_mes|brl }}</span>{% endif %}</h2>
+<div class="top-bar"><h2 class="titulo-compras">{% if de or ate %}Compras do período{% else %}Compras do mês{% endif %}{% if filtro_fornecedor %} · {{ filtro_fornecedor }}{% endif %}{% if total_mes %} <span class="sub">· {{ total_mes|brl }}</span>{% endif %}</h2>
+    {% if registros %}{{ baixar(request.full_path.rstrip('?')) }}{% endif %}</div>
 <form method="get" class="filtro-compras">
     <div><label for="f-mes">Mês</label><input type="month" id="f-mes" name="mes" value="{{ mes }}"></div>
     <div><label for="f-de">ou de</label><input type="date" id="f-de" name="de" value="{{ de }}"></div>

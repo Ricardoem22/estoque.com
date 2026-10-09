@@ -4,8 +4,6 @@
 # Consumo entre duas contagens = estoque anterior + compras no período - estoque atual.
 # Usa só contagens finalizadas e as últimas MAX_INTERVALOS semanas de cada insumo.
 # Estoque atual = última contagem + compras depois dela - desperdício aprovado depois dela.
-import csv
-import io
 import math
 from datetime import date, timedelta
 
@@ -412,19 +410,14 @@ def semanas_csv():
     linhas, _ = calcular_saida(conn, inicio, fim)
     conn.close()
 
-    saida = io.StringIO()
-    writer = csv.writer(saida, delimiter=";")
-    writer.writerow(["Período", f"{data_br_filter(inicio['data'])} a {data_br_filter(fim['data'])}"])
-    writer.writerow([])
-    writer.writerow(["Categoria", "Insumo", "Unidade", "Contagem inicial", "Compras", "Desperdício aprovado",
-                     "Contagem final", "Saída total", "Vendido / usado"])
-    for categoria, itens in agrupar_por_categoria(linhas):
-        for l in itens:
-            writer.writerow([categoria, l["nome"], l["unidade"]] + [formatar_quantidade(l[c]) for c in
-                            ("inicio", "compras", "desperdicio", "final", "saida", "vendido")])
-    nome = f"saida_{inicio['data']}_a_{fim['data']}.csv"
-    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f"attachment; filename={nome}"})
+    from exportar import responder
+    tabela = [[categoria, l["nome"], l["unidade"]] + [formatar_quantidade(l[c]) for c in
+              ("inicio", "compras", "desperdicio", "final", "saida", "vendido")]
+              for categoria, itens in agrupar_por_categoria(linhas) for l in itens]
+    return responder(f"saida_{inicio['data']}_a_{fim['data']}", "Saída por semana",
+                     ["Categoria", "Insumo", "Unidade", "Contagem inicial", "Compras", "Desperdício aprovado",
+                      "Contagem final", "Saída total", "Vendido / usado"], tabela,
+                     subtitulo=f"Período: {data_br_filter(inicio['data'])} a {data_br_filter(fim['data'])}")
 
 
 # ---------- Valor do estoque ----------
@@ -597,11 +590,9 @@ def estoque():
 
 @bp.route("/estoque/csv")
 def estoque_csv():
+    from exportar import responder
     _, linhas = montar_estoque()
-    saida = io.StringIO()
-    escritor = csv.writer(saida, delimiter=";")
-    escritor.writerow(["Categoria", "Insumo", "Local", "Estoque", "Unidade", "Mínimo", "Situação",
-                       "Última contagem", "Preço (R$)", "Valor (R$)"])
+    tabela = []
     situacoes = {"ok": "OK", "abaixo_minimo": "Abaixo do mínimo", "sem_saldo": "Sem saldo"}
 
     def numero(v, casas=3):
@@ -611,11 +602,13 @@ def estoque_csv():
 
     for categoria, itens in agrupar_por_categoria(linhas):
         for l in itens:
-            escritor.writerow([categoria, l["nome"], l["local"], numero(l["estoque"]), l["unidade"],
-                               numero(l["minimo"]), situacoes.get(l["situacao"], ""), l["ultima_contagem"] or "",
-                               numero(l.get("preco"), 2), numero(l.get("valor"), 2)])
-    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=estoque.csv"})
+            tabela.append([categoria, l["nome"], l["local"], numero(l["estoque"]), l["unidade"],
+                           numero(l["minimo"]), situacoes.get(l["situacao"], ""), data_br_filter(l["ultima_contagem"]) if l["ultima_contagem"] else "",
+                           numero(l.get("preco"), 2), numero(l.get("valor"), 2)])
+    hoje = config.hoje()
+    return responder(f"estoque_{hoje.isoformat()}", "Estoque - Gestor Full de Restaurante",
+                     ["Categoria", "Insumo", "Local", "Estoque", "Unidade", "Mínimo", "Situação", "Última contagem",
+                      "Preço (R$)", "Valor (R$)"], tabela, subtitulo=f"La Barca · {hoje.strftime('%d/%m/%Y')}")
 
 
 # ---------- Conferir pedido de compra ----------

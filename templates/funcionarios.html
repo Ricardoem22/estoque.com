@@ -128,6 +128,16 @@
 <p class="vazio">Nenhum funcionário cadastrado ainda. Comece cadastrando você mesmo com o perfil Gerência.</p>
 {% endif %}
 
+<h2>💾 Cópias de segurança</h2>
+<p class="sub">Todo dia, no primeiro acesso, o app guarda sozinho uma cópia de todos os dados (os últimos 30 dias ficam no servidor).
+    Baixe uma cópia de vez em quando para guardar no seu computador ou no Google Drive.</p>
+<p><a class="btn" href="{{ url_for('funcionarios.cadastro_backup') }}">⬇️ Baixar cópia de agora</a></p>
+{% if backups %}
+<ul class="lista-backups">
+    {% for nome, kb in backups %}<li><a href="{{ url_for('funcionarios.cadastro_backup_baixar', nome=nome) }}">📦 {{ nome[8:18]|data_br }}</a> <span class="sub">{{ kb }} KB</span></li>{% endfor %}
+</ul>
+{% endif %}
+
 <h2>Recomeçar do zero</h2>
 <p class="sub">Apaga contagens, compras, desperdícios e movimentações, mantendo insumos e funcionários. Pede a senha da gerência.</p>
 <a class="btn btn-delete" href="{{ url_for('funcionarios.cadastro_zerar') }}">⚠️ Zerar lançamentos</a>
