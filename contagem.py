@@ -8,7 +8,8 @@ from itertools import groupby
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 import config
-from importador import EXTENSOES, achar_ncm, chave_nome, extrair_itens, ler_arquivo, normalizar_unidade, sem_acento
+from importador import (EXTENSOES, achar_ncm, chave_nome, extrair_itens, ler_arquivo, normalizar_unidade, sem_acento,
+                        tirar_unidade_do_nome)
 from insumos_iniciais import CATEGORIAS, UNIDADES
 
 DB_NAME = config.DB_PATH
@@ -646,7 +647,7 @@ def importar_insumos():
             item["completa"] = bool(atual) and bool((item["codigo"] and not atual["codigo"])
                                                     or (item["ncm"] and not atual["ncm"]))
             if not item["categoria"]:
-                item["categoria"] = padrao
+                item["categoria"] = categoria_por_ncm(item["ncm"], categorias) or padrao
             item["unidade"] = item["unidade"] or unidade_padrao(item["categoria"])
         novas = sorted({i["categoria"] for i in itens if i["categoria"] not in categorias})
         categorias = categorias + novas
@@ -655,6 +656,24 @@ def importar_insumos():
         "importar_insumos.html", erro=erro, itens=itens, categorias=categorias, unidades=UNIDADES,
         padrao=padrao, extensoes=", ".join(sorted("." + e for e in EXTENSOES | {"xml"})),
     )
+
+
+# Início do NCM -> palavra da categoria (o mais comprido que casar ganha)
+NCM_CATEGORIA = {
+    "02": "carnes", "03": "carnes", "1601": "carnes", "1602": "carnes", "1604": "carnes", "1605": "carnes",
+    "04": "laticinios", "0407": "hortifruti", "0408": "hortifruti", "07": "hortifruti", "08": "hortifruti",
+    "10": "graos", "11": "graos", "19": "graos", "09": "condimentos", "15": "condimentos", "20": "condimentos",
+    "21": "condimentos", "25": "condimentos", "2009": "bebidas", "22": "bebidas", "17": "doces", "18": "doces",
+    "34": "limpeza", "38": "limpeza", "39": "limpeza", "48": "limpeza", "68": "limpeza", "70": "limpeza",
+}
+
+
+def categoria_por_ncm(ncm, categorias):
+    prefixos = [p for p in NCM_CATEGORIA if ncm and ncm.startswith(p)]
+    if not prefixos:
+        return None
+    palavra = NCM_CATEGORIA[max(prefixos, key=len)]
+    return next((c for c in categorias if palavra in sem_acento(c)), None)
 
 
 def itens_da_nota(nome_arquivo, dados):
@@ -671,12 +690,14 @@ def itens_da_nota(nome_arquivo, dados):
         return None
     itens, vistos = [], set()
     for item in nota["itens"]:
-        chave = sem_acento(item["nome"])
+        # "ABACATE KG" -> "ABACATE", unidade kg
+        nome, unidade_no_nome = tirar_unidade_do_nome(item["nome"])
+        chave = sem_acento(nome)
         if chave in vistos:
             continue
         vistos.add(chave)
-        itens.append({"nome": item["nome"], "categoria": "", "codigo": item["codigo"], "ncm": item["ncm"],
-                      "unidade": normalizar_unidade(re.sub(r"\d+$", "", item["unidade_nota"] or ""))})
+        itens.append({"nome": nome, "categoria": "", "codigo": item["codigo"], "ncm": item["ncm"],
+                      "unidade": unidade_no_nome or normalizar_unidade(re.sub(r"\d+$", "", item["unidade_nota"] or ""))})
     return itens
 
 

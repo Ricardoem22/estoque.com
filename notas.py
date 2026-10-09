@@ -125,10 +125,58 @@ def ler_xml(dados):
 # ---------- PDF da DANFE ----------
 
 # Linha de item: ... descrição  NCM(8)  CST(3-4)  CFOP(4)  UN  QTD  V.UNIT  V.TOTAL ...
+# Algumas DANFEs separam a origem do CST ("0 40"), deixam o fim da descrição passar por cima do NCM
+# ("COD 70133700 2010") ou colam o CFOP na unidade ("5102CX24").
 LINHA_DANFE = re.compile(
-    r"^(?:(?P<codigo>\S+)\s+)?(?P<nome>.+?)\s+(?P<ncm>\d{8})\s+(?P<cst>\d{3,4})\s+(?P<cfop>\d{4})\s+"
-    r"(?P<un>[A-Za-zÇç]{1,6})\s+(?P<qtd>[\d.,]+)\s+(?P<unit>[\d.,]+)\s+(?P<total>[\d.,]+)"
+    r"^(?:(?P<codigo>\S+)\s+)?(?P<nome>.+?)\s+(?P<ncm>\d{8})(?:\s+(?P<resto>\S+?))??\s+(?P<cst>\d\s?\d{2,3})\s+"
+    r"(?P<cfop>\d{4})\s*"
+    r"(?P<un>[A-Za-zÇç]{1,6}\d{0,3})\s+(?P<qtd>[\d.,]+)\s+(?P<unit>[\d.,]+)\s+(?P<total>[\d.,]+)"
 )
+
+
+def _linhas_por_posicao(dados):
+    """Linhas do PDF montadas pela posição das palavras. Muitas DANFEs (ex.: Koch) saem do pypdf coluna por coluna
+    (todos os códigos, depois todas as descrições...); juntando as palavras da mesma altura a linha do item volta."""
+    try:
+        import pdfplumber
+    except ImportError:
+        return []
+    import io
+    linhas = []
+    try:
+        with pdfplumber.open(io.BytesIO(dados)) as pdf:
+            for pagina in pdf.pages:
+                atual, topo = [], None
+                for p in sorted(pagina.extract_words(x_tolerance=1.5, use_text_flow=True),
+                                  key=lambda p: (round(p["top"]), p["x0"])):
+                    if topo is not None and abs(p["top"] - topo) > 2:
+                        linhas.append(" ".join(w["text"] for w in sorted(atual, key=lambda w: w["x0"])))
+                        atual = []
+                    if not atual:
+                        topo = p["top"]
+                    atual.append(p)
+                if atual:
+                    linhas.append(" ".join(w["text"] for w in sorted(atual, key=lambda w: w["x0"])))
+    except Exception:
+        return []
+    return linhas
+
+
+def _itens_danfe(linhas):
+    itens = []
+    for linha in linhas:
+        m = LINHA_DANFE.match(re.sub(r"\s+", " ", linha.strip()))
+        if not m:
+            continue
+        quantidade = parse_numero(m.group("qtd"))
+        if not quantidade:
+            continue
+        nome = m.group("nome").strip() + (" " + m.group("resto") if m.group("resto") else "")
+        itens.append(item_nota(
+            nome, quantidade, m.group("un"), parse_numero(m.group("total")),
+            codigo=m.group("codigo") or "", ncm=m.group("ncm"), cfop=m.group("cfop"),
+        ))
+    return itens
 
 
 def ler_danfe(dados):
@@ -148,17 +196,8 @@ def ler_danfe(dados):
     numero = re.search(r"N[º°o.]\s*:?\s*([\d.]{3,})", texto)
     if numero:
         nota["numero"] = numero.group(1).replace(".", "").lstrip("0")
-    for linha in texto.splitlines():
-        m = LINHA_DANFE.match(re.sub(r"\s+", " ", linha.strip()))
-        if not m:
-            continue
-        quantidade = parse_numero(m.group("qtd"))
-        if not quantidade:
-            continue
-        nota["itens"].append(item_nota(
-            m.group("nome").strip(), quantidade, m.group("un"), parse_numero(m.group("total")),
-            codigo=m.group("codigo") or "", ncm=m.group("ncm"), cfop=m.group("cfop"),
-        ))
+    # Pelo texto corrido e pela posição das palavras; fica a leitura que achou mais itens
+    nota["itens"] = max(_itens_danfe(texto.splitlines()), _itens_danfe(_linhas_por_posicao(dados)), key=len)
     nota["origem"] = "pdf"
     if not nota["itens"]:
         raise ValueError("Não encontrei os itens nesse PDF. Use o XML da nota (o fornecedor manda por e-mail "
@@ -253,4 +292,7 @@ def achar_insumo(nome_nota, insumos, apelidos, unidade=None, conversoes=None):
 
 
 def unidade_do_item(item):
-    return normalizar_unidade(item["unidade_nota"]) if item["unidade_nota"] else None
+    if not item["unidade_nota"]:
+        return None
+    # "KG1" / "UN1" de alguns supermercados: o número no fim não muda a unidade
+    return normalizar_unidade(item["unidade_nota"]) or normalizar_unidade(re.sub(r"\d+$", "", item["unidade_nota"]))
