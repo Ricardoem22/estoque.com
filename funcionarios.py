@@ -13,6 +13,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import config
+from acesso import ABAS, gravar_abas, ler_abas, pode_ver, primeira_aba
 from email_envio import email_configurado, enviar_email
 
 bp = Blueprint("funcionarios", __name__)
@@ -53,6 +54,9 @@ def init_db():
     colunas = {c["name"] for c in conn.execute("PRAGMA table_info(funcionarios)")}
     if "email" not in colunas:
         conn.execute("ALTER TABLE funcionarios ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+    if "abas" not in colunas:
+        # Vazio = todas as abas
+        conn.execute("ALTER TABLE funcionarios ADD COLUMN abas TEXT NOT NULL DEFAULT ''")
     conn.commit()
     conn.close()
 
@@ -101,12 +105,13 @@ def senha_confere(digitada, correta):
     return bool(correta) and hmac.compare_digest(digitada.encode(), correta.encode())
 
 
-def entrar(nome, papel, funcionario_id=None, trocar_senha=False):
+def entrar(nome, papel, funcionario_id=None, trocar_senha=False, abas=""):
     session.clear()
     session.permanent = True
     session["logado"] = True
     session["nome"] = nome
     session["funcionario_id"] = funcionario_id
+    session["abas"] = ler_abas(abas)
     if papel == "gerente":
         session["gerente"] = nome
     if trocar_senha:
@@ -126,7 +131,8 @@ def autenticar(usuario, senha):
             return "Usuário ou senha incorretos."
         if not funcionario["ativo"]:
             return "Este usuário está desativado. Fale com a gerência."
-        entrar(funcionario["nome"], funcionario["papel"], funcionario["id"], bool(funcionario["trocar_senha"]))
+        entrar(funcionario["nome"], funcionario["papel"], funcionario["id"], bool(funcionario["trocar_senha"]),
+               funcionario["abas"])
         return None
 
     # Acesso da gerência pela senha do servidor: primeiro acesso e recuperação
@@ -152,6 +158,7 @@ def conferir_sessao():
             return redirect(url_for("login"))
         # Mantém nome e perfil em dia se a gerência mudou o cadastro
         session["nome"] = funcionario["nome"]
+        session["abas"] = ler_abas(funcionario["abas"])
         if funcionario["papel"] == "gerente":
             session["gerente"] = funcionario["nome"]
         else:
@@ -262,7 +269,7 @@ def trocar_senha():
             session.pop("trocar_senha", None)
         conn.close()
         if not erro:
-            return redirect(url_for("contagem.contagens"))
+            return redirect(url_for("contagem.contagens") if pode_ver("contagens") else primeira_aba())
 
     conn = get_connection()
     meu = conn.execute("SELECT email FROM funcionarios WHERE id = ?", (funcionario_id,)).fetchone()
@@ -311,12 +318,15 @@ def cadastro():
             erro = "O e-mail parece errado. Confira (ex.: joao@gmail.com) ou deixe em branco."
         elif conn.execute("SELECT 1 FROM funcionarios WHERE usuario = ?", (usuario,)).fetchone():
             erro = f"Já existe um funcionário com o usuário \"{usuario}\"."
+        elif papel == "equipe" and not form.getlist("abas"):
+            erro = "Marque pelo menos uma aba que o funcionário pode abrir."
         if not erro:
             senha = senha_temporaria()
             conn.execute(
-                "INSERT INTO funcionarios (nome, usuario, senha_hash, papel, criado_em, email) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO funcionarios (nome, usuario, senha_hash, papel, criado_em, email, abas)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (nome, usuario, generate_password_hash(senha), papel, config.agora().strftime("%Y-%m-%d %H:%M:%S"),
-                 email),
+                 email, gravar_abas(form.getlist("abas")) if papel == "equipe" else ""),
             )
             conn.commit()
             nova_senha = {"nome": nome, "usuario": usuario, "senha": senha}
@@ -326,10 +336,11 @@ def cadastro():
     return render_template(
         "funcionarios.html", funcionarios=funcionarios, papeis=PAPEIS, erro=erro,
         form=form, nova_senha=nova_senha, eu=session.get("funcionario_id"), email_ativo=email_configurado(),
+        abas=ABAS, ler_abas=ler_abas,
     )
 
 
-@bp.route("/funcionarios/<int:id>/<any(senha, ativar, desativar, perfil, email):acao>", methods=["POST"],
+@bp.route("/funcionarios/<int:id>/<any(senha, ativar, desativar, perfil, email, abas):acao>", methods=["POST"],
           endpoint="cadastro_acao")
 def cadastro_acao(id, acao):
     conn = get_connection()
@@ -347,6 +358,12 @@ def cadastro_acao(id, acao):
             erro = "O e-mail parece errado. Confira (ex.: joao@gmail.com) ou deixe em branco."
         else:
             conn.execute("UPDATE funcionarios SET email = ? WHERE id = ?", (email, id))
+    elif acao == "abas":
+        abas = request.form.getlist("abas")
+        if not abas:
+            erro = f"Marque pelo menos uma aba para {funcionario['nome']}."
+        else:
+            conn.execute("UPDATE funcionarios SET abas = ? WHERE id = ?", (gravar_abas(abas), id))
     elif acao == "senha":
         senha = senha_temporaria()
         conn.execute(
@@ -366,7 +383,8 @@ def cadastro_acao(id, acao):
     if erro or nova_senha:
         return render_template(
             "funcionarios.html", funcionarios=funcionarios, papeis=PAPEIS, erro=erro,
-            form={}, nova_senha=nova_senha, eu=session.get("funcionario_id"),
+            form={}, nova_senha=nova_senha, eu=session.get("funcionario_id"), email_ativo=email_configurado(),
+            abas=ABAS, ler_abas=ler_abas,
         )
     return redirect(url_for("funcionarios.cadastro"))
 

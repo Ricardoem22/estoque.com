@@ -1,6 +1,21 @@
 {% extends "base_contagem.html" %}
-{% block titulo %}Funcionários{% endblock %}
+{% block titulo %}Funcionários<script>
+// Perfil Gerência abre todas as abas: esconde a escolha
+(function () {
+    var papel = document.getElementById("papel"), caixa = document.getElementById("abas-novo");
+    function ver() { caixa.hidden = papel.value === "gerente"; }
+    papel.addEventListener("change", ver); ver();
+})();
+</script>
+{% endblock %}
 {% block conteudo %}
+{% macro marcar_abas(marcadas) -%}
+<div class="abas-escolha">
+    {%- for chave, icone, nome, _ in abas %}
+    <label><input type="checkbox" name="abas" value="{{ chave }}" {% if not marcadas or chave in marcadas %}checked{% endif %}> {{ icone }} {{ nome }}</label>
+    {%- endfor %}
+</div>
+{%- endmacro %}
 <h1>👥 Funcionários</h1>
 <p class="sub">Cada funcionário entra com o próprio usuário e senha. Só a gerência vê esta tela.</p>
 
@@ -37,15 +52,19 @@
             {% endfor %}
         </select>
     </div>
+    <div class="campo-abas" id="abas-novo">
+        <label>Abas que pode abrir <span class="sub">(a gerência abre todas)</span></label>
+        {{ marcar_abas(form.getlist('abas') if form.getlist else none) }}
+    </div>
     <div class="form-actions"><button class="btn" type="submit">+ Cadastrar</button></div>
 </form>
-<p class="sub">Gerência aprova desperdícios e cadastra funcionários. Equipe faz o resto.
+<p class="sub">Gerência aprova desperdícios, cadastra funcionários e abre todas as abas. Equipe abre só as abas marcadas.
 {% if email_ativo %}Com e-mail cadastrado, a pessoa recupera a senha sozinha pelo link "Esqueci a senha".{% else %}O envio de e-mail ainda não está configurado no servidor, então "Esqueci a senha" passa pela gerência.{% endif %}</p>
 
 <h2>Cadastrados</h2>
 {% if funcionarios %}
 <table class="tabela-funcionarios">
-    <thead><tr><th>Nome</th><th>Usuário e e-mail</th><th>Perfil</th><th>Situação</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Usuário e e-mail</th><th>Perfil</th><th>Situação</th><th>Ações</th><th>Abas</th></tr></thead>
     <tbody>
     {% for f in funcionarios %}
     <tr class="{% if not f['ativo'] %}inativo{% endif %}">
@@ -89,6 +108,18 @@
             {% endif %}
             {% endif %}
         </td>
+        <td class="abas-funcionario">
+            {% if f['papel'] == 'gerente' %}<span class="sub">Todas (gerência)</span>{% else %}
+            {% set marcadas = ler_abas(f['abas']) %}
+            <details>
+                <summary>{% if marcadas %}🔒 {{ marcadas|length }} de {{ abas|length }} abas{% else %}Todas as abas{% endif %}</summary>
+                <form method="post" action="{{ url_for('funcionarios.cadastro_acao', id=f['id'], acao='abas') }}">
+                    {{ marcar_abas(marcadas) }}
+                    <button class="btn" type="submit">Salvar abas</button>
+                </form>
+            </details>
+            {% endif %}
+        </td>
     </tr>
     {% endfor %}
     </tbody>
@@ -100,4 +131,12 @@
 <h2>Recomeçar do zero</h2>
 <p class="sub">Apaga contagens, compras, desperdícios e movimentações, mantendo insumos e funcionários. Pede a senha da gerência.</p>
 <a class="btn btn-delete" href="{{ url_for('funcionarios.cadastro_zerar') }}">⚠️ Zerar lançamentos</a>
+<script>
+// Perfil Gerência abre todas as abas: esconde a escolha
+(function () {
+    var papel = document.getElementById("papel"), caixa = document.getElementById("abas-novo");
+    function ver() { caixa.hidden = papel.value === "gerente"; }
+    papel.addEventListener("change", ver); ver();
+})();
+</script>
 {% endblock %}

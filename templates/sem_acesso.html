@@ -1,0 +1,11 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Sem acesso{% endblock %}
+{% block conteudo %}
+<div class="form-estreito">
+<h1>🔒 Aba fechada</h1>
+<p class="sub">Seu usuário não tem acesso à aba <strong>{{ aba }}</strong>. Se precisar, fale com a gerência.</p>
+<div class="form-actions">
+    {% for a in abas_menu %}<a class="btn" href="{{ a.url }}">{{ a.icone }} {{ a.nome }}</a>{% endfor %}
+</div>
+</div>
+{% endblock %}
