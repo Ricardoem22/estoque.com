@@ -30,9 +30,19 @@
 {% endif %}
 {% endif %}
 {% if lancados is not none %}<div class="sucesso">Nota lançada: {{ lancados }} ite{{ 'ns' if lancados != 1 else 'm' }} entr{{ 'aram' if lancados != 1 else 'ou' }} nas compras{% if not nota_fora %} e no estoque{% endif %}.</div>{% endif %}
+{% if somadas is not none %}<div class="sucesso">{{ somadas }} ite{{ 'ns' if somadas != 1 else 'm' }} da nota passa{{ 'ram' if somadas != 1 else 'ou' }} para o dia da contagem e soma{{ 'ram' if somadas != 1 }} no estoque.</div>{% endif %}
 {% if nota_fora %}
+{% set por_data = nota_fora|selectattr('motivo', 'equalto', 'data')|list %}
 <div class="aviso aviso-nota">
     <strong>⚠️ {{ nota_fora|length }} ite{{ 'ns' if nota_fora|length != 1 else 'm' }} da nota não soma{{ 'ram' if nota_fora|length != 1 }} no estoque:</strong>
+    {% if por_data|length > 1 %}
+    <p>A nota tem data anterior à última contagem. Se a mercadoria chegou <strong>antes</strong> da contagem, ela já foi contada
+        e está certo não somar. Se chegou <strong>depois</strong>, some tudo de uma vez:</p>
+    <form method="post" action="{{ url_for('compras.mover_varias_para_contagem') }}">
+        {% for f in por_data %}<input type="hidden" name="ids" value="{{ f.compra['id'] }}">{% endfor %}
+        <button class="btn" type="submit">Chegou depois da contagem: somar os {{ por_data|length }} itens</button>
+    </form>
+    {% endif %}
     <ul class="lista-fora">
     {% for f in nota_fora %}{% set c = f.compra %}
         <li>

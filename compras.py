@@ -203,6 +203,7 @@ def compras():
         data_padrao=form.get("data") or request.args.get("data") or config.hoje().isoformat(),
         fornecedor=form.get("fornecedor") or request.args.get("fornecedor", ""),
         salvo=salvo, lancados=request.args.get("lancados", type=int), nota_fora=nota_fora,
+        somadas=request.args.get("somadas", type=int),
         nota_pulados=nota_pulados, voltar=request.full_path,
     )
 
@@ -268,6 +269,25 @@ def mover_para_contagem(id):
         data = compra["data"]
     conn.close()
     return redirect(url_for("compras.compras", mes=data[:7], salvo=id, data=data))
+
+
+@bp.route("/compras/data-da-contagem", methods=["POST"])
+def mover_varias_para_contagem():
+    """Todos os itens da nota que chegaram depois da contagem: cada compra passa para o dia da última contagem
+    do seu insumo e soma no estoque."""
+    ids = [int(i) for i in request.form.getlist("ids") if i.isdigit()][:200]
+    conn = get_connection()
+    ultimas = ultimas_contagens(conn)
+    movidas = 0
+    for compra in conn.execute(f"SELECT * FROM compras WHERE id IN ({','.join('?' * len(ids))})", ids).fetchall() \
+            if ids else []:
+        ultima = ultimas.get(compra["insumo_id"])
+        if ultima and compra["data"] < ultima["data"]:
+            conn.execute("UPDATE compras SET data = ? WHERE id = ?", (ultima["data"], compra["id"]))
+            movidas += 1
+    conn.commit()
+    conn.close()
+    return redirect(url_for("compras.compras", somadas=movidas))
 
 
 def apagar_compra(conn, id):
