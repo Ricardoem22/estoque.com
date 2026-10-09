@@ -115,15 +115,11 @@ document.querySelectorAll(".destino-importar").forEach(function (sel) {
     }
     sel.addEventListener("change", atualizar);
     atualizar();
-    // Lançar num insumo parecido: a coluna "Un" do arquivo que não converte dá lugar à unidade do insumo
+    // Lançar num insumo parecido: o "un" da coluna do arquivo dá lugar à unidade do insumo
     var un = td.closest("tr").querySelector("select[name^=unidade_]");
-    var grupos = [["mg", "g", "kg"], ["ml", "L", "lt"]];
-    function converte(a, b) {
-        return a === b || grupos.some(function (g) { return g.indexOf(a) >= 0 && g.indexOf(b) >= 0; });
-    }
     sel.addEventListener("change", function () {
         var arquivo = un.dataset.arquivo, destino = sel.selectedOptions[0].dataset.unidade;
-        if (destino && !un.dataset.escrita && !(arquivo && converte(arquivo, destino))) un.value = destino;
+        if (destino && !un.dataset.escrita && (!arquivo || arquivo === "un")) un.value = destino;
         else if (arquivo) un.value = arquivo;
     });
 });

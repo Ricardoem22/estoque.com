@@ -291,16 +291,16 @@ def insumos_parecidos(nome, insumos, usados=()):
 
 
 def unidade_do_arquivo(item, insumo):
-    """Unidade com que o item do arquivo entra no insumo. A coluna "Un" do arquivo (muitas vezes a do sistema
-    de vendas) não muda a unidade do insumo quando não converte: "Bife do Vazio Empanado | un | 4,5" num insumo
-    em kg entra como 4,5 kg. Unidade escrita junto do número ("4,5 kg") ou que converte (g -> kg) é mantida."""
-    from unidades import converter_fixo
+    """Unidade com que o item do arquivo entra no insumo. O "un" da coluna do arquivo (muitas vezes o padrão do
+    sistema de vendas) não muda um insumo cadastrado em outra medida: "Bife do Vazio Empanado | un | 4,5" num
+    insumo em kg entra como 4,5 kg. Peso ou volume na coluna ("Açúcar | kg | 5,3") e unidade escrita junto do
+    número ("4,5 kg") valem como estão."""
     unidade = item["unidade"]
     if not unidade:
         return insumo["unidade"]
-    if item.get("unidade_na_qtd") or converter_fixo(1, unidade, insumo["unidade"]) is not None:
-        return unidade
-    return insumo["unidade"]
+    if unidade == "un" and not item.get("unidade_na_qtd") and insumo["unidade"] != "un":
+        return insumo["unidade"]
+    return unidade
 
 
 @bp.route("/contagens/<int:id>/importar", methods=["GET", "POST"])
