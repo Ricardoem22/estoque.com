@@ -55,6 +55,18 @@
         <button class="btn btn-edit" type="submit" name="acao" value="finalizar"
                 onclick="return confirm('Finalizar a contagem?')">✅ Finalizar</button>
     </div>
+    {% if inativos %}
+    <section class="inativos-contagem">
+        <h2>🙈 Inativos ({{ inativos|length }})</h2>
+        <p class="sub">Estes insumos estão marcados como inativos e não aparecem na lista. Para contar, toque em Reativar.</p>
+        <ul>
+            {% for i in inativos %}
+            <li data-busca="{{ i['nome'] }}"><span>{{ i['nome'] }}</span>
+                <button class="btn btn-mini" type="submit" name="reativar" value="{{ i['id'] }}">Reativar</button></li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
 </form>
 
 <script src="{{ url_for('static', filename='busca.js') }}"></script>

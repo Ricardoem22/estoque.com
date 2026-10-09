@@ -769,3 +769,6 @@ input.busca-contagem { width: 100%; padding: 10px 12px; border: 1px solid #D3CBB
 .ditar-botao.ouvindo { background: #D62300; animation: voz-pulso 1s infinite; }
 input.com-ditado, textarea.com-ditado { padding-right: 42px !important; }
 select.destino-importar { width: 100%; margin: 4px 0; }
+.inativos-contagem { margin-top: 18px; padding: 12px; border: 1px dashed var(--borda); border-radius: 10px; }
+.inativos-contagem ul { list-style: none; padding: 0; margin: 8px 0 0; }
+.inativos-contagem li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--borda); }
