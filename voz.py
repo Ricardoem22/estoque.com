@@ -16,10 +16,15 @@ import re
 from flask import Blueprint, jsonify, request, session, url_for
 
 import config
+from acesso import ABA_DA_VOZ, NOMES, aba_do_endpoint, pode_ver
 from contagem import formatar_quantidade, get_connection
 from importador import sem_acento
 
 bp = Blueprint("voz", __name__)
+
+
+def sem_acesso(aba):
+    return f"Seu usuário não tem acesso à aba {NOMES.get(aba, aba)}. Fale com a gerência."
 
 NUMEROS = {
     "um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5, "seis": 6, "sete": 7,
@@ -251,12 +256,19 @@ def entender():
         for chaves, endpoint in PAGINAS:
             if any(c in limpo for c in chaves):
                 conn.close()
+                aba = aba_do_endpoint(endpoint)
+                if not pode_ver(aba):
+                    return jsonify(tipo="erro", resposta=sem_acesso(aba))
                 return jsonify(tipo="navegar", url=url_for(endpoint), resposta="Abrindo…")
         if not pedido["insumos"]:
             conn.close()
             return jsonify(tipo="erro", resposta=f'Não entendi "{texto}". ' + EXEMPLOS)
         tipo = None  # "mostra o tomate": responde o estoque
 
+    aba = ABA_DA_VOZ.get(tipo or "consulta")
+    if aba and not pode_ver(aba):
+        conn.close()
+        return jsonify(tipo="erro", resposta=sem_acesso(aba))
     if tipo == "novo_insumo":
         nome = _nome_falado(texto, pedido["palavras"])
         if not nome:
@@ -385,6 +397,9 @@ def confirmar():
     from unidades import converter
     dados = request.get_json(silent=True) or {}
     tipo = dados.get("tipo")
+    aba = ABA_DA_VOZ.get(tipo)
+    if aba and not pode_ver(aba):
+        return jsonify(ok=False, resposta=sem_acesso(aba))
     if tipo == "novo_insumo":
         return _confirmar_cadastro(dados)
     if tipo == "excluir_compra":

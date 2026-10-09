@@ -4,6 +4,7 @@ from flask import Flask, render_template, request, redirect, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
+from acesso import abas_do_menu, aba_do_endpoint, conferir_aba, primeira_aba
 from contagem import bp as contagem_bp, init_db as init_db_contagem
 from desperdicio import bp as desperdicio_bp, init_db as init_db_desperdicio
 from compras import bp as compras_bp, init_db as init_db_compras
@@ -43,15 +44,22 @@ def exigir_login():
         return None
     if not session.get("logado"):
         return redirect(url_for("login", proximo=request.full_path.rstrip("?")))
-    return conferir_sessao()
+    return conferir_sessao() or conferir_aba()
+
+
+@app.context_processor
+def menu():
+    if not session.get("logado"):
+        return {}
+    return {"abas_menu": abas_do_menu(), "aba_atual": aba_do_endpoint(request.endpoint)}
 
 
 def destino_seguro(proximo):
     # Só redireciona para caminhos internos do próprio site
     if proximo.startswith("/") and not proximo.startswith(("//", "/\\")):
         return proximo
-    # A tela inicial é o painel do estoque
-    return url_for("relatorio.estoque")
+    # A tela inicial é o painel do estoque (ou a primeira aba liberada para o funcionário)
+    return primeira_aba()
 
 
 @app.route("/login", methods=["GET", "POST"])
