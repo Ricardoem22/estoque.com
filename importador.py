@@ -327,6 +327,7 @@ def interpretar_sem_cabecalho(celulas, categorias=()):
         escolhido = next((n for n in numeros if n[1]), None) or next((n for n in numeros if n[0] > 0), numeros[0])
         linha["quantidade"] = escolhido[0]
         linha["unidade"] = escolhido[1] or linha["unidade"]
+        linha["unidade_na_qtd"] = bool(escolhido[1])
     # "Lentilha 2 kg", "Lentilha: 2kg", "Lentilha - 2" numa célula só
     m = re.fullmatch(r"(.+?)[\s:=\-]+([\d.,]+)\s*([^\d\s.]*)\.?", linha["nome"])
     if m and parse_numero(m.group(2)) is not None and (not m.group(3) or normalizar_unidade(m.group(3))):
@@ -334,12 +335,14 @@ def interpretar_sem_cabecalho(celulas, categorias=()):
         linha["quantidade"] = linha["quantidade"] if linha["quantidade"] is not None else parse_numero(m.group(2))
         if m.group(3):
             linha["unidade"] = linha["unidade"] or normalizar_unidade(m.group(3))
+            linha["unidade_na_qtd"] = True
     # "2 kg de lentilha" / "2kg lentilha"
     m = re.fullmatch(r"([\d.,]+)\s*([^\d\s]+)\s+(?:de\s+)?(.+)", linha["nome"])
     if m and parse_numero(m.group(1)) is not None and normalizar_unidade(m.group(2)):
         linha["nome"] = m.group(3).strip()
         linha["quantidade"] = parse_numero(m.group(1))
         linha["unidade"] = normalizar_unidade(m.group(2))
+        linha["unidade_na_qtd"] = True
     return linha
 
 
@@ -371,6 +374,7 @@ def extrair_itens(linhas, categorias):
                 "nome": celula(linha, "nome"),
                 "categoria": celula(linha, "categoria"),
                 # "3,3 KG" escrito na quantidade vale mais que a coluna da unidade
+                "unidade_na_qtd": bool(separar_quantidade(celula(linha, "quantidade"))[1]),
                 "unidade": separar_quantidade(celula(linha, "quantidade"))[1] or normalizar_unidade(celula(linha, "unidade")),
                 "quantidade": parse_numero(celula(linha, "quantidade")),
                 "observacao": celula(linha, "observacao"),
@@ -388,7 +392,9 @@ def extrair_itens(linhas, categorias):
 
         nome = re.sub(r"\s+", " ", item["nome"]).strip(" -:•*")
         nome, unidade_no_nome = tirar_unidade_do_nome(nome)
-        item["unidade"] = item["unidade"] or unidade_no_nome
+        if unidade_no_nome and not item.get("unidade_na_qtd"):
+            # "Bife do Vazio Empanado kg": a unidade escrita junto do nome vale mais que a coluna Un
+            item["unidade"], item["unidade_na_qtd"] = unidade_no_nome, True
         if not nome or parse_numero(nome) is not None or len(nome) > 80:
             continue
         # Linhas de total/rodapé
