@@ -39,9 +39,18 @@ def init_db():
     if "nota" not in colunas:
         conn.execute("ALTER TABLE compras ADD COLUMN nota TEXT")
     # Observação, quem lançou e o arquivo da nota/comprovante guardado com a compra
-    for coluna in ("observacao", "registrado_por", "anexo"):
+    # data_compra: dia da compra ou da nota (a coluna data é o recebimento, que vale para o estoque); validade do lote
+    for coluna in ("observacao", "registrado_por", "anexo", "data_compra", "validade"):
         if coluna not in colunas:
             conn.execute(f"ALTER TABLE compras ADD COLUMN {coluna} TEXT NOT NULL DEFAULT ''")
+    # Arquivos a mais da mesma compra (o primeiro continua em compras.anexo)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS compra_anexos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            compra_id INTEGER NOT NULL REFERENCES compras(id) ON DELETE CASCADE,
+            arquivo TEXT NOT NULL
+        )
+    """)
     # Como cada produto da nota foi ligado a um insumo, para a próxima nota já vir ligada
     conn.execute("""
         CREATE TABLE IF NOT EXISTS nota_apelidos (
@@ -74,6 +83,14 @@ def parse_valor(texto):
     if valor < 0:
         raise ValueError
     return valor
+
+
+def data_valida(texto):
+    try:
+        datetime.strptime(texto or "", "%Y-%m-%d")
+        return texto
+    except ValueError:
+        return ""
 
 
 def mes_selecionado():
@@ -145,26 +162,38 @@ def compras():
                 erro = (f"{unidade} não converte para {destino} (a unidade do estoque de "
                         f"{insumo['nome']}). Cadastre a medida na ficha do insumo, ex.: 1 {unidade} = 5 "
                         f"{destino}.")
-        arquivo = request.files.get("anexo")
-        if not erro and arquivo and arquivo.filename:
-            anexo = salvar_anexo(arquivo.filename, arquivo.read())
-            if not anexo:
-                erro = "Arquivo não aceito. Use PDF, foto (JPG/PNG), planilha (Excel/CSV), Word ou XML."
-        else:
-            anexo = ""
+        if not erro and form.get("data_compra") and not data_valida(form.get("data_compra")):
+            erro = "Data da compra inválida."
+        elif not erro and form.get("validade") and not data_valida(form.get("validade")):
+            erro = "Validade inválida."
+        arquivos = [a for a in request.files.getlist("anexo") if a and a.filename][:10]
+        anexos = []
+        for arquivo in arquivos if not erro else []:
+            nome = salvar_anexo(arquivo.filename, arquivo.read())
+            if not nome:
+                erro = f"Arquivo não aceito ({arquivo.filename}). Use PDF, foto (JPG/PNG), planilha (Excel/CSV), Word ou XML."
+                break
+            anexos.append(nome)
+        if erro:
+            for nome in anexos:
+                remover_arquivo(nome)
+            anexos = []
+        anexo = anexos[0] if anexos else ""
 
         if not erro:
             compra_id = conn.execute("""
                 INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total,
-                                     nota, observacao, registrado_por, anexo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                     nota, observacao, registrado_por, anexo, data_compra, validade)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data, insumo["id"], quantidade,
                 unidade_digitada(form.get("quantidade"), form.get("unidade")) or insumo["unidade"],
                 form.get("fornecedor", "").strip(), config.agora().strftime("%Y-%m-%d %H:%M:%S"), valor_total,
                 None, form.get("observacao", "").strip(), session.get("nome", ""),
-                anexo,
+                anexo, data_valida(form.get("data_compra")), data_valida(form.get("validade")),
             )).lastrowid
+            for nome in anexos[1:]:
+                conn.execute("INSERT INTO compra_anexos (compra_id, arquivo) VALUES (?, ?)", (compra_id, nome))
             conn.commit()
             conn.close()
             # Mantém a data e o fornecedor para lançar a nota inteira em sequência
@@ -172,12 +201,37 @@ def compras():
                                     fornecedor=form.get("fornecedor", "").strip()))
 
     mes = mes_selecionado()
-    registros = conn.execute("""
+    # Filtro: o mês, ou um período (de/até), e o fornecedor
+    de, ate = data_valida(request.args.get("de")), data_valida(request.args.get("ate"))
+    filtro_fornecedor = request.args.get("fornecedor_filtro", "").strip()
+    if de or ate:
+        de, ate = de or "0000-01-01", ate or "9999-12-31"
+        where, params = "c.data BETWEEN ? AND ?", [de, ate]
+    else:
+        where, params = "substr(c.data, 1, 7) = ?", [mes]
+    if filtro_fornecedor:
+        where += " AND c.fornecedor = ?"
+        params.append(filtro_fornecedor)
+    registros = conn.execute(f"""
         SELECT c.*, i.nome AS insumo_nome FROM compras c
         JOIN insumos i ON i.id = c.insumo_id
-        WHERE substr(c.data, 1, 7) = ?
+        WHERE {where}
         ORDER BY c.data DESC, c.id DESC
-    """, (mes,)).fetchall()
+    """, params).fetchall()
+    fornecedores = [r["fornecedor"] for r in conn.execute(
+        "SELECT DISTINCT fornecedor FROM compras WHERE fornecedor != '' ORDER BY fornecedor COLLATE NOCASE")]
+    por_fornecedor = {}
+    for r in registros:
+        f = por_fornecedor.setdefault(r["fornecedor"] or "Sem fornecedor", {"nome": r["fornecedor"] or "Sem fornecedor",
+                                                                             "itens": 0, "valor": 0})
+        f["itens"] += 1
+        f["valor"] += r["valor_total"] or 0
+    extras = {}
+    if registros:
+        ids = [r["id"] for r in registros]
+        for a in conn.execute(f"SELECT compra_id, arquivo FROM compra_anexos WHERE compra_id IN ({','.join('?' * len(ids))})"
+                              " ORDER BY id", ids):
+            extras.setdefault(a["compra_id"], []).append(a["arquivo"])
     from insumo_cadastro import insumos_para_formulario
     grupos = insumos_para_formulario(conn)
     fora = fora_do_estoque(conn, registros)
@@ -204,6 +258,9 @@ def compras():
         fornecedor=form.get("fornecedor") or request.args.get("fornecedor", ""),
         salvo=salvo, lancados=request.args.get("lancados", type=int), nota_fora=nota_fora,
         somadas=request.args.get("somadas", type=int),
+        de=request.args.get("de", ""), ate=request.args.get("ate", ""), filtro_fornecedor=filtro_fornecedor,
+        fornecedores=fornecedores, extras=extras, hoje_iso=config.hoje().isoformat(),
+        por_fornecedor=sorted(por_fornecedor.values(), key=lambda f: (-f["valor"], f["nome"])),
         nota_pulados=nota_pulados, voltar=request.full_path,
     )
 
@@ -290,16 +347,24 @@ def mover_varias_para_contagem():
     return redirect(url_for("compras.compras", somadas=movidas))
 
 
+def remover_arquivo(nome):
+    try:
+        os.remove(os.path.join(config.UPLOAD_DIR, nome))
+    except OSError:
+        pass
+
+
 def apagar_compra(conn, id):
     """Apaga a compra (sem commit). O arquivo só sai da pasta quando nenhuma outra compra (da mesma nota) usa."""
     compra = conn.execute("SELECT anexo FROM compras WHERE id = ?", (id,)).fetchone()
+    extras = [a["arquivo"] for a in conn.execute("SELECT arquivo FROM compra_anexos WHERE compra_id = ?", (id,))]
+    conn.execute("DELETE FROM compra_anexos WHERE compra_id = ?", (id,))
     conn.execute("DELETE FROM compras WHERE id = ?", (id,))
     if compra and compra["anexo"] and not conn.execute("SELECT 1 FROM compras WHERE anexo = ?",
                                                        (compra["anexo"],)).fetchone():
-        try:
-            os.remove(os.path.join(config.UPLOAD_DIR, compra["anexo"]))
-        except OSError:
-            pass
+        remover_arquivo(compra["anexo"])
+    for nome in extras:
+        remover_arquivo(nome)
 
 
 @bp.route("/compras/<int:id>/excluir", methods=["POST"])
@@ -351,9 +416,10 @@ def importar_nota():
             if nota["chave"]:
                 ja_lancada = conn.execute("SELECT MIN(data) AS data FROM compras WHERE nota = ?",
                                           (nota["chave"],)).fetchone()["data"]
+    ultima_contagem = conn.execute("SELECT MAX(data) AS data FROM contagens WHERE finalizada = 1").fetchone()["data"]
     conn.close()
     return render_template(
-        "importar_nota.html", erro=erro, nota=nota, grupos=grupos, unidades=UNIDADES,
+        "importar_nota.html", erro=erro, nota=nota, grupos=grupos, unidades=UNIDADES, ultima_contagem=ultima_contagem,
         categorias=lista_categorias(grupos), ja_lancada=ja_lancada, hoje=config.hoje().isoformat(),
         extensoes=", ".join(sorted("." + e for e in EXTENSOES_NOTA)),
     )
@@ -367,6 +433,7 @@ def confirmar_nota():
         datetime.strptime(data, "%Y-%m-%d")
     except ValueError:
         data = config.hoje().isoformat()
+    data_compra = data_valida(form.get("data_compra"))
     fornecedor = form.get("fornecedor", "").strip()
     nota = form.get("nota", "").strip() or None
     anexo = form.get("anexo", "").strip()
@@ -411,10 +478,10 @@ def confirmar_nota():
                 continue
         ids.append(conn.execute("""
             INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total, nota,
-                                 registrado_por, anexo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 registrado_por, anexo, data_compra)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (data, insumo_id, quantidade, unidade, fornecedor, agora, valor, nota, session.get("nome", ""),
-              anexo)).lastrowid)
+              anexo, data_compra)).lastrowid)
         if nome_nota:
             conn.execute("INSERT OR REPLACE INTO nota_apelidos (chave, insumo_id) VALUES (?, ?)",
                          (chave_nome(nome_nota), insumo_id))

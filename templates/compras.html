@@ -113,40 +113,73 @@
 
     <div class="linha">
         <div>
-            <label for="data">Data da entrega</label>
+            <label for="data">Data do recebimento</label>
             <input type="date" id="data" name="data" value="{{ data_padrao }}" required>
         </div>
         <div>
-            <label for="fornecedor">Fornecedor</label>
-            <input type="text" id="fornecedor" name="fornecedor" placeholder="Opcional" value="{{ fornecedor }}">
+            <label for="data_compra">Data da compra <span class="sub">(opcional)</span></label>
+            <input type="date" id="data_compra" name="data_compra" value="{{ form.get('data_compra', '') }}">
         </div>
     </div>
+    <p class="sub dica">O estoque conta pela data do recebimento, o dia em que a mercadoria chegou.</p>
+
+    <div class="linha">
+        <div>
+            <label for="fornecedor">Fornecedor</label>
+            <input type="text" id="fornecedor" name="fornecedor" placeholder="Opcional" value="{{ fornecedor }}" list="lista-fornecedores">
+        </div>
+        <div>
+            <label for="validade">Validade <span class="sub">(opcional)</span></label>
+            <input type="date" id="validade" name="validade" value="{{ form.get('validade', '') }}">
+        </div>
+    </div>
+    <datalist id="lista-fornecedores">{% for f in fornecedores %}<option value="{{ f }}">{% endfor %}</datalist>
 
     <label for="observacao">Observação</label>
     <input type="text" id="observacao" name="observacao" placeholder="Opcional. Ex.: recibo 123, faltou 1 caixa"
            value="{{ form.get('observacao', '') }}">
 
-    <label for="anexo">Anexar comprovante (foto, PDF, planilha)</label>
-    <input type="file" id="anexo" name="anexo" accept="image/*,.pdf,.xml,.xlsx,.xlsm,.csv,.docx">
+    <label for="anexo">Anexar comprovantes (foto, PDF, planilha) <span class="sub">· pode escolher mais de um</span></label>
+    <input type="file" id="anexo" name="anexo" multiple accept="image/*,.pdf,.xml,.xlsx,.xlsm,.csv,.docx">
 
     <div class="form-actions">
         <button class="btn" type="submit">Registrar compra</button>
     </div>
 </form>
 
-<form method="get" class="top-bar filtro-mes">
-    <h2>Compras do mês{% if total_mes %} <span class="sub">· {{ total_mes|brl }}</span>{% endif %}</h2>
-    <div><input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()"></div>
+<h2 class="titulo-compras">{% if de or ate %}Compras do período{% else %}Compras do mês{% endif %}{% if filtro_fornecedor %} · {{ filtro_fornecedor }}{% endif %}{% if total_mes %} <span class="sub">· {{ total_mes|brl }}</span>{% endif %}</h2>
+<form method="get" class="filtro-compras">
+    <div><label for="f-mes">Mês</label><input type="month" id="f-mes" name="mes" value="{{ mes }}"></div>
+    <div><label for="f-de">ou de</label><input type="date" id="f-de" name="de" value="{{ de }}"></div>
+    <div><label for="f-ate">até</label><input type="date" id="f-ate" name="ate" value="{{ ate }}"></div>
+    <div><label for="f-forn">Fornecedor</label>
+        <select id="f-forn" name="fornecedor_filtro"><option value="">Todos</option>
+            {% for f in fornecedores %}<option value="{{ f }}" {% if f == filtro_fornecedor %}selected{% endif %}>{{ f }}</option>{% endfor %}
+        </select></div>
+    <div class="filtro-botoes"><button class="btn" type="submit">Filtrar</button>
+        {% if de or ate or filtro_fornecedor %}<a class="btn btn-delete" href="{{ url_for('compras.compras', mes=mes) }}">Limpar</a>{% endif %}</div>
 </form>
+
+{% if por_fornecedor|length > 1 or (de or ate) %}
+<details class="por-fornecedor" {% if de or ate %}open{% endif %}>
+    <summary>Total por fornecedor</summary>
+    <table class="tabela-simples">
+        <thead><tr><th>Fornecedor</th><th>Itens</th><th>Valor</th></tr></thead>
+        <tbody>{% for f in por_fornecedor %}<tr><td>{{ f.nome }}</td><td>{{ f.itens }}</td><td>{{ f.valor|brl if f.valor else '—' }}</td></tr>{% endfor %}</tbody>
+    </table>
+</details>
+{% endif %}
 
 {% if registros %}
 <table class="tabela-compras">
-    <thead><tr><th>Data</th><th>Insumo</th><th>Qtd.</th><th>Valor</th><th>Fornecedor</th><th></th></tr></thead>
+    <thead><tr><th>Recebido</th><th>Insumo</th><th>Qtd.</th><th>Valor</th><th>Fornecedor</th><th></th></tr></thead>
     <tbody>
         {% for r in registros %}
         <tr>
             <td>{{ r['data']|data_br }}</td>
-            <td>{{ r['insumo_nome'] }}{% if r['observacao'] %}<br><span class="sub">{{ r['observacao'] }}</span>{% endif %}{% if r['anexo'] %}<br><a class="sub" href="{{ url_for('compras.ver_anexo', nome=r['anexo']) }}" target="_blank">📎 ver arquivo</a>{% endif %}</td>
+            <td>{{ r['insumo_nome'] }}{% if r['observacao'] %}<br><span class="sub">{{ r['observacao'] }}</span>{% endif %}{% if r['anexo'] %}<br><a class="sub" href="{{ url_for('compras.ver_anexo', nome=r['anexo']) }}" target="_blank">📎 ver arquivo</a>{% endif %}{% for a in extras.get(r['id'], []) %} <a class="sub" href="{{ url_for('compras.ver_anexo', nome=a) }}" target="_blank">📎 {{ loop.index + 1 }}</a>{% endfor %}
+                {% if r['validade'] %}<br><span class="tag {{ 'tag-recusado' if r['validade'] < hoje_iso else 'tag-aberta' }}">validade {{ r['validade']|data_br }}</span>{% endif %}
+                {% if r['data_compra'] and r['data_compra'] != r['data'] %}<br><span class="sub">compra/nota de {{ r['data_compra']|data_br }}</span>{% endif %}</td>
             <td>{{ r['quantidade']|qtd }} {{ r['unidade'] }}
                 {% set f = fora.get(r['id']) %}
                 {% if f %}<br><span class="tag tag-aberta" title="Não somou no estoque">fora do estoque</span>
@@ -169,7 +202,7 @@
     </tbody>
 </table>
 {% else %}
-<p class="vazio">Nenhuma compra registrada neste mês.</p>
+<p class="vazio">Nenhuma compra {% if de or ate or filtro_fornecedor %}com esse filtro{% else %}registrada neste mês{% endif %}.</p>
 {% endif %}
 
 <script src="{{ url_for('static', filename='unidades.js') }}"></script>

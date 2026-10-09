@@ -772,3 +772,10 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .inativos-contagem { margin-top: 18px; padding: 12px; border: 1px dashed var(--borda); border-radius: 10px; }
 .inativos-contagem ul { list-style: none; padding: 0; margin: 8px 0 0; }
 .inativos-contagem li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--borda); }
+.filtro-compras { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 6px 0 12px; }
+.filtro-compras > div { display: flex; flex-direction: column; min-width: 130px; flex: 1 1 130px; }
+.filtro-compras .filtro-botoes { flex-direction: row; gap: 8px; flex: 0 0 auto; }
+.por-fornecedor { margin: 0 0 14px; }
+.por-fornecedor summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.tabela-simples { width: 100%; border-collapse: collapse; }
+.tabela-simples th, .tabela-simples td { text-align: left; padding: 6px; border-bottom: 1px solid var(--borda); }

@@ -7,10 +7,11 @@
 import csv
 import io
 import math
-from datetime import date
+from datetime import date, timedelta
 
 from flask import Blueprint, Response, redirect, render_template, request, url_for
 
+import config
 from contagem import agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection
 from importador import chave_nome, extrair_itens, ler_arquivo, ler_texto, sem_acento
 from unidades import converter
@@ -554,8 +555,19 @@ def estoque():
     from compras import fora_do_estoque
     compras = conn.execute("SELECT id, insumo_id, data, unidade FROM compras ORDER BY data").fetchall()
     fora = fora_do_estoque(conn, compras)
+    # Validade dos lotes comprados: vencidos ou vencendo nos próximos 7 dias, de insumos que ainda têm saldo
+    limite = (config.hoje() + timedelta(days=7)).isoformat()
+    lotes = conn.execute("""
+        SELECT c.validade, c.quantidade, c.unidade, c.insumo_id, i.nome FROM compras c
+        JOIN insumos i ON i.id = c.insumo_id
+        WHERE c.validade != '' AND c.validade <= ? ORDER BY c.validade
+    """, (limite,)).fetchall()
     conn.close()
     por_id = {l["id"]: l for l in linhas}
+    hoje_iso = config.hoje().isoformat()
+    validades = [{"nome": v["nome"], "insumo_id": v["insumo_id"], "validade": v["validade"],
+                  "quantidade": v["quantidade"], "unidade": v["unidade"], "vencido": v["validade"] < hoje_iso}
+                 for v in lotes if (por_id.get(v["insumo_id"]) or {}).get("estoque", 0) > 0]
     for c in compras:
         motivo = fora.get(c["id"])
         linha = por_id.get(c["insumo_id"])
@@ -579,6 +591,7 @@ def estoque():
         itens=len(linhas), sem_preco=len(valor["sem_preco"]), sem_contagem=valor["sem_contagem"],
         alertas=alertas, ultima_contagem=ultima_contagem, ultimas_entradas=ultimas_entradas,
         ultimas_saidas=ultimas_saidas, tipos=TIPOS, locais=locais, total_pendentes=total_pendentes,
+        validades=validades,
     )
 
 

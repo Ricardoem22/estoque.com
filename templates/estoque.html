@@ -34,6 +34,13 @@
         <span>última contagem{% if ultima_contagem %} · {{ ultima_contagem['responsavel'] }}{% endif %}</span></div>
 </div>
 
+{% if validades %}
+<div class="aviso aviso-validade">
+    <strong>⏰ Validade:</strong>
+    {% for v in validades %}<a class="tag {{ 'tag-recusado' if v.vencido else 'tag-aberta' }}" href="{{ url_for('insumo.historico', id=v.insumo_id) }}">{{ v.nome }} ({{ v.quantidade|qtd }} {{ v.unidade }}): {{ 'venceu' if v.vencido else 'vence' }} {{ v.validade|data_br }}</a>{% endfor %}
+</div>
+{% endif %}
+
 {% if total_pendentes %}
 <a class="aviso aviso-link" href="{{ url_for('desperdicio.desperdicio') }}">⏳ {{ total_pendentes }} desperdício{{ 's' if total_pendentes != 1 }}
     aguardando aprovação da gerência: ainda não sa{{ 'íram' if total_pendentes != 1 else 'iu' }} do estoque. Toque para aprovar.</a>
