@@ -779,3 +779,6 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .por-fornecedor summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .tabela-simples { width: 100%; border-collapse: collapse; }
 .tabela-simples th, .tabela-simples td { text-align: left; padding: 6px; border-bottom: 1px solid var(--borda); }
+.falar-refeicao { margin: 4px 0 14px; padding: 12px; border: 2px dashed var(--amarelo, #ffc72c); border-radius: 12px; }
+.falar-linha { display: flex; gap: 8px; }
+.falar-linha input { flex: 1 1 auto; min-width: 0; }

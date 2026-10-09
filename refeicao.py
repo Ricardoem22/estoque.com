@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint, redirect, render_template, request, session, url_for
 
 import config
-from contagem import get_connection, parse_quantidade, unidade_digitada
+from contagem import formatar_quantidade, get_connection, parse_quantidade, unidade_digitada
 from insumo_cadastro import carregar_conversoes, insumos_para_formulario
 from movimentos import mes_selecionado
 from unidades import UNIDADES_COMUNS, converter
@@ -76,7 +76,14 @@ def refeicao():
             conn.close()
             return redirect(url_for("refeicao.refeicao", mes=data[:7], salvo=len(gravar)))
 
-    if not itens:
+    falado = request.args.get("falado", "").strip()[:500] if request.method == "GET" else ""
+    entendidos, nao_entendi = [], []
+    if falado:
+        # Itens falados ("2 quilos de arroz e 1 de feijão"): preenchem as linhas para conferir antes de lançar
+        from voz import itens_falados
+        entendidos, nao_entendi = itens_falados(falado, conn.execute("SELECT * FROM insumos WHERE ativo = 1").fetchall())
+        itens = [(i["insumo"]["id"], formatar_quantidade(i["quantidade"]), i["unidade"]) for i in entendidos]
+    elif not itens:
         # Começa com os itens da última refeição (a equipe costuma repetir), quantidades em branco
         ultima = conn.execute("SELECT criado_em FROM movimentacoes WHERE tipo = 'refeicao' "
                               "ORDER BY criado_em DESC LIMIT 1").fetchone()
@@ -103,6 +110,7 @@ def refeicao():
     conn.close()
     return render_template(
         "refeicao.html", grupos=grupos, itens=itens, unidades=UNIDADES_COMUNS, erro=erro, form=form, mes=mes,
-        lancamentos=lancamentos, salvo=request.args.get("salvo"),
+        lancamentos=lancamentos, salvo=request.args.get("salvo"), falado=falado, entendidos=entendidos,
+        nao_entendi=nao_entendi,
         data_padrao=form.get("data") or config.hoje().isoformat(),
     )

@@ -11,6 +11,7 @@
 #   "adicione 2 quilos de tomate no estoque" → ajuste de entrada (confirma antes)
 #   "adicione picanha na lista de insumos" → cadastra o insumo novo (confirma antes)
 #   "exclua o tomate do estoque"           → desativa o insumo (confirma antes; reativa na ficha)
+#   "refeição: 2 quilos de arroz e 1 de feijão" → abre a Refeição com os itens preenchidos (confere e lança)
 import re
 
 from flask import Blueprint, jsonify, request, session, url_for
@@ -187,6 +188,45 @@ def interpretar(texto, insumos):
             "compras": "compr" in limpo, "estoque": "estoque" in limpo, "cadastro": "insumo" in limpo}
 
 
+REFEICAO = ("refeic", "almoco", "janta", "cafe da manha", "lanche da equipe", "comida da equipe")
+
+
+def _separar_itens(texto):
+    """Corta a frase em itens por vírgula, "e" ou "mais". "dois e meio quilos" e "1 quilo e meio" não cortam."""
+    pedacos, atual = [], []
+    palavras = re.findall(r"[,;]|[^\s,;]+", texto)
+    for i, p in enumerate(palavras):
+        seguinte = palavras[i + 1] if i + 1 < len(palavras) else ""
+        anterior = atual[-1] if atual else ""
+        meio = p == "e" and seguinte in ("meio", "meia") and (_numero(anterior) is not None or anterior in UNIDADES_FALADAS)
+        if p in (",", ";", "mais") or (p == "e" and not meio):
+            pedacos.append(" ".join(atual))
+            atual = []
+        else:
+            atual.append(p)
+    pedacos.append(" ".join(atual))
+    return pedacos
+
+
+def itens_falados(texto, insumos):
+    """ "2 quilos de arroz, 1 kg de feijão e meio quilo de frango" → [{insumo, quantidade, unidade}] e o que não
+    deu para entender. Cada pedaço precisa de uma quantidade e de um insumo cadastrado."""
+    limpo = sem_acento(texto)
+    for chave in REFEICAO + ("refeicoes", "da equipe", "equipe", "usamos", "usei", "lancar", "lanca", "lance"):
+        limpo = limpo.replace(chave, " ")
+    itens, nao_entendi = [], []
+    for pedaco in _separar_itens(limpo):
+        if not re.search(r"[a-z]", pedaco):
+            continue
+        pedido = interpretar(pedaco, insumos)
+        if pedido["quantidade"] and pedido["exatos"]:
+            itens.append({"insumo": pedido["exatos"][0], "quantidade": pedido["quantidade"],
+                          "unidade": pedido["unidade"] or pedido["exatos"][0]["unidade"]})
+        elif any(p not in IGNORAR for p in pedido["palavras"]) or pedido["quantidade"]:
+            nao_entendi.append(pedaco.strip())
+    return itens, nao_entendi
+
+
 def _linha_estoque(insumo_id):
     from relatorio import calcular_linhas
     return next((l for l in calcular_linhas() if l["id"] == insumo_id), None)
@@ -255,6 +295,13 @@ def entender():
     insumos = conn.execute("SELECT * FROM insumos WHERE ativo = 1").fetchall()
     pedido = interpretar(texto, insumos)
     tipo = _resolver(pedido)
+    # Refeição da equipe com itens: abre a aba Refeição já preenchida para conferir e lançar
+    if any(c in sem_acento(texto) for c in REFEICAO) and pedido["quantidade"]:
+        conn.close()
+        if not pode_ver("refeicao"):
+            return jsonify(tipo="erro", resposta=sem_acesso("refeicao"))
+        return jsonify(tipo="navegar", url=url_for("refeicao.refeicao", falado=texto),
+                       resposta="Abrindo a refeição com os itens…")
 
     if tipo == "navegar" or (tipo is None and not pedido["insumos"]):
         limpo = sem_acento(texto)
