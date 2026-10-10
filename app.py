@@ -16,6 +16,7 @@ from insumo_cadastro import bp as insumo_bp
 from movimentos import bp as movimentos_bp, init_db as init_db_movimentos
 from refeicao import bp as refeicao_bp
 from voz import bp as voz_bp
+from melhor_preco import bp as precos_bp, init_db as init_db_precos
 
 app = Flask(__name__)
 # O PythonAnywhere atende por HTTPS na frente do app; assim os links por e-mail saem com https
@@ -37,6 +38,7 @@ app.register_blueprint(insumo_bp)
 app.register_blueprint(movimentos_bp)
 app.register_blueprint(refeicao_bp)
 app.register_blueprint(voz_bp)
+app.register_blueprint(precos_bp)
 
 
 @app.before_request
@@ -104,6 +106,7 @@ init_db_compras()
 init_db_funcionarios()
 init_db_mural()
 init_db_movimentos()
+init_db_precos()
 
 if __name__ == "__main__":
     import os

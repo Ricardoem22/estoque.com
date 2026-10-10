@@ -342,7 +342,9 @@ tr.nao-contado td { color: #aaa; }
     .topo-interno { padding: 10px 14px 4px; }
     .marca-texto strong { font-size: 18px; }
     .menu { padding: 4px 8px 8px; gap: 4px; font-size: 11px; }
-    .menu-linha { gap: 4px; }
+    /* No celular as abas viram uma grade de 4 por linha (com 10 ou mais abas, 5 por linha não cabe) */
+    .menu { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .menu-linha { display: contents; }
     /* No celular o ícone fica em cima do nome, para caber tudo na largura */
     .menu a { padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
     .menu a i { font-size: 18px; line-height: 1; }
@@ -798,3 +800,22 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .cod-ncm { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
 .cod-ncm label { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--texto-suave, #666); margin: 0; font-weight: normal; }
 .cod-ncm input { width: 110px; padding: 4px 6px; font-size: 13px; }
+/* ---------- Melhor preço ---------- */
+.mp-resumo { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+.mp-forn { background: #fff; border: 1px solid var(--borda); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; min-width: 150px; flex: 1 1 150px; }
+.mp-forn span { font-size: 13px; color: var(--texto-suave); }
+.mp-total { background: var(--amarelo-claro); border-color: var(--amarelo-escuro); }
+.mp-total span { color: var(--texto); font-weight: 700; font-size: 16px; }
+.mp-item { background: #fff; border: 1px solid var(--borda); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+.mp-cab { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: 17px; }
+.mp-melhor { display: flex; align-items: center; gap: 10px; background: var(--verde-claro); border-radius: 10px; padding: 8px 10px; flex-wrap: wrap; }
+.mp-prod { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; word-break: break-word; }
+.mp-prod a { color: inherit; }
+.mp-preco { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+.mp-melhor .mp-preco strong { font-size: 18px; color: var(--verde); }
+.mp-economia { margin: 6px 0 0; }
+.mp-outras { margin-top: 8px; }
+.mp-outras summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--vermelho-escuro); }
+.mp-outras ul { list-style: none; padding: 0; margin: 6px 0 0; }
+.mp-outras li { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--borda); font-size: 14px; }
+@media print { .mp-outras { display: block; } .mp-outras ul { display: block; } }

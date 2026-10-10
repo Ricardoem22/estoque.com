@@ -1,0 +1,117 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Melhor preço{% endblock %}
+{% block conteudo %}
+<h1>💲 Melhor preço</h1>
+<p class="sub">Cole a lista de compras. O app procura cada item nas planilhas de preço dos fornecedores e mostra o
+    mais barato por kg ou por unidade, com as outras marcas logo abaixo.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if enviadas %}<div class="sucesso">{{ enviadas }}</div>{% endif %}
+{% if removido %}<div class="sucesso">Preços de {{ removido }} removidos.</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="form-desperdicio nao-imprimir">
+    <label for="texto">Lista de compras (um item por linha; a quantidade é opcional)</label>
+    <textarea id="texto" name="texto" rows="7" placeholder="Bacon 5 kg&#10;Arroz 10 kg&#10;Leite condensado 12 un&#10;Mussarela">{{ texto }}</textarea>
+    <p class="sub dica">Pode digitar aqui ou colar a lista do WhatsApp.</p>
+    <label for="arquivo">ou anexe a lista (Excel, CSV, Word ou PDF)</label>
+    <input type="file" id="arquivo" name="arquivo" accept=".xlsx,.xlsm,.csv,.txt,.docx,.pdf,application/pdf,text/plain">
+    <div class="form-actions">
+        <button class="btn" type="submit">Buscar melhor preço</button>
+    </div>
+</form>
+
+{% if resultado %}
+<div class="top-bar">
+    <h2>Resultado</h2>
+    <button class="btn btn-edit nao-imprimir" type="button" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+
+<div class="mp-resumo">
+    {% for fornecedor, g in resultado.por_fornecedor %}
+    <div class="mp-forn">
+        <strong>{{ fornecedor }}</strong>
+        <span>{{ g.itens }} ite{{ 'ns' if g.itens != 1 else 'm' }} mais barato{{ 's' if g.itens != 1 }}{% if g.total %} · {{ g.total|brl }}{% endif %}</span>
+    </div>
+    {% endfor %}
+    {% if resultado.total %}<div class="mp-forn mp-total"><strong>Total estimado</strong><span>{{ resultado.total|brl }}</span></div>{% endif %}
+</div>
+
+{% for l in resultado.linhas %}{% set m = l.melhor %}
+<div class="mp-item">
+    <div class="mp-cab">
+        <strong>{{ l.item.nome }}</strong>
+        {% if l.item.quantidade is not none %}<span class="sub">{{ l.item.quantidade|qtd }} {{ l.item.unidade or '' }}</span>{% endif %}
+    </div>
+    <div class="mp-melhor">
+        <span class="tag tag-ok">Mais barato</span>
+        <div class="mp-prod">
+            {% if m.link %}<a href="{{ m.link }}" target="_blank" rel="noopener">{{ m.produto }}</a>{% else %}{{ m.produto }}{% endif %}
+            <span class="sub">{{ m.fornecedor }}{% if m.data %} · {{ m.data|data_br }}{% endif %}</span>
+        </div>
+        <div class="mp-preco">
+            <strong>{{ m.preco|brl }}/{{ m.por }}</strong>
+            {% if l.total is not none %}<span class="sub">total {{ l.total|brl }}</span>{% endif %}
+        </div>
+    </div>
+    {% if l.segundo %}
+    <p class="sub mp-economia">No próximo fornecedor ({{ l.segundo.fornecedor }}) sai {{ l.segundo.preco|brl }}/{{ l.segundo.por }}{% if l.segundo.preco > m.preco %}, {{ ((l.segundo.preco - m.preco) / l.segundo.preco * 100)|round|int }}% mais caro{% endif %}.</p>
+    {% endif %}
+    {% if l.opcoes %}
+    <details class="mp-outras" {% if loop.length <= 5 %}open{% endif %}>
+        <summary>Outras marcas e produtos ({{ l.opcoes|length }}{% if l.mais %} de {{ l.opcoes|length + l.mais }}{% endif %})</summary>
+        <ul>
+            {% for o in l.opcoes %}
+            <li>
+                <span class="mp-prod">{% if o.link %}<a href="{{ o.link }}" target="_blank" rel="noopener">{{ o.produto }}</a>{% else %}{{ o.produto }}{% endif %}
+                    <span class="sub">{{ o.fornecedor }}</span></span>
+                <span class="mp-preco">{{ o.preco|brl }}/{{ o.por }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
+</div>
+{% endfor %}
+
+{% if resultado.nao_achados %}
+<div class="aviso">Não achei nas planilhas: {{ resultado.nao_achados|map(attribute='nome')|join(', ') }}.
+    Tente escrever só o nome principal (ex.: "Bacon" em vez de "Bacon em cubos Sadia").</div>
+{% endif %}
+{% endif %}
+
+<h2 class="nao-imprimir">Planilhas de preço guardadas</h2>
+<div class="nao-imprimir">
+{% if planilhas %}
+<table class="tabela-precos">
+    <thead><tr><th>Fornecedor</th><th>Produtos</th><th>Preços de</th><th></th></tr></thead>
+    <tbody>
+    {% for p in planilhas %}
+    <tr>
+        <td><strong>{{ p['fornecedor'] }}</strong><br><span class="sub">{{ p['arquivo'] }}</span></td>
+        <td>{{ p['produtos'] }}</td>
+        <td>{{ p['data']|data_br if p['data'] else '—' }}</td>
+        <td>
+            <form method="post" action="{{ url_for('precos.remover_fornecedor') }}" onsubmit="return confirm('Remover os preços de {{ p['fornecedor'] }}?')">
+                <input type="hidden" name="fornecedor" value="{{ p['fornecedor'] }}">
+                <button class="btn btn-delete" type="submit">Remover</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="sub">Nenhuma planilha ainda.</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('precos.enviar_planilhas') }}" enctype="multipart/form-data" class="form-desperdicio">
+    <label for="planilhas">Enviar planilhas de preço (.xlsx, pode escolher várias)</label>
+    <input type="file" id="planilhas" name="planilhas" accept=".xlsx,.xlsm" multiple required>
+    <p class="sub dica">As mesmas planilhas de Insumos → Preços e NCM por planilha (colunas Produto e Preço/kg último ou
+        Preço unitário último). Enviar de novo o mesmo fornecedor troca os preços antigos pelos novos.</p>
+    <div class="form-actions">
+        <button class="btn" type="submit">Enviar planilhas</button>
+    </div>
+</form>
+</div>
+{% endblock %}

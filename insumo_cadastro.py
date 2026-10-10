@@ -240,6 +240,8 @@ def ler_planilha_precos(dados):
                         colunas.setdefault("data", i)
                     elif nome.startswith("fornecedor"):
                         colunas.setdefault("fornecedor", i)
+                    elif nome == "link":
+                        colunas["link"] = i
                 if "preco_kg" not in colunas and "preco_un" not in colunas:
                     break  # aba sem preço (ex.: detalhe das notas)
                 continue
@@ -253,7 +255,8 @@ def ler_planilha_precos(dados):
             ncm = re.sub(r"\D", "", str(campo("ncm") or ""))
             data = campo("data")
             data = data.isoformat()[:10] if isinstance(data, date) else str(data or "")[:10]
-            linha = {"produto": produto, "ncm": ncm, "data": data, "fornecedor": str(campo("fornecedor") or "")}
+            linha = {"produto": produto, "ncm": ncm, "data": data, "fornecedor": str(campo("fornecedor") or ""),
+                     "link": str(campo("link") or "")}
             try:
                 if "preco_kg" in colunas:
                     linha.update(preco=float(campo("preco_kg")), por="kg")
