@@ -74,6 +74,47 @@ def guardar_planilha(conn, nome_arquivo, dados):
     return {f: len(i) for f, i in por_fornecedor.items()}
 
 
+def peso_no_nome(nome):
+    """'Arroz Tio João 5kg' -> 5.0; 'Leite 12x395g' -> 4.74; None sem peso no nome."""
+    texto = nome.lower().replace(",", ".")
+    pesos = re.findall(r"(\d+(?:\.\d+)?)\s*(kg|g)\b", texto)
+    if not pesos:
+        return None
+    valor, unidade = pesos[-1]
+    kg = float(valor) / (1000 if unidade == "g" else 1)
+    vezes = re.search(r"(\d+)\s*x\s*\d", texto)
+    return kg * int(vezes.group(1)) if vezes else kg or None
+
+
+def ler_precos_digitados(texto):
+    """Uma linha por produto, o preço no fim: 'Bacon Sadia 1kg 32,90', 'Tomate 5,99/kg', 'Alface 2,50 un'.
+    Preço por kg quando a linha diz kg depois do preço; senão é o preço da unidade, que vira R$/kg se o nome
+    tiver o peso. Devolve (linhas, linhas que não entendeu)."""
+    linhas, ruins = [], []
+    for linha in texto.splitlines():
+        linha = linha.strip(" -•*\t")
+        if not linha:
+            continue
+        m = re.match(r"^(.*?)[\s:;=-]+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:/\s*|por\s+|o\s+)?(kg|quilo|un|unid|unidade)?\.?$",
+                     linha, re.I)
+        if not m or not m.group(1).strip():
+            ruins.append(linha)
+            continue
+        produto = m.group(1).strip(" -:;=")
+        preco = float(m.group(2).replace(",", "."))
+        if preco <= 0:
+            ruins.append(linha)
+            continue
+        unidade = (m.group(3) or "").lower()
+        if unidade in ("kg", "quilo"):
+            linhas.append({"produto": produto, "preco": preco, "por": "kg"})
+        elif peso_no_nome(produto):
+            linhas.append({"produto": produto, "preco": round(preco / peso_no_nome(produto), 4), "por": "kg"})
+        else:
+            linhas.append({"produto": produto, "preco": preco, "por": "un"})
+    return linhas, ruins
+
+
 def resumo_planilhas(conn):
     return conn.execute("""
         SELECT fornecedor, COUNT(*) AS produtos, MAX(data) AS data, MAX(enviado_em) AS enviado_em, MAX(arquivo) AS arquivo
@@ -185,7 +226,9 @@ def melhor_preco():
     planilhas = resumo_planilhas(conn)
     conn.close()
     return render_template("melhor_preco.html", erro=erro, resultado=resultado, texto=texto, planilhas=planilhas,
-                           enviadas=request.args.get("enviadas", ""), removido=request.args.get("removido", ""))
+                           enviadas=request.args.get("enviadas", ""), removido=request.args.get("removido", ""),
+                           erro_digitar=request.args.get("erro_digitar", ""), digitado=request.args.get("digitado", ""),
+                           fornecedor=request.args.get("fornecedor", ""))
 
 
 @bp.route("/melhor-preco/planilhas", methods=["POST"])
@@ -209,6 +252,35 @@ def enviar_planilhas():
     conn.close()
     partes = [f"{f}: {n} produtos" for f, n in enviados.items()] + erros
     return redirect(url_for("precos.melhor_preco", enviadas=" · ".join(partes) or "Nenhuma planilha escolhida."))
+
+
+@bp.route("/melhor-preco/digitar", methods=["POST"])
+def digitar_precos():
+    """Preços digitados à mão (ex.: tabela do vendedor no WhatsApp). Somam aos que o fornecedor já tem;
+    o mesmo produto do mesmo fornecedor troca de preço."""
+    fornecedor = request.form.get("fornecedor", "").strip()
+    texto = request.form.get("precos", "")
+    if not fornecedor:
+        return redirect(url_for("precos.melhor_preco", erro_digitar="Escreva o nome do fornecedor.", digitado=texto,
+                                _anchor="digitar-precos"))
+    linhas, ruins = ler_precos_digitados(texto)
+    if not linhas:
+        return redirect(url_for("precos.melhor_preco", digitado=texto, fornecedor=fornecedor, _anchor="digitar-precos",
+                                erro_digitar="Não entendi os preços. Use uma linha por produto com o preço no fim, "
+                                             "por exemplo \"Bacon Sadia 1kg 32,90\" ou \"Tomate 5,99/kg\"."))
+    conn = get_connection()
+    agora = config.agora().strftime("%Y-%m-%d %H:%M")
+    for l in linhas:
+        conn.execute("DELETE FROM precos_fornecedor WHERE fornecedor = ? AND produto = ?", (fornecedor, l["produto"]))
+        conn.execute("INSERT INTO precos_fornecedor (fornecedor, produto, preco, por, data, link, arquivo, enviado_em) "
+                     "VALUES (?, ?, ?, ?, ?, '', 'digitado', ?)",
+                     (fornecedor, l["produto"], l["preco"], l["por"], config.hoje().isoformat(), agora))
+    conn.commit()
+    conn.close()
+    aviso = f"{fornecedor}: {len(linhas)} preço{'s' if len(linhas) != 1 else ''} guardado{'s' if len(linhas) != 1 else ''}"
+    if ruins:
+        aviso += f" · não entendi {len(ruins)} linha{'s' if len(ruins) != 1 else ''}: " + "; ".join(ruins[:5])
+    return redirect(url_for("precos.melhor_preco", enviadas=aviso))
 
 
 @bp.route("/melhor-preco/remover", methods=["POST"])
