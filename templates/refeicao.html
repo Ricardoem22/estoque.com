@@ -84,13 +84,19 @@
 </form>
 
 {% if lancamentos %}
+<div class="valor-perda">
+    <div><span>Refeições do mês</span><strong>{{ total_mes.valor|brl }}</strong><small>{{ total_mes.refeicoes }} lançamento{{ 's' if total_mes.refeicoes != 1 }}</small></div>
+</div>
+{% if total_mes.sem_preco %}<p class="sub">{{ total_mes.sem_preco }} item{{ 's' if total_mes.sem_preco != 1 }} sem preço
+    não entra{{ 'm' if total_mes.sem_preco != 1 }} na soma: o insumo não tem compra com valor nem custo de referência na ficha.</p>{% endif %}
 {% for l in lancamentos %}
 <div class="refeicao-lancada">
     <div class="refeicao-cabeca"><strong>{{ l.data|data_br }}</strong> · {{ l.motivo.replace('Refeição da equipe: ', '').replace('Refeição da equipe', 'Refeição') }}
-        {% if l.responsavel %}<span class="sub">· {{ l.responsavel }}</span>{% endif %}</div>
+        {% if l.responsavel %}<span class="sub">· {{ l.responsavel }}</span>{% endif %}
+        {% if l.valor %}<strong class="refeicao-valor">{{ l.valor|brl }}</strong>{% endif %}</div>
     <ul>
         {% for r in l.itens %}
-        <li><span>{{ r['insumo_nome'] }}: <strong>− {{ r['quantidade']|qtd }} {{ r['unidade'] }}</strong></span>
+        <li><span>{{ r['insumo_nome'] }}: <strong>− {{ r['quantidade']|qtd }} {{ r['unidade'] }}</strong>{% if r['valor'] is not none %} <span class="sub">{{ r['valor']|brl }}</span>{% endif %}</span>
             {% if session.get('gerente') %}
             <form class="inline" method="post" action="{{ url_for('movimentos.excluir', id=r['id']) }}"
                   onsubmit="return confirm('Excluir este item? Ele volta para o estoque.')">

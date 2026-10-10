@@ -87,14 +87,22 @@
 {% endif %}
 
 {% if registros %}
+<div class="valor-perda">
+    <div><span>Desperdício do mês</span><strong>{{ totais.aprovado|brl }}</strong><small>aprovado, já saiu do estoque</small></div>
+    {% if totais.pendente %}<div class="pendente"><span>Aguardando aprovação</span><strong>{{ totais.pendente|brl }}</strong></div>{% endif %}
+</div>
+{% if totais.sem_preco %}<p class="sub">{{ totais.sem_preco }} registro{{ 's' if totais.sem_preco != 1 }} sem preço não
+    entra{{ 'm' if totais.sem_preco != 1 }} na soma: o insumo não tem compra com valor nem custo de referência na ficha.</p>{% endif %}
+<p class="sub">O valor usa o último preço pago na nota de cada insumo (ou o custo de referência da ficha).</p>
+
 <h2>Resumo por insumo <span class="sub">(aprovados)</span></h2>
 <table>
-    <thead><tr><th>Insumo</th><th>Total</th><th>Vezes</th></tr></thead>
+    <thead><tr><th>Insumo</th><th>Total</th><th>Valor</th><th>Vezes</th></tr></thead>
     <tbody>
         {% for t in resumo %}
-        <tr><td>{{ t.nome }}</td><td>{{ t.quantidade|qtd }} {{ t.unidade }}</td><td>{{ t.vezes }}</td></tr>
+        <tr><td>{{ t.nome }}</td><td>{{ t.quantidade|qtd }} {{ t.unidade }}</td><td>{{ t.valor|brl if t.valor is not none else '—' }}</td><td>{{ t.vezes }}</td></tr>
         {% else %}
-        <tr><td colspan="3" class="sub">Nenhum desperdício aprovado neste mês.</td></tr>
+        <tr><td colspan="4" class="sub">Nenhum desperdício aprovado neste mês.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -117,7 +125,7 @@
                 <br><span class="sub">{{ r['data']|data_br }}{% if r['responsavel'] %} · {{ r['responsavel'] }}{% endif %}{% if r['observacao'] %} · {{ r['observacao'] }}{% endif %}</span>
             </td>
             <td>
-                {{ r['quantidade']|qtd }} {{ r['unidade'] }}<br><span class="sub">{{ r['motivo'] }}</span><br>
+                {{ r['quantidade']|qtd }} {{ r['unidade'] }}{% if r['valor'] is not none %} · <strong>{{ r['valor']|brl }}</strong>{% endif %}<br><span class="sub">{{ r['motivo'] }}</span><br>
                 {% if r['status'] == 'aprovado' %}<span class="tag tag-ok" title="Por {{ r['aprovado_por'] }}">Aprovado</span>
                 {% elif r['status'] == 'recusado' %}<span class="tag tag-recusado" title="Por {{ r['aprovado_por'] }}">Recusado</span>
                 {% else %}<span class="tag tag-aberta">Pendente</span>{% endif %}

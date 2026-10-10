@@ -86,17 +86,44 @@ def registros_do_mes(conn, mes):
     """, (mes,)).fetchall()
 
 
+def com_valor(conn, registros):
+    """Registros como dict com "valor" em R$ (pelo último preço pago do insumo; None sem preço)."""
+    from insumo_cadastro import carregar_conversoes, precos_dos_insumos, valor_em_reais
+    conversoes = carregar_conversoes(conn)
+    precos = precos_dos_insumos(conn, conversoes)
+    unidades = {i["id"]: i["unidade"] for i in conn.execute("SELECT id, unidade FROM insumos")}
+    saida = []
+    for r in registros:
+        r = dict(r)
+        r["valor"] = valor_em_reais(precos, conversoes, r["insumo_id"], r["quantidade"], r["unidade"],
+                                    unidades.get(r["insumo_id"], r["unidade"]))
+        saida.append(r)
+    return saida
+
+
 def resumo(registros):
-    """Total aprovado por insumo e unidade, do mais frequente para o menos."""
+    """Total aprovado por insumo e unidade, do que custou mais para o que custou menos."""
     totais = {}
     for r in registros:
         if r["status"] != "aprovado":
             continue
         chave = (r["insumo_nome"], r["unidade"])
-        total = totais.setdefault(chave, {"nome": r["insumo_nome"], "unidade": r["unidade"], "quantidade": 0, "vezes": 0})
+        total = totais.setdefault(chave, {"nome": r["insumo_nome"], "unidade": r["unidade"], "quantidade": 0,
+                                          "vezes": 0, "valor": None})
         total["quantidade"] += r["quantidade"]
         total["vezes"] += 1
-    return sorted(totais.values(), key=lambda t: (-t["vezes"], t["nome"]))
+        if r.get("valor") is not None:
+            total["valor"] = (total["valor"] or 0) + r["valor"]
+    return sorted(totais.values(), key=lambda t: (-(t["valor"] or 0), -t["vezes"], t["nome"]))
+
+
+def totais_em_reais(registros):
+    """R$ do mês: aprovado (saiu do estoque), pendente e quantos registros ficaram sem preço."""
+    aprovados = [r for r in registros if r["status"] == "aprovado"]
+    pendentes = [r for r in registros if r["status"] == "pendente"]
+    return {"aprovado": round(sum(r["valor"] or 0 for r in aprovados), 2),
+            "pendente": round(sum(r["valor"] or 0 for r in pendentes), 2),
+            "sem_preco": sum(1 for r in aprovados + pendentes if r["valor"] is None)}
 
 
 @bp.route("/desperdicio", methods=["GET", "POST"])
@@ -159,13 +186,13 @@ def desperdicio():
             return redirect(url_for("desperdicio.desperdicio", mes=data[:7], salvo="aprovado" if gerente else 1))
 
     mes = mes_selecionado()
-    registros = registros_do_mes(conn, mes)
+    registros = com_valor(conn, registros_do_mes(conn, mes))
     grupos = agrupar_por_categoria(conn.execute("SELECT * FROM insumos WHERE ativo = 1").fetchall())
     conn.close()
     return render_template(
         "desperdicio.html", gerente=session.get("gerente"),
         pendentes=sum(1 for r in registros if r["status"] == "pendente"), grupos=grupos, unidades=UNIDADES, motivos=MOTIVOS,
-        registros=registros, resumo=resumo(registros), mes=mes, erro=erro,
+        registros=registros, resumo=resumo(registros), totais=totais_em_reais(registros), mes=mes, erro=erro,
         # Pelo assistente de voz o formulário chega preenchido pelo endereço
         form=form if request.method == "POST" else request.args,
         hoje=config.hoje().isoformat(), salvo=request.args.get("salvo"),
@@ -221,7 +248,7 @@ def foto(nome):
 def exportar_csv():
     mes = mes_selecionado()
     conn = get_connection()
-    registros = registros_do_mes(conn, mes)
+    registros = com_valor(conn, registros_do_mes(conn, mes))
     conn.close()
 
     from exportar import responder
@@ -229,9 +256,9 @@ def exportar_csv():
     for r in registros:
         tabela.append([
             data_br_filter(r["data"]), r["categoria"], r["insumo_nome"], formatar_quantidade(r["quantidade"]),
-            r["unidade"], r["motivo"], r["responsavel"], r["observacao"], r["status"].capitalize(), r["aprovado_por"],
+            r["unidade"], f"{r['valor']:.2f}".replace(".", ",") if r["valor"] is not None else "", r["motivo"], r["responsavel"], r["observacao"], r["status"].capitalize(), r["aprovado_por"],
             url_for("desperdicio.foto", nome=r["foto"], _external=True) if r["foto"] else "",
         ])
     return responder(f"desperdicio_{mes}", f"Desperdício {mes[5:]}/{mes[:4]}",
-                     ["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Motivo", "Responsável", "Observação",
+                     ["Data", "Categoria", "Insumo", "Quantidade", "Unidade", "Valor (R$)", "Motivo", "Responsável", "Observação",
                       "Status", "Aprovado por", "Foto"], tabela)

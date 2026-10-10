@@ -25,6 +25,37 @@ def carregar_conversoes(conn):
     return por_insumo
 
 
+def precos_dos_insumos(conn, conversoes=None):
+    """{insumo_id: preço por unidade do estoque}: último valor pago numa compra que converte para a unidade do
+    insumo; sem compra com valor, o custo de referência da ficha (o mesmo critério do valor do estoque)."""
+    from unidades import converter
+    conversoes = carregar_conversoes(conn) if conversoes is None else conversoes
+    insumos = {i["id"]: i for i in conn.execute("SELECT id, unidade, custo FROM insumos")}
+    precos = {}
+    for c in conn.execute("SELECT insumo_id, quantidade, unidade, valor_total FROM compras "
+                          "WHERE valor_total IS NOT NULL AND quantidade > 0 ORDER BY data DESC, id DESC"):
+        insumo = insumos.get(c["insumo_id"])
+        if insumo is None or c["insumo_id"] in precos:
+            continue
+        fator = converter(1, c["unidade"], insumo["unidade"], conversoes.get(c["insumo_id"], []))
+        if fator:
+            precos[c["insumo_id"]] = c["valor_total"] / c["quantidade"] / fator
+    for insumo_id, insumo in insumos.items():
+        if insumo_id not in precos and insumo["custo"]:
+            precos[insumo_id] = insumo["custo"]
+    return precos
+
+
+def valor_em_reais(precos, conversoes, insumo_id, quantidade, unidade, unidade_estoque):
+    """Quanto vale a quantidade lançada (desperdício, refeição) pelo preço do insumo; None sem preço ou sem conversão."""
+    from unidades import converter
+    preco = precos.get(insumo_id)
+    if preco is None or quantidade is None:
+        return None
+    na_unidade = converter(quantidade, unidade or unidade_estoque, unidade_estoque, conversoes.get(insumo_id, []))
+    return round(na_unidade * preco, 2) if na_unidade is not None else None
+
+
 def insumos_para_formulario(conn, so_ativos=True):
     """Insumos agrupados por categoria, cada um com as medidas que aceita (para o select de unidade)."""
     conversoes = carregar_conversoes(conn)

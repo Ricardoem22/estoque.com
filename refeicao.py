@@ -7,7 +7,7 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 
 import config
 from contagem import formatar_quantidade, get_connection, parse_quantidade, unidade_digitada
-from insumo_cadastro import carregar_conversoes, insumos_para_formulario
+from insumo_cadastro import carregar_conversoes, insumos_para_formulario, precos_dos_insumos, valor_em_reais
 from movimentos import mes_selecionado
 from unidades import UNIDADES_COMUNS, converter
 
@@ -95,22 +95,32 @@ def refeicao():
 
     mes = mes_selecionado()
     registros = conn.execute("""
-        SELECT m.*, i.nome AS insumo_nome FROM movimentacoes m JOIN insumos i ON i.id = m.insumo_id
+        SELECT m.*, i.nome AS insumo_nome, i.unidade AS unidade_estoque FROM movimentacoes m JOIN insumos i ON i.id = m.insumo_id
         WHERE m.tipo = 'refeicao' AND substr(m.data, 1, 7) = ? ORDER BY m.data DESC, m.criado_em DESC, m.id
     """, (mes,)).fetchall()
-    # Um lançamento = os itens gravados juntos (mesma data, hora e pessoa)
+    # Um lançamento = os itens gravados juntos (mesma data, hora e pessoa), com o valor em R$ de cada item
+    conversoes = carregar_conversoes(conn)
+    precos = precos_dos_insumos(conn, conversoes)
     lancamentos = []
     for r in registros:
+        r = dict(r)
+        r["valor"] = valor_em_reais(precos, conversoes, r["insumo_id"], r["quantidade"], r["unidade"], r["unidade_estoque"])
         chave = (r["data"], r["criado_em"], r["responsavel"], r["motivo"])
         if not lancamentos or lancamentos[-1]["chave"] != chave:
             lancamentos.append({"chave": chave, "data": r["data"], "responsavel": r["responsavel"],
-                                "motivo": r["motivo"], "itens": []})
+                                "motivo": r["motivo"], "itens": [], "valor": 0.0, "sem_preco": 0})
         lancamentos[-1]["itens"].append(r)
+        if r["valor"] is None:
+            lancamentos[-1]["sem_preco"] += 1
+        else:
+            lancamentos[-1]["valor"] += r["valor"]
+    total_mes = {"valor": round(sum(l["valor"] for l in lancamentos), 2),
+                 "sem_preco": sum(l["sem_preco"] for l in lancamentos), "refeicoes": len(lancamentos)}
     grupos = insumos_para_formulario(conn)
     conn.close()
     return render_template(
         "refeicao.html", grupos=grupos, itens=itens, unidades=UNIDADES_COMUNS, erro=erro, form=form, mes=mes,
-        lancamentos=lancamentos, salvo=request.args.get("salvo"), falado=falado, entendidos=entendidos,
+        lancamentos=lancamentos, total_mes=total_mes, salvo=request.args.get("salvo"), falado=falado, entendidos=entendidos,
         nao_entendi=nao_entendi,
         data_padrao=form.get("data") or config.hoje().isoformat(),
     )
