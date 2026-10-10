@@ -95,11 +95,16 @@
         atual.onresult = function (ev) {
             var ultimo = ev.results[ev.results.length - 1];
             if (continuo) {
-                // Junta todos os trechos; o Chrome do Android às vezes repete o mesmo trecho final
+                // Junta os trechos. O Chrome do Android repete a frase enquanto ela cresce ("300", "300 g",
+                // "300 g de mussarela"): trecho que começa com o anterior substitui o anterior.
                 var partes = [];
                 for (var i = 0; i < ev.results.length; i++) {
-                    var t = ev.results[i][0].transcript.trim();
-                    if (t && partes[partes.length - 1] !== t) partes.push(t);
+                    var t = ev.results[i][0].transcript.trim(), ultimoT = partes[partes.length - 1];
+                    if (!t) continue;
+                    var a = t.toLowerCase().replace(/\s+/g, " "), b = (ultimoT || "").toLowerCase().replace(/\s+/g, " ");
+                    if (ultimoT && a.indexOf(b) === 0) partes[partes.length - 1] = t;
+                    else if (ultimoT && b.indexOf(a) === 0) continue;
+                    else partes.push(t);
                 }
                 escrever(partes.join(", "));
                 return;

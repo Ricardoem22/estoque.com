@@ -252,7 +252,10 @@ def itens_falados(texto, insumos):
     for chave in REFEICAO + ("refeicoes", "da equipe", "equipe", "usamos", "usei", "lancar", "lanca", "lance"):
         limpo = limpo.replace(chave, " ")
     itens, nao_entendi = [], []
-    for pedaco in _separar_itens(limpo):
+    pedacos = [p.strip() for p in _separar_itens(limpo)]
+    # Ditado do Android repete a frase enquanto cresce ("300", "300 g", "300 g de mussarela"): fica a última
+    pedacos = [p for i, p in enumerate(pedacos) if not (i + 1 < len(pedacos) and pedacos[i + 1].startswith(p))]
+    for pedaco in pedacos:
         if not re.search(r"[a-z]", pedaco):
             continue
         pedido = interpretar(pedaco, insumos)
