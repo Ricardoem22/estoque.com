@@ -13,6 +13,7 @@ ABAS = [
     ("movimentos", "🔄", "Movimentações", "movimentos.movimentacoes"),
     ("refeicao", "🍽️", "Refeição", "refeicao.refeicao"),
     ("relatorio", "📊", "Relatório", "relatorio.relatorio"),
+    ("precos", "💲", "Preços", "precos.melhor_preco"),
     ("mural", "💬", "Mural", "mural.mural"),
 ]
 CHAVES = [a[0] for a in ABAS]
@@ -43,6 +44,8 @@ def aba_do_endpoint(ep):
         return "estoque"
     if ep.startswith("relatorio."):
         return "relatorio"
+    if ep.startswith("precos."):
+        return "precos"
     if ep.startswith("mural."):
         return "mural"
     if ep.startswith("funcionarios."):

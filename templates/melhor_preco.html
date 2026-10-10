@@ -1,0 +1,150 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Melhor preço{% endblock %}
+{% block conteudo %}
+<h1>💲 Melhor preço</h1>
+<p class="sub">Cole a lista de compras. O app procura cada item nas planilhas de preço dos fornecedores e mostra o
+    mais barato por kg ou por unidade, com as outras marcas logo abaixo.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if enviadas %}<div class="sucesso">{{ enviadas }}</div>{% endif %}
+{% if removido %}<div class="sucesso">Preços de {{ removido }} removidos.</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="form-desperdicio nao-imprimir">
+    <label for="texto">Lista de compras (um item por linha; a quantidade é opcional)</label>
+    <textarea id="texto" name="texto" rows="7" placeholder="Bacon 5 kg&#10;Arroz 10 kg&#10;Leite condensado 12 un&#10;Mussarela">{{ texto }}</textarea>
+    <p class="sub dica">Pode digitar aqui ou colar a lista do WhatsApp.</p>
+    <label for="arquivo">ou anexe a lista (Excel, CSV, Word ou PDF)</label>
+    <input type="file" id="arquivo" name="arquivo" accept=".xlsx,.xlsm,.csv,.txt,.docx,.pdf,application/pdf,text/plain">
+    <div class="form-actions">
+        <button class="btn" type="submit">Buscar melhor preço</button>
+    </div>
+</form>
+
+{% if resultado %}
+<div class="top-bar">
+    <h2>Resultado</h2>
+    <button class="btn btn-edit nao-imprimir" type="button" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+
+<p class="sub nao-imprimir">Para cada item, marque a marca que você quer. O app já marca a mais barata, ou a que você
+    escolheu da última vez, e guarda a sua escolha para as próximas buscas.</p>
+<div class="mp-resumo" id="mp-resumo">
+    {% for fornecedor, g in resultado.por_fornecedor %}
+    <div class="mp-forn">
+        <strong>{{ fornecedor }}</strong>
+        <span>{{ g.itens }} ite{{ 'ns' if g.itens != 1 else 'm' }}{% if g.total %} · {{ g.total|brl }}{% endif %}</span>
+    </div>
+    {% endfor %}
+    {% if resultado.total %}<div class="mp-forn mp-total"><strong>Total estimado</strong><span>{{ resultado.total|brl }}</span></div>{% endif %}
+</div>
+
+{% for l in resultado.linhas %}{% set n = loop.index0 %}
+<fieldset class="mp-item" data-item="{{ l.item.nome }}">
+    <legend class="mp-cab">
+        <strong>{{ l.item.nome }}</strong>
+        {% if l.item.quantidade is not none %}<span class="sub">{{ l.item.quantidade|qtd }} {{ l.item.unidade or '' }}</span>{% endif %}
+    </legend>
+    {% for o in l.opcoes %}
+    <label class="mp-opcao{% if o.id == l.escolhido.id %} marcada{% endif %}{% if loop.index > 4 and o.id != l.escolhido.id %} mp-extra{% endif %}">
+        <input type="radio" name="mp_{{ n }}" value="{{ o.id }}" {% if o.id == l.escolhido.id %}checked{% endif %}
+               data-fornecedor="{{ o.fornecedor }}" data-total="{{ o.total if o.total is not none else '' }}"
+               data-barato="{{ 1 if o.barato else '' }}">
+        <span class="mp-prod">
+            <span>{{ o.produto }}
+                {% if o.barato %}<span class="tag tag-ok">Mais barato</span>{% endif %}
+                {% if o.salvo %}<span class="tag tag-marca">Sua marca</span>{% endif %}</span>
+            <span class="sub">{{ o.fornecedor }}{% if o.link %} · <a href="{{ o.link }}" target="_blank" rel="noopener">ver no site</a>{% endif %}</span>
+        </span>
+        <span class="mp-preco">
+            <strong>{{ o.preco|brl }}/{{ o.por }}</strong>
+            {% if o.total is not none %}<span class="sub">total {{ o.total|brl }}</span>{% endif %}
+            {% if not o.barato and o.por == l.opcoes[0].por and l.opcoes[0].preco %}<span class="sub mp-dif">+{{ ((o.preco - l.opcoes[0].preco) / l.opcoes[0].preco * 100)|round|int }}%</span>{% endif %}
+        </span>
+    </label>
+    {% endfor %}
+    {% if l.opcoes|length > 4 %}<button type="button" class="mp-mais nao-imprimir" onclick="this.parentNode.classList.add('aberto'); this.remove()">Ver mais {{ l.opcoes|length - 4 }} opções</button>{% endif %}
+</fieldset>
+{% endfor %}
+<p class="sub nao-imprimir" id="mp-salvo" hidden>Escolha guardada.</p>
+
+<script>
+(function () {
+    function brl(v) { return 'R$ ' + v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+    function resumo() {
+        var grupos = {}, total = 0, ordem = [];
+        document.querySelectorAll('.mp-item input:checked').forEach(function (r) {
+            var f = r.dataset.fornecedor, t = parseFloat(r.dataset.total) || 0;
+            if (!grupos[f]) { grupos[f] = {itens: 0, total: 0}; ordem.push(f); }
+            grupos[f].itens++; grupos[f].total += t; total += t;
+        });
+        ordem.sort(function (a, b) { return grupos[b].itens - grupos[a].itens; });
+        var caixa = document.getElementById('mp-resumo');
+        caixa.innerHTML = '';
+        ordem.forEach(function (f) {
+            var g = grupos[f], d = document.createElement('div'), s = document.createElement('strong'), sp = document.createElement('span');
+            d.className = 'mp-forn'; s.textContent = f;
+            sp.textContent = g.itens + (g.itens === 1 ? ' item' : ' itens') + (g.total ? ' · ' + brl(g.total) : '');
+            d.appendChild(s); d.appendChild(sp); caixa.appendChild(d);
+        });
+        if (total) {
+            var d = document.createElement('div'); d.className = 'mp-forn mp-total';
+            d.innerHTML = '<strong>Total estimado</strong><span>' + brl(total) + '</span>';
+            caixa.appendChild(d);
+        }
+    }
+    document.querySelectorAll('.mp-item input[type=radio]').forEach(function (r) {
+        r.addEventListener('change', function () {
+            var item = r.closest('.mp-item');
+            item.querySelectorAll('.mp-opcao').forEach(function (o) { o.classList.toggle('marcada', o.contains(r)); });
+            resumo();
+            fetch('{{ url_for("precos.salvar_escolha") }}', {method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({item: item.dataset.item, id: parseInt(r.value, 10), barato: !!r.dataset.barato})
+            }).then(function (resp) { if (resp.ok) { var m = document.getElementById('mp-salvo'); m.hidden = false; } });
+        });
+    });
+})();
+</script>
+
+{% if resultado.nao_achados %}
+<div class="aviso">Não achei nas planilhas: {{ resultado.nao_achados|map(attribute='nome')|join(', ') }}.
+    Tente escrever só o nome principal (ex.: "Bacon" em vez de "Bacon em cubos Sadia").</div>
+{% endif %}
+{% endif %}
+
+<h2 class="nao-imprimir">Planilhas de preço guardadas</h2>
+<div class="nao-imprimir">
+{% if planilhas %}
+<table class="tabela-precos">
+    <thead><tr><th>Fornecedor</th><th>Produtos</th><th>Preços de</th><th></th></tr></thead>
+    <tbody>
+    {% for p in planilhas %}
+    <tr>
+        <td><strong>{{ p['fornecedor'] }}</strong><br><span class="sub">{{ p['arquivo'] }}</span></td>
+        <td>{{ p['produtos'] }}</td>
+        <td>{{ p['data']|data_br if p['data'] else '—' }}</td>
+        <td>
+            <form method="post" action="{{ url_for('precos.remover_fornecedor') }}" onsubmit="return confirm('Remover os preços de {{ p['fornecedor'] }}?')">
+                <input type="hidden" name="fornecedor" value="{{ p['fornecedor'] }}">
+                <button class="btn btn-delete" type="submit">Remover</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="sub">Nenhuma planilha ainda.</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('precos.enviar_planilhas') }}" enctype="multipart/form-data" class="form-desperdicio">
+    <label for="planilhas">Enviar planilhas de preço (.xlsx, pode escolher várias)</label>
+    <input type="file" id="planilhas" name="planilhas" accept=".xlsx,.xlsm" multiple required>
+    <p class="sub dica">As mesmas planilhas de Insumos → Preços e NCM por planilha (colunas Produto e Preço/kg último ou
+        Preço unitário último). Enviar de novo o mesmo fornecedor troca os preços antigos pelos novos.</p>
+    <div class="form-actions">
+        <button class="btn" type="submit">Enviar planilhas</button>
+    </div>
+</form>
+</div>
+{% endblock %}
