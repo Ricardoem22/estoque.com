@@ -53,7 +53,8 @@
             <span>{{ o.produto }}
                 {% if o.barato %}<span class="tag tag-ok">Mais barato</span>{% endif %}
                 {% if o.salvo %}<span class="tag tag-marca">Sua marca</span>{% endif %}</span>
-            <span class="sub">{{ o.fornecedor }}{% if o.link %} · <a href="{{ o.link }}" target="_blank" rel="noopener">ver no site</a>{% endif %}</span>
+            <span class="sub">{{ o.fornecedor }}{% if o.link %} · <a href="{{ o.link }}" target="_blank" rel="noopener">ver no site</a>{% endif %}
+                · <a class="nao-imprimir" href="https://www.google.com/search?q={{ (o.produto ~ ' avaliação')|urlencode }}" target="_blank" rel="noopener">⭐ avaliações</a></span>
         </span>
         <span class="mp-preco">
             <strong>{{ o.preco|brl }}/{{ o.por }}</strong>

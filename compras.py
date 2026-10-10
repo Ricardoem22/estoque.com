@@ -6,14 +6,15 @@ import re
 import os
 import uuid
 
-from flask import Blueprint, abort, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 
 from contagem import (agrupar_por_categoria, data_br_filter, formatar_quantidade, get_connection, lista_categorias,
                       parse_quantidade, unidade_digitada, unidade_padrao)
 import config
 from importador import chave_nome
 from insumos_iniciais import UNIDADES
-from notas import EXTENSOES_NOTA, achar_insumo, ler_nota, unidade_do_item
+from notas import (EXTENSOES_NOTA, achar_insumo, chave_do_codigo, dados_da_chave, ler_nota, ler_texto_nota,
+                   unidade_do_item)
 
 bp = Blueprint("compras", __name__)
 
@@ -402,7 +403,16 @@ def importar_nota():
 
     if request.method == "POST":
         arquivo = request.files.get("arquivo")
-        if not arquivo or not arquivo.filename:
+        texto_foto = request.form.get("texto_foto")
+        if texto_foto is not None:
+            # Foto da nota: o celular já leu o texto; a foto fica como anexo da compra
+            nota = ler_texto_nota(texto_foto)
+            dados = arquivo.read() if arquivo and arquivo.filename else b""
+            if not nota["itens"]:
+                erro = ("Não consegui ler os itens nessa foto. Tire de novo bem de perto, reta e com boa luz, "
+                        "só da parte dos produtos. Se não der, use o XML ou o PDF da nota.")
+                nota = None
+        elif not arquivo or not arquivo.filename:
             erro = "Escolha o arquivo da nota."
         else:
             try:
@@ -425,7 +435,7 @@ def importar_nota():
             for item in nota["itens"]:
                 item["insumo_id"] = achar_insumo(item["nome"], insumos, apelidos, unidade_do_item(item), conversoes)
                 item["unidade"] = unidade_do_item(item) or unidade_insumo.get(item["insumo_id"]) or "un"
-            nota["anexo"] = salvar_anexo(arquivo.filename, dados)
+            nota["anexo"] = salvar_anexo(arquivo.filename, dados) if arquivo and arquivo.filename else ""
             if nota["chave"]:
                 ja_lancada = conn.execute("SELECT MIN(data) AS data FROM compras WHERE nota = ?",
                                           (nota["chave"],)).fetchone()["data"]
@@ -436,6 +446,28 @@ def importar_nota():
         categorias=lista_categorias(grupos), ja_lancada=ja_lancada, hoje=config.hoje().isoformat(),
         extensoes=", ".join(sorted("." + e for e in EXTENSOES_NOTA)),
     )
+
+
+@bp.route("/compras/nota/codigo", methods=["POST"])
+def conferir_codigo():
+    """QR code da NFC-e ou código de barras da DANFE lido pela câmera: diz se a nota já foi lançada e de quem é."""
+    texto = (request.get_json(silent=True) or {}).get("texto", "")
+    dados = dados_da_chave(chave_do_codigo(texto))
+    if not dados:
+        return jsonify({"erro": "Esse código não é de nota fiscal. Aponte para o QR code do cupom ou para o "
+                                "código de barras da DANFE (perto da chave de acesso)."})
+    conn = get_connection()
+    lancada = conn.execute("SELECT MIN(data) AS data, COUNT(*) AS itens, MAX(fornecedor) AS fornecedor, "
+                           "SUM(valor_total) AS valor FROM compras WHERE nota = ?", (dados["chave"],)).fetchone()
+    conhecido = conn.execute("SELECT fornecedor FROM compras WHERE substr(nota, 7, 14) = ? AND fornecedor != '' "
+                             "ORDER BY id DESC LIMIT 1", (dados["cnpj"],)).fetchone()
+    conn.close()
+    dados.update({
+        "ja_lancada": lancada["data"], "itens": lancada["itens"], "valor": lancada["valor"],
+        "fornecedor": lancada["fornecedor"] or (conhecido["fornecedor"] if conhecido else ""),
+        "link": texto if texto.startswith("http") else "",
+    })
+    return jsonify(dados)
 
 
 @bp.route("/compras/nota/confirmar", methods=["POST"])
