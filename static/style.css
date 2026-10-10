@@ -832,3 +832,12 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .valor-perda div.pendente { background: var(--laranja-claro); border-color: #f2d9a6; }
 .valor-perda div.pendente strong { color: #7a4f00; }
 .refeicao-valor { float: right; color: var(--vermelho-escuro); }
+
+/* Lançar nota pela câmera */
+.camera-nota { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 10px 0 20px; }
+.camera-op { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 14px; margin: 0; }
+.camera-op h2 { margin-top: 0; font-size: 1.1rem; }
+.camera-op label.btn { display: inline-block; cursor: pointer; }
+#leitor-codigo { margin-top: 10px; max-width: 360px; }
+#resultado-codigo:not(:empty) { margin-top: 10px; }
+@media (max-width: 700px) { .camera-nota { grid-template-columns: 1fr; } }
