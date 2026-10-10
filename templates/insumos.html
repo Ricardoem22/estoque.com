@@ -12,6 +12,7 @@
 <p class="sub">Toque no nome para abrir a ficha: estoque mínimo, local, código, fornecedor, medidas de compra (saco, peça, fardo) e ativo/inativo.</p>
 
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+{% if excluidos is not none %}<div class="sucesso">{{ excluidos }} insumo(s) excluído(s).</div>{% endif %}
 {% if importados is not none %}<div class="sucesso">{{ importados }} insumo(s) importado(s).{% if completados %} {{ completados }} já cadastrado(s) ganharam código ou NCM.{% endif %}</div>{% endif %}
 
 <form method="post" class="form-insumo">
@@ -26,15 +27,24 @@
 </form>
 
 <input type="search" id="busca-insumos" class="busca" placeholder="🔎 Procurar insumo..." aria-label="Procurar insumo">
+<form method="post" action="{{ url_for('contagem.excluir_varios_insumos') }}" id="form-excluir-varios" class="barra-selecao" hidden
+      onsubmit="return confirm('Excluir ' + document.querySelectorAll('.sel-insumo:checked').length + ' insumo(s)? Eles saem também das contagens e compras antigas.')">
+    <span id="total-selecionados"></span>
+    <button class="btn btn-edit" type="button" id="limpar-selecao">Desmarcar</button>
+    <button class="btn btn-delete" type="submit">🗑️ Excluir selecionados</button>
+</form>
 <p class="vazio" id="nada-encontrado" hidden>Nenhum insumo com esse nome.</p>
 
 {% for categoria, itens in grupos %}
 <section class="categoria-insumos">
-<h2>{{ categoria }} <span class="sub">({{ itens|length }})</span></h2>
+<h2><label class="marcar-todos" title="Marcar todos desta categoria"><input type="checkbox" class="sel-categoria"
+    aria-label="Marcar todos de {{ categoria }}"></label>{{ categoria }} <span class="sub">({{ itens|length }})</span></h2>
 <table>
     <tbody>
         {% for item in itens %}
         <tr class="linha-insumo{% if not item['ativo'] %} inativo{% endif %}" data-busca="{{ item['nome'] }} {{ item['local'] or '' }} {{ item['codigo'] or '' }}">
+            <td class="col-sel"><input type="checkbox" class="sel-insumo" name="ids" value="{{ item['id'] }}"
+                form="form-excluir-varios" aria-label="Selecionar {{ item['nome'] }}"></td>
             <td><a class="nome-insumo" href="{{ url_for('insumo.editar', id=item['id']) }}">{{ item['nome'] }}</a>
                 {% if not item['ativo'] %}<span class="tag tag-recusado">inativo</span>{% endif %}
                 {% if item['local'] or item['minimo'] is not none %}<br><span class="sub">
@@ -58,6 +68,32 @@
 
 <script>
 (function () {
+    var barra = document.getElementById("form-excluir-varios");
+    function atualizar() {
+        var n = document.querySelectorAll(".sel-insumo:checked").length;
+        barra.hidden = !n;
+        document.getElementById("total-selecionados").textContent = n + (n === 1 ? " selecionado" : " selecionados");
+        document.querySelectorAll(".categoria-insumos").forEach(function (sec) {
+            var todos = sec.querySelectorAll(".linha-insumo:not([hidden]) .sel-insumo");
+            var marcados = sec.querySelectorAll(".linha-insumo:not([hidden]) .sel-insumo:checked");
+            var c = sec.querySelector(".sel-categoria");
+            c.checked = todos.length > 0 && marcados.length === todos.length;
+            c.indeterminate = marcados.length > 0 && marcados.length < todos.length;
+        });
+    }
+    document.querySelectorAll(".sel-insumo").forEach(function (c) { c.addEventListener("change", atualizar); });
+    document.querySelectorAll(".sel-categoria").forEach(function (c) {
+        c.addEventListener("change", function () {
+            // Marca só os que aparecem na busca
+            c.closest(".categoria-insumos").querySelectorAll(".linha-insumo:not([hidden]) .sel-insumo")
+                .forEach(function (s) { s.checked = c.checked; });
+            atualizar();
+        });
+    });
+    document.getElementById("limpar-selecao").addEventListener("click", function () {
+        document.querySelectorAll(".sel-insumo").forEach(function (s) { s.checked = false; });
+        atualizar();
+    });
     var busca = document.getElementById("busca-insumos");
     function limpar(t) { return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
     busca.addEventListener("input", function () {
@@ -75,6 +111,7 @@
             total += visiveis;
         });
         document.getElementById("nada-encontrado").hidden = total > 0;
+        atualizar();
     });
 })();
 </script>

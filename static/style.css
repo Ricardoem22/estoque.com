@@ -841,3 +841,12 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 #leitor-codigo { margin-top: 10px; max-width: 360px; }
 #resultado-codigo:not(:empty) { margin-top: 10px; }
 @media (max-width: 700px) { .camera-nota { grid-template-columns: 1fr; } }
+
+/* Excluir vários insumos */
+.col-sel { width: 32px; }
+.sel-insumo, .sel-categoria { width: 20px; height: 20px; cursor: pointer; }
+.marcar-todos { margin-right: 8px; vertical-align: middle; }
+.barra-selecao { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: #fff4f4; border: 2px solid var(--vermelho); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+.barra-selecao span { font-weight: 700; flex: 1; }
+.barra-selecao[hidden] { display: none; }
