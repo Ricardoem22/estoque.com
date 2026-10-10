@@ -80,8 +80,12 @@
         if (rec) { try { rec.stop(); } catch (x) {} return; }
         var alvo = campo, numerico = /decimal|numeric/.test(alvo.getAttribute("inputmode") || "");
         var antes = alvo.value, atual = new Reconhecer();
+        // Campo de lista (ex.: itens da refeição): continua ouvindo nas pausas entre um item e outro,
+        // até tocar no 🎙️ de novo ou ficar um tempo em silêncio
+        var continuo = alvo.hasAttribute("data-ditado-continuo");
         rec = atual;
         atual.lang = "pt-BR"; atual.interimResults = true; atual.maxAlternatives = 1;
+        atual.continuous = continuo;
         function escrever(fala) {
             if (numerico) alvo.value = paraNumero(fala);
             else alvo.value = (antes && !/\s$/.test(antes) ? antes + " " : antes) + fala.trim();
@@ -90,6 +94,16 @@
         atual.onstart = function () { botao.classList.add("ouvindo"); };
         atual.onresult = function (ev) {
             var ultimo = ev.results[ev.results.length - 1];
+            if (continuo) {
+                // Junta todos os trechos; o Chrome do Android às vezes repete o mesmo trecho final
+                var partes = [];
+                for (var i = 0; i < ev.results.length; i++) {
+                    var t = ev.results[i][0].transcript.trim();
+                    if (t && partes[partes.length - 1] !== t) partes.push(t);
+                }
+                escrever(partes.join(", "));
+                return;
+            }
             escrever(ultimo[0].transcript);
             if (ultimo.isFinal) { try { atual.stop(); } catch (x) {} }
         };

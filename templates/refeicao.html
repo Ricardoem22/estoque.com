@@ -12,11 +12,12 @@
 <form method="get" class="falar-refeicao">
     <label for="falado">🎙️ Falar os itens</label>
     <div class="falar-linha">
-        <input type="text" id="falado" name="falado" value="{{ falado }}" autocomplete="off"
+        <input type="text" id="falado" name="falado" value="{{ falado }}" autocomplete="off" data-ditado-continuo
                placeholder="Ex.: 2 quilos de arroz, 1 quilo de feijão e meio quilo de frango">
         <button class="btn" type="submit">Preencher</button>
     </div>
-    <p class="sub">Toque no 🎙️ do campo (ou no microfone do teclado), fale os itens e toque em Preencher.
+    <p class="sub">Toque no 🎙️ do campo (ou no microfone do teclado) e fale todos os itens, um depois do outro.
+        Pode fazer pausas entre eles. Quando terminar, toque no 🎙️ de novo e em Preencher.
         Confira as linhas e toque em <strong>Lançar refeição</strong> para tirar do estoque.</p>
 </form>
 {% if falado %}

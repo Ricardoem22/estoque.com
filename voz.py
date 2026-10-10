@@ -31,7 +31,10 @@ NUMEROS = {
     "um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5, "seis": 6, "sete": 7,
     "oito": 8, "nove": 9, "dez": 10, "onze": 11, "doze": 12, "treze": 13, "quatorze": 14, "catorze": 14,
     "quinze": 15, "vinte": 20, "trinta": 30, "quarenta": 40, "cinquenta": 50, "cem": 100, "meio": 0.5,
-    "meia": 0.5,
+    "meia": 0.5, "duzentos": 200, "duzentas": 200, "trezentos": 300, "trezentas": 300, "quatrocentos": 400,
+    "quatrocentas": 400, "quinhentos": 500, "quinhentas": 500, "seiscentos": 600, "seiscentas": 600,
+    "setecentos": 700, "setecentas": 700, "oitocentos": 800, "oitocentas": 800, "novecentos": 900,
+    "novecentas": 900,
 }
 # Palavra falada → unidade do app
 UNIDADES_FALADAS = {
@@ -205,7 +208,41 @@ def _separar_itens(texto):
         else:
             atual.append(p)
     pedacos.append(" ".join(atual))
-    return pedacos
+    return [parte for pedaco in pedacos for parte in _quebrar_por_quantidade(pedaco)]
+
+
+def _eh_quantidade(palavra):
+    """'200', 'duzentos', '200g', '1,5kg'."""
+    if _numero(palavra) is not None:
+        return True
+    m = re.fullmatch(r"\d+(?:[.,]\d+)?([a-z]+)", palavra)
+    return bool(m and m.group(1) in UNIDADES_FALADAS)
+
+
+def _quebrar_por_quantidade(pedaco):
+    """O ditado do celular quase nunca põe vírgula: "200 gramas de arroz 300 gramas de frango" ou
+    "arroz 200 gramas frango 300 gramas". Um item novo começa quando o atual já tem quantidade e nome e
+    aparece outro número, ou um nome logo depois da quantidade de um item que começou pelo nome."""
+    partes, atual = [], []
+    tem_qtd = tem_nome = nome_primeiro = False
+    anterior = ""
+    for p in pedaco.split():
+        qtd = _eh_quantidade(p)
+        nome = not qtd and p not in UNIDADES_FALADAS and p not in IGNORAR and p not in ("meio", "meia")
+        novo = tem_qtd and tem_nome and (
+            (qtd and not (anterior == "e" and p in ("meio", "meia")))
+            or (nome and nome_primeiro and (_eh_quantidade(anterior) or anterior in UNIDADES_FALADAS)))
+        if novo:
+            partes.append(" ".join(atual))
+            atual, tem_qtd, tem_nome, nome_primeiro = [], False, False, False
+        if nome and not tem_qtd and not tem_nome:
+            nome_primeiro = True
+        tem_qtd = tem_qtd or qtd
+        tem_nome = tem_nome or nome
+        atual.append(p)
+        anterior = p
+    partes.append(" ".join(atual))
+    return partes
 
 
 def itens_falados(texto, insumos):
