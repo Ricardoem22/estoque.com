@@ -9,29 +9,6 @@
 {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 
 {% if not nota %}
-<div class="camera-nota">
-    <div class="camera-op">
-        <h2>📷 Conferir pelo QR code</h2>
-        <p class="sub">Aponte a câmera para o QR code do cupom ou para o código de barras da DANFE. O app diz se a nota já foi
-            lançada.</p>
-        <button class="btn" type="button" id="ler-codigo">Abrir câmera</button>
-        <label class="btn btn-edit" for="foto-codigo">Usar foto do código</label>
-        <input type="file" id="foto-codigo" accept="image/*" hidden>
-        <div id="leitor-codigo" hidden></div>
-        <div id="resultado-codigo" aria-live="polite"></div>
-    </div>
-    <form class="camera-op" method="post" enctype="multipart/form-data" id="form-foto">
-        <h2>🖼️ Lançar pela foto da nota</h2>
-        <p class="sub">Tire uma foto da parte dos produtos, reta, de perto e com boa luz. O app lê os itens e você confere antes
-            de salvar.</p>
-        <label class="btn" for="foto-nota">Tirar ou escolher foto</label>
-        <input type="file" id="foto-nota" name="arquivo" accept="image/*" capture="environment" hidden>
-        <input type="hidden" name="texto_foto" id="texto-foto">
-        <p class="sub" id="progresso-foto" aria-live="polite"></p>
-    </form>
-</div>
-
-<h2>📄 Ou anexe o arquivo da nota</h2>
 <p class="sub">Anexe a nota da compra e o sistema lança todos os itens com quantidade e valor. Antes de salvar você confere tudo.</p>
 <form method="post" enctype="multipart/form-data" class="form-desperdicio">
     <label for="arquivo">Arquivo da nota ({{ extensoes }})</label>
@@ -41,75 +18,9 @@
 <div class="aviso">
     <strong>Qual arquivo usar?</strong><br>
     1. <strong>XML da nota</strong> (o melhor): o fornecedor manda por e-mail junto com o PDF.<br>
-    2. <strong>PDF da DANFE</strong>: funciona quando o PDF tem texto. Para foto ou nota escaneada, use "Lançar pela foto da nota" acima.<br>
+    2. <strong>PDF da DANFE</strong>: funciona quando o PDF tem texto. Foto ou nota escaneada não dá para ler.<br>
     3. <strong>Planilha</strong> (Excel ou CSV) com as colunas Produto, Quantidade e Valor.
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script>
-(function () {
-    var caixa = document.getElementById('resultado-codigo');
-    function brl(v) { return 'R$ ' + Number(v).toFixed(2).replace('.', ','); }
-    function dataBr(d) { return d.split('-').reverse().join('/'); }
-    function mostrar(html, classe) { caixa.className = classe; caixa.innerHTML = html; }
-    function esc(t) { var d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
-    function conferir(texto) {
-        mostrar('Conferindo…', 'sub');
-        fetch('{{ url_for("compras.conferir_codigo") }}', {method: 'POST', credentials: 'same-origin',
-            headers: {'Content-Type': 'application/json'}, body: JSON.stringify({texto: texto})})
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-            if (d.erro) { mostrar(esc(d.erro), 'erro'); return; }
-            var quem = d.fornecedor ? esc(d.fornecedor) : 'CNPJ ' + d.cnpj;
-            var info = d.modelo + ' nº ' + d.numero + ' · ' + quem + ' · emitida em ' + d.mes.split('-').reverse().join('/');
-            var link = d.link ? '<br><a href="' + esc(d.link) + '" target="_blank" rel="noopener">Ver a nota no site da Sefaz</a>' : '';
-            if (d.ja_lancada) {
-                mostrar('✅ <strong>Esta nota já foi lançada</strong> em ' + dataBr(d.ja_lancada) + ': ' + d.itens + ' itens' +
-                        (d.valor ? ', ' + brl(d.valor) : '') + '.<br>' + info + link, 'sucesso');
-            } else {
-                mostrar('⚠️ <strong>Esta nota ainda não foi lançada.</strong><br>' + info +
-                        '<br>Para lançar, tire a foto dos produtos ao lado ou anexe o XML/PDF abaixo.' + link, 'aviso');
-            }
-        }).catch(function () { mostrar('Não consegui conferir agora. Tente de novo.', 'erro'); });
-    }
-    var leitor = null, area = document.getElementById('leitor-codigo');
-    function parar() { if (leitor) { leitor.stop().catch(function () {}); leitor = null; area.hidden = true; } }
-    document.getElementById('ler-codigo').addEventListener('click', function () {
-        if (!window.Html5Qrcode) { mostrar('O leitor não carregou. Confira a internet e recarregue a página.', 'erro'); return; }
-        if (leitor) { parar(); return; }
-        area.hidden = false;
-        leitor = new Html5Qrcode('leitor-codigo');
-        leitor.start({facingMode: 'environment'}, {fps: 10, qrbox: {width: 260, height: 260}},
-            function (texto) { parar(); conferir(texto); }, function () {})
-        .catch(function () {
-            parar();
-            mostrar('Não consegui abrir a câmera. Libere a câmera para este site ou use "Usar foto do código".', 'erro');
-        });
-    });
-    document.getElementById('foto-codigo').addEventListener('change', function () {
-        var f = this.files[0]; if (!f || !window.Html5Qrcode) return;
-        parar();
-        var ler = new Html5Qrcode('leitor-codigo');
-        ler.scanFile(f, false).then(conferir).catch(function () {
-            mostrar('Não achei o código nessa foto. Tire bem de perto, só do QR code ou do código de barras.', 'erro');
-        });
-    });
-
-    var foto = document.getElementById('foto-nota'), progresso = document.getElementById('progresso-foto');
-    foto.addEventListener('change', function () {
-        var f = foto.files[0]; if (!f) return;
-        if (!window.Tesseract) { progresso.textContent = 'O leitor de fotos não carregou. Confira a internet e recarregue.'; return; }
-        progresso.textContent = 'Lendo a foto… na primeira vez demora um pouco mais.';
-        Tesseract.recognize(f, 'por', {logger: function (m) {
-            if (m.status === 'recognizing text') progresso.textContent = 'Lendo a foto… ' + Math.round(m.progress * 100) + '%';
-        }}).then(function (r) {
-            document.getElementById('texto-foto').value = r.data.text;
-            progresso.textContent = 'Pronto, abrindo os itens…';
-            document.getElementById('form-foto').submit();
-        }).catch(function () { progresso.textContent = 'Não consegui ler a foto. Tente de novo.'; });
-    });
-})();
-</script>
 {% else %}
 {% include "_aviso_valor_nota.html" %}
 {% if ja_lancada %}
