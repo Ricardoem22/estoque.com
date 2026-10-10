@@ -10,7 +10,7 @@
 {% if removido %}<div class="sucesso">Preços de {{ removido }} removidos.</div>{% endif %}
 
 <form method="post" enctype="multipart/form-data" class="form-desperdicio nao-imprimir">
-    <label for="texto">Lista de compras (um item por linha; a quantidade é opcional)</label>
+    <label for="texto">Digite a lista de compras (um item por linha; a quantidade é opcional)</label>
     <textarea id="texto" name="texto" rows="7" placeholder="Bacon 5 kg&#10;Arroz 10 kg&#10;Leite condensado 12 un&#10;Mussarela">{{ texto }}</textarea>
     <p class="sub dica">Pode digitar aqui ou colar a lista do WhatsApp.</p>
     <label for="arquivo">ou anexe a lista (Excel, CSV, Word ou PDF)</label>
@@ -112,7 +112,7 @@
 {% endif %}
 {% endif %}
 
-<h2 class="nao-imprimir">Planilhas de preço guardadas</h2>
+<h2 class="nao-imprimir">Preços guardados dos fornecedores</h2>
 <div class="nao-imprimir">
 {% if planilhas %}
 <table class="tabela-precos">
@@ -137,6 +137,22 @@
 <p class="sub">Nenhuma planilha ainda.</p>
 {% endif %}
 
+<form method="post" action="{{ url_for('precos.digitar_precos') }}" class="form-desperdicio" id="digitar-precos">
+    <h3>Digitar preços de um fornecedor</h3>
+    {% if erro_digitar %}<div class="erro">{{ erro_digitar }}</div>{% endif %}
+    <label for="fornecedor">Fornecedor</label>
+    <input type="text" id="fornecedor" name="fornecedor" list="lista-fornecedores" value="{{ fornecedor }}" placeholder="Ex.: Koch, SEGS, vendedor da Dellys" required>
+    <datalist id="lista-fornecedores">{% for p in planilhas %}<option value="{{ p['fornecedor'] }}">{% endfor %}</datalist>
+    <label for="precos">Produtos e preços (um por linha, o preço no fim)</label>
+    <textarea id="precos" name="precos" rows="6" placeholder="Bacon Sadia 1kg 32,90&#10;Tomate 5,99/kg&#10;Alface 2,50 un&#10;Arroz Tio João 5kg 24,90" required>{{ digitado }}</textarea>
+    <p class="sub dica">Escreva "/kg" depois do preço quando ele for por quilo. Sem isso é o preço do pacote: se o nome tiver
+        o peso (5kg, 500g), o app calcula o preço do quilo. Pode colar a tabela que o vendedor mandou no WhatsApp.</p>
+    <div class="form-actions">
+        <button class="btn" type="submit">Guardar preços</button>
+    </div>
+</form>
+
+<h3>ou envie as planilhas</h3>
 <form method="post" action="{{ url_for('precos.enviar_planilhas') }}" enctype="multipart/form-data" class="form-desperdicio">
     <label for="planilhas">Enviar planilhas de preço (.xlsx, pode escolher várias)</label>
     <input type="file" id="planilhas" name="planilhas" accept=".xlsx,.xlsm" multiple required>
