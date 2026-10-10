@@ -10,13 +10,27 @@ import config
 from contagem import get_connection
 from importador import extrair_itens, ler_arquivo, ler_texto
 from insumo_cadastro import ler_planilha_precos
-from notas import chave_nome, palavras
+from notas import PALAVRAS_IGNORADAS, chave_nome
 from unidades import converter_fixo
 
 bp = Blueprint("precos", __name__)
 
 # Quantas opções de marca/produto mostrar por item
 OPCOES = 12
+
+# Nomes diferentes da mesma coisa, e masculino/feminino ("Bovina" = "Bovino")
+SINONIMOS = {"bovina": "bovino", "bov": "bovino", "suina": "suino", "sui": "suino",
+             "entrecote": "entrecot", "entrecorte": "entrecot", "entreco": "entrecot"}
+# Filé de costela e bife ancho são o mesmo corte que o entrecot
+CORTES = [({"file", "costela"}, "entrecot"), ({"ancho", "bovino"}, "entrecot")]
+# Palavras que podem vir antes do nome do produto ("Queijo Mussarela", "Contra Filé"); outras na frente
+# mudam o produto ("Pizza Mussarela", "Farofa Bacon")
+ANTES = {"queijo", "file", "bife", "carne", "contra", "oleo", "farinha", "creme", "doce", "polpa", "suco",
+         "leite", "fruta", "peito", "coxa", "sobrecoxa", "filezinho", "presunto", "linguica"}
+# Tipo de carne: "Entrecot bovino" não traz "Entrecot suíno". Bovino e suíno muitas vezes não vêm escritos no
+# nome ("Entreco Friboi"), então não são obrigatórios
+CARNES = {"bovino", "suino", "frango", "peru", "cordeiro", "ovino"}
+OPCIONAIS = {"bovino", "suino"}
 
 
 def init_db():
@@ -122,15 +136,33 @@ def resumo_planilhas(conn):
     """).fetchall()
 
 
+def termos(nome):
+    """Palavras do nome na ordem, sem acento, no singular e com os sinônimos trocados (as palavras como "de"
+    ficam, para a posição no nome), mais os cortes reconhecidos ("Filé de Costela" ganha "entrecot")."""
+    ordem = [SINONIMOS.get(p, p) for p in re.findall(r"[a-z0-9]+", chave_nome(nome))]
+    cortes = [corte for juntas, corte in CORTES if juntas <= set(ordem)]
+    return ordem, cortes
+
+
+def palavras_de(ordem, cortes):
+    return {p for p in ordem if p not in PALAVRAS_IGNORADAS and not p.isdigit()} | set(cortes)
+
+
 def produtos_do_item(nome, precos):
-    """Produtos das planilhas que têm todas as palavras do item, com a primeira palavra do item entre as duas
-    primeiras do produto ("Mussarela" acha "Queijo Mussarela Peça"; "Sal" acha "Sal Grosso", não "Margarina com Sal")."""
-    alvo = palavras(nome)
+    """Produtos das planilhas que têm todas as palavras do item, com a primeira palavra do item no começo do
+    produto ("Mussarela" acha "Queijo Mussarela Peça", não "Pizza Mussarela"; "Sal" acha "Sal Grosso", não
+    "Margarina com Sal").
+    O tipo de carne do item é filtro, não obrigação: "Entrecot bovino" acha "Entreco Friboi" e não acha
+    "Entrecot Suíno"."""
+    ordem, cortes = termos(nome)
+    alvo = palavras_de(ordem, cortes)
     if not alvo:
         return []
-    achados = [p for p in precos if alvo <= p["palavras"]]
-    primeira = chave_nome(nome).split()[0]
-    mesmos = [p for p in achados if primeira in p["chave"].split()[:2]]
+    carnes = alvo & CARNES
+    resto = (alvo - OPCIONAIS) or alvo
+    achados = [p for p in precos if resto <= p["palavras"] and not (carnes and (p["palavras"] & CARNES) - carnes)]
+    primeira = next(p for p in ordem + cortes if p in alvo)
+    mesmos = [p for p in achados if primeira in p["primeiras"]]
     return mesmos or [p for p in achados if len(p["palavras"] - alvo) <= 3]
 
 
@@ -189,8 +221,10 @@ def carregar_precos(conn):
     precos = []
     for r in conn.execute("SELECT * FROM precos_fornecedor"):
         p = dict(r)
-        p["chave"] = chave_nome(p["produto"])
-        p["palavras"] = palavras(p["produto"])
+        ordem, cortes = termos(p["produto"])
+        p["palavras"] = palavras_de(ordem, cortes)
+        uteis = [w for w in ordem if w not in PALAVRAS_IGNORADAS]
+        p["primeiras"] = uteis[:1] + (uteis[1:2] if uteis[:1] and uteis[0] in ANTES else []) + cortes
         precos.append(p)
     return precos
 
