@@ -589,6 +589,7 @@ def insumos():
     return render_template(
         "insumos.html", grupos=grupos, categorias=categorias, unidades=UNIDADES, erro=erro,
         importados=request.args.get("importados"), completados=request.args.get("completados"),
+        excluidos=request.args.get("excluidos", type=int),
     )
 
 
@@ -752,6 +753,16 @@ def confirmar_importacao():
     conn.commit()
     conn.close()
     return redirect(url_for("contagem.insumos", importados=adicionados, completados=completados or None))
+
+
+@bp.route("/insumos/excluir-varios", methods=["POST"])
+def excluir_varios_insumos():
+    ids = [int(i) for i in request.form.getlist("ids") if i.isdigit()]
+    conn = get_connection()
+    excluidos = sum(conn.execute("DELETE FROM insumos WHERE id = ?", (i,)).rowcount for i in ids)
+    conn.commit()
+    conn.close()
+    return redirect(url_for("contagem.insumos", excluidos=excluidos))
 
 
 @bp.route("/insumos/<int:id>/excluir", methods=["POST"])
