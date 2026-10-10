@@ -4,7 +4,7 @@
 # ou por unidade, com o total estimado quando a lista traz a quantidade.
 import re
 
-from flask import Blueprint, redirect, render_template, request, url_for
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 
 import config
 from contagem import get_connection
@@ -15,8 +15,8 @@ from unidades import converter_fixo
 
 bp = Blueprint("precos", __name__)
 
-# Quantas outras marcas/produtos mostrar por item além do mais barato
-ALTERNATIVAS = 8
+# Quantas opções de marca/produto mostrar por item
+OPCOES = 12
 
 
 def init_db():
@@ -32,6 +32,15 @@ def init_db():
             link TEXT NOT NULL DEFAULT '',
             arquivo TEXT NOT NULL DEFAULT '',
             enviado_em TEXT NOT NULL
+        )
+    """)
+    # Marca/produto que a gerência prefere para cada item da lista (mesmo quando não é o mais barato)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS preco_escolhas (
+            chave TEXT PRIMARY KEY,
+            fornecedor TEXT NOT NULL,
+            produto TEXT NOT NULL,
+            salvo_em TEXT NOT NULL
         )
     """)
     conn.commit()
@@ -96,43 +105,43 @@ def quantidade_em(item, por):
     return None
 
 
-def buscar(itens, precos):
-    """Para cada item da lista: o mais barato por kg e por unidade e as outras opções, mais barato primeiro."""
+def buscar(itens, precos, escolhas=None):
+    """Para cada item da lista: as opções de marca/produto, mais barato primeiro, com a marca que a gerência
+    escolheu antes já marcada. escolhas: {chave do item: (fornecedor, produto)}."""
+    escolhas = escolhas or {}
     linhas, nao_achados = [], []
     for item in itens:
         produtos = produtos_do_item(item["nome"], precos)
         if not produtos:
             nao_achados.append(item)
             continue
-        produtos = sorted(produtos, key=lambda p: (p["por"] != "kg", p["preco"]))
         # Compara no jeito que a lista pede (kg ou un); sem unidade, o preço por kg vem primeiro
-        unidade = item.get("unidade") or ""
-        por = "un" if unidade == "un" else "kg"
-        mesmos = [p for p in produtos if p["por"] == por] or produtos
-        melhor = mesmos[0]
-        qtd = quantidade_em(item, melhor["por"])
-        outros_fornecedores = [p for p in mesmos[1:] if p["fornecedor"] != melhor["fornecedor"]]
-        linhas.append({
-            "item": item,
-            "melhor": melhor,
-            "quantidade": qtd,
-            "total": round(qtd * melhor["preco"], 2) if qtd is not None else None,
-            # Quanto mais caro sai o segundo fornecedor (economia de comprar no melhor)
-            "segundo": outros_fornecedores[0] if outros_fornecedores else None,
-            "opcoes": [p for p in produtos if p is not melhor][:ALTERNATIVAS],
-            "mais": max(0, len(produtos) - 1 - ALTERNATIVAS),
-        })
+        por = "un" if (item.get("unidade") or "") == "un" else "kg"
+        produtos = sorted(produtos, key=lambda p: (p["por"] != por, p["preco"]))[:OPCOES]
+        barato = produtos[0]
+        chave = chave_nome(item["nome"])
+        salvo = escolhas.get(chave)
+        escolhido = next((p for p in produtos if salvo and (p["fornecedor"], p["produto"]) == salvo), barato)
+        opcoes = []
+        for p in produtos:
+            qtd = quantidade_em(item, p["por"])
+            opcoes.append({**p, "total": round(qtd * p["preco"], 2) if qtd is not None else None,
+                           "barato": p is barato, "salvo": bool(salvo) and p is escolhido})
+        linhas.append({"item": item, "chave": chave, "opcoes": opcoes,
+                       "escolhido": next(o for o in opcoes if o["id"] == escolhido["id"])})
     por_fornecedor = {}
     for l in linhas:
-        grupo = por_fornecedor.setdefault(l["melhor"]["fornecedor"], {"itens": 0, "total": 0.0, "sem_total": 0})
+        e = l["escolhido"]
+        grupo = por_fornecedor.setdefault(e["fornecedor"], {"itens": 0, "total": 0.0})
         grupo["itens"] += 1
-        if l["total"] is None:
-            grupo["sem_total"] += 1
-        else:
-            grupo["total"] += l["total"]
+        grupo["total"] += e["total"] or 0
     return {"linhas": linhas, "nao_achados": nao_achados,
             "por_fornecedor": sorted(por_fornecedor.items(), key=lambda g: -g[1]["itens"]),
-            "total": round(sum(l["total"] for l in linhas if l["total"] is not None), 2)}
+            "total": round(sum(l["escolhido"]["total"] or 0 for l in linhas), 2)}
+
+
+def carregar_escolhas(conn):
+    return {r["chave"]: (r["fornecedor"], r["produto"]) for r in conn.execute("SELECT * FROM preco_escolhas")}
 
 
 def carregar_precos(conn):
@@ -168,7 +177,7 @@ def melhor_preco():
                 elif not precos:
                     erro = "Ainda não há planilha de preços guardada. Envie as planilhas dos fornecedores abaixo."
                 else:
-                    resultado = buscar(itens, precos)
+                    resultado = buscar(itens, precos, carregar_escolhas(conn))
         except ValueError as e:
             erro = str(e)
         except Exception:
@@ -210,3 +219,23 @@ def remover_fornecedor():
     conn.commit()
     conn.close()
     return redirect(url_for("precos.melhor_preco", removido=fornecedor))
+
+
+@bp.route("/melhor-preco/escolha", methods=["POST"])
+def salvar_escolha():
+    """Guarda a marca escolhida para um item; escolher o mais barato apaga a preferência."""
+    dados = request.get_json(silent=True) or {}
+    chave = chave_nome(str(dados.get("item", "")))
+    if not chave:
+        return jsonify(ok=False), 400
+    conn = get_connection()
+    linha = conn.execute("SELECT fornecedor, produto FROM precos_fornecedor WHERE id = ?",
+                         (dados.get("id"),)).fetchone()
+    if linha is None or dados.get("barato"):
+        conn.execute("DELETE FROM preco_escolhas WHERE chave = ?", (chave,))
+    else:
+        conn.execute("INSERT OR REPLACE INTO preco_escolhas (chave, fornecedor, produto, salvo_em) VALUES (?, ?, ?, ?)",
+                     (chave, linha["fornecedor"], linha["produto"], config.agora().strftime("%Y-%m-%d %H:%M")))
+    conn.commit()
+    conn.close()
+    return jsonify(ok=True)
