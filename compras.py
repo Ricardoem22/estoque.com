@@ -1,6 +1,7 @@
 # compras.py
 # Registro das compras (entradas de mercadoria), usado no cálculo do consumo.
 from datetime import datetime
+import json
 import re
 
 import os
@@ -152,16 +153,8 @@ def compras():
         elif valor_total == -1:
             erro = "Valor pago inválido. Use só números, ex.: 45,90."
         else:
-            from insumo_cadastro import carregar_conversoes
-            from unidades import converter
             unidade = unidade_digitada(form.get("quantidade"), form.get("unidade")) or insumo["unidade"]
-            # O estoque soma na unidade da última contagem do insumo
-            ultima = ultimas_contagens(conn).get(insumo["id"])
-            destino = ultima["unidade"] if ultima else insumo["unidade"]
-            if converter(1, unidade, destino, carregar_conversoes(conn).get(insumo["id"], [])) is None:
-                erro = (f"{unidade} não converte para {destino} (a unidade do estoque de "
-                        f"{insumo['nome']}). Cadastre a medida na ficha do insumo, ex.: 1 {unidade} = 5 "
-                        f"{destino}.")
+            erro = erro_de_unidade(conn, insumo, unidade) or erro
         if not erro and form.get("data_compra") and not data_valida(form.get("data_compra")):
             erro = "Data da compra inválida."
         elif not erro and form.get("validade") and not data_valida(form.get("validade")):
@@ -270,12 +263,103 @@ def compras():
         data_padrao=form.get("data") or request.args.get("data") or config.hoje().isoformat(),
         fornecedor=form.get("fornecedor") or request.args.get("fornecedor", ""),
         salvo=salvo, lancados=request.args.get("lancados", type=int), nota_fora=nota_fora,
-        somadas=request.args.get("somadas", type=int),
+        somadas=request.args.get("somadas", type=int), registradas=request.args.get("registradas", type=int),
+        excluidas=request.args.get("excluidas", type=int),
         de=request.args.get("de", ""), ate=request.args.get("ate", ""), filtro_fornecedor=filtro_fornecedor,
         fornecedores=fornecedores, extras=extras, hoje_iso=config.hoje().isoformat(),
         por_fornecedor=sorted(por_fornecedor.values(), key=lambda f: (-f["valor"], f["nome"])),
         nota_pulados=nota_pulados, voltar=request.full_path,
     )
+
+
+def erro_de_unidade(conn, insumo, unidade):
+    """O estoque soma na unidade da última contagem do insumo: avisa se a unidade da compra não converte."""
+    from insumo_cadastro import carregar_conversoes
+    from unidades import converter
+    ultima = ultimas_contagens(conn).get(insumo["id"])
+    destino = ultima["unidade"] if ultima else insumo["unidade"]
+    if converter(1, unidade, destino, carregar_conversoes(conn).get(insumo["id"], [])) is None:
+        return (f"{unidade} não converte para {destino} (a unidade do estoque de "
+                f"{insumo['nome']}). Cadastre a medida na ficha do insumo, ex.: 1 {unidade} = 5 "
+                f"{destino}.")
+    return None
+
+
+@bp.route("/compras/varias", methods=["GET", "POST"])
+def lancar_varias():
+    """Marca vários insumos, digita a quantidade de cada um e registra tudo de uma vez (mesma data e fornecedor)."""
+    conn = get_connection()
+    form = request.form
+    erros = {}
+    erro = None
+    if request.method == "POST":
+        ids = [int(i) for i in form.getlist("ids") if i.isdigit()][:300]
+        data = data_valida(form.get("data"))
+        if not data:
+            erro = "Informe a data do recebimento."
+        elif not ids:
+            erro = "Marque pelo menos um insumo."
+        elif form.get("data_compra") and not data_valida(form.get("data_compra")):
+            erro = "Data da compra inválida."
+        linhas = []
+        for i in ids if not erro else []:
+            insumo = conn.execute("SELECT * FROM insumos WHERE id = ?", (i,)).fetchone()
+            if insumo is None:
+                continue
+            texto = form.get(f"quantidade_{i}")
+            try:
+                quantidade = parse_quantidade(texto)
+            except ValueError:
+                quantidade = None
+            try:
+                valor_total = parse_valor(form.get(f"valor_{i}"))
+            except ValueError:
+                erros[i] = "Valor inválido. Use só números, ex.: 45,90."
+                continue
+            unidade = unidade_digitada(texto, form.get(f"unidade_{i}")) or insumo["unidade"]
+            if not quantidade:
+                erros[i] = "Informe a quantidade."
+            else:
+                erros[i] = erro_de_unidade(conn, insumo, unidade)
+            if not erros[i]:
+                del erros[i]
+                linhas.append((insumo, quantidade, unidade, valor_total))
+        if erros:
+            erro = f"{len(erros)} insumo(s) com problema. Nada foi registrado ainda: corrija e salve de novo."
+        if not erro:
+            agora = config.agora().strftime("%Y-%m-%d %H:%M:%S")
+            for insumo, quantidade, unidade, valor_total in linhas:
+                conn.execute("""
+                    INSERT INTO compras (data, insumo_id, quantidade, unidade, fornecedor, criado_em, valor_total,
+                                         nota, observacao, registrado_por, anexo, data_compra, validade)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, '', ?, '')
+                """, (data, insumo["id"], quantidade, unidade, form.get("fornecedor", "").strip(), agora, valor_total,
+                      form.get("observacao", "").strip(), session.get("nome", ""), data_valida(form.get("data_compra"))))
+            conn.commit()
+            conn.close()
+            return redirect(url_for("compras.compras", mes=data[:7], registradas=len(linhas)))
+    from insumo_cadastro import insumos_para_formulario
+    grupos = insumos_para_formulario(conn)
+    for _, itens in grupos:
+        for item in itens:
+            item["unidades"] = json.loads(item["unidades_json"])
+    fornecedores = [r["fornecedor"] for r in conn.execute(
+        "SELECT DISTINCT fornecedor FROM compras WHERE fornecedor != '' ORDER BY fornecedor COLLATE NOCASE")]
+    conn.close()
+    return render_template("compras_varias.html", grupos=grupos, form=form, erro=erro, erros=erros,
+                           marcados=set(form.getlist("ids")), fornecedores=fornecedores,
+                           data_padrao=form.get("data") or config.hoje().isoformat())
+
+
+@bp.route("/compras/excluir-varias", methods=["POST"])
+def excluir_varias():
+    ids = [int(i) for i in request.form.getlist("ids") if i.isdigit()][:500]
+    conn = get_connection()
+    for i in ids:
+        apagar_compra(conn, i)
+    conn.commit()
+    conn.close()
+    return redirect(url_for("compras.compras", mes=request.form.get("mes", ""), excluidas=len(ids)))
 
 
 def ultimas_contagens(conn):
