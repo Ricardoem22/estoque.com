@@ -162,13 +162,34 @@ def _linhas_por_posicao(dados):
     return linhas
 
 
+def _leituras(texto):
+    """'1.245' pode ser 1,245 (ponto decimal) ou 1245 (milhar): as duas leituras possíveis."""
+    texto = str(texto or "").strip()
+    opcoes = [parse_numero(texto)]
+    if re.fullmatch(r"\d+\.\d+", texto):
+        opcoes.append(float(texto))
+    return [o for i, o in enumerate(opcoes) if o is not None and o not in opcoes[:i]]
+
+
+def quantidade_pela_conta(quantidade, unitario, total):
+    """Escolhe a leitura da quantidade que fecha a conta quantidade × valor unitário = total.
+    Sem isso, nota com '1.000 KG' (ponto decimal) entrava como mil quilos."""
+    opcoes = _leituras(quantidade)
+    if total:
+        for q in opcoes:
+            for u in _leituras(unitario):
+                if abs(q * u - total) <= max(0.05, total * 0.01):
+                    return q
+    return opcoes[0] if opcoes else None
+
+
 def _itens_danfe(linhas):
     itens = []
     for linha in linhas:
         m = LINHA_DANFE.match(re.sub(r"\s+", " ", linha.strip()))
         if not m:
             continue
-        quantidade = parse_numero(m.group("qtd"))
+        quantidade = quantidade_pela_conta(m.group("qtd"), m.group("unit"), parse_numero(m.group("total")))
         if not quantidade:
             continue
         nome = m.group("nome").strip() + (" " + m.group("resto") if m.group("resto") else "")
@@ -252,12 +273,18 @@ def ler_planilha(linhas):
 
     for linha in linhas[cabecalho + 1:]:
         nome = str(celula(linha, "nome")).strip()
-        quantidade = parse_numero(celula(linha, "quantidade"))
+        total = parse_numero(str(celula(linha, "valor_total")).replace("R$", ""))
+        unitario_texto = str(celula(linha, "valor_unitario")).replace("R$", "")
+        bruto = celula(linha, "quantidade")
+        if isinstance(bruto, (int, float)):
+            quantidade = parse_numero(bruto)
+        else:
+            so_numero = re.match(r"\s*([\d.,]+)", str(bruto))  # "1.000 KG" -> "1.000"
+            quantidade = quantidade_pela_conta(so_numero.group(1) if so_numero else bruto, unitario_texto, total)
         if not nome or not quantidade:
             continue
-        total = parse_numero(str(celula(linha, "valor_total")).replace("R$", ""))
         if total is None:
-            unitario = parse_numero(str(celula(linha, "valor_unitario")).replace("R$", ""))
+            unitario = parse_numero(unitario_texto)
             total = round(unitario * quantidade, 2) if unitario is not None else None
         nota["itens"].append(item_nota(
             nome, quantidade,

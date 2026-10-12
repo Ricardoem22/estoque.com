@@ -34,7 +34,8 @@ NUMEROS = {
     "meia": 0.5, "duzentos": 200, "duzentas": 200, "trezentos": 300, "trezentas": 300, "quatrocentos": 400,
     "quatrocentas": 400, "quinhentos": 500, "quinhentas": 500, "seiscentos": 600, "seiscentas": 600,
     "setecentos": 700, "setecentas": 700, "oitocentos": 800, "oitocentas": 800, "novecentos": 900,
-    "novecentas": 900,
+    "novecentas": 900, "zero": 0, "dezesseis": 16, "dezessete": 17, "dezoito": 18, "dezenove": 19,
+    "sessenta": 60, "setenta": 70, "oitenta": 80, "noventa": 90, "cento": 100,
 }
 # Palavra falada → unidade do app
 UNIDADES_FALADAS = {
@@ -89,6 +90,42 @@ def _numero(palavra):
     return NUMEROS.get(palavra)
 
 
+def _virgula_falada(texto):
+    """ "1 virgula 245", "um virgula dois quatro cinco" e "um virgula duzentos e quarenta e cinco" viram "1,245".
+    Sem isso a vírgula falada some e o "e" corta o número no meio."""
+    palavras = texto.split()
+    saida, i = [], 0
+    while i < len(palavras):
+        p = palavras[i]
+        inteiro = _numero(saida[-1]) if saida and p in ("virgula", "ponto") else None
+        if inteiro is None or not float(inteiro).is_integer() or i + 1 >= len(palavras) \
+                or _numero(palavras[i + 1]) is None:
+            saida.append(p)
+            i += 1
+            continue
+        # Casas decimais: dígitos soltos se juntam ("dois quatro cinco"), o resto soma ("duzentos e quarenta e cinco")
+        j, valores = i + 1, []
+        while j < len(palavras):
+            if palavras[j] == "e" and valores and j + 1 < len(palavras) and _numero(palavras[j + 1]) not in (None, 0.5):
+                j += 1
+                continue
+            valor = _numero(palavras[j])
+            if valor is None or valor == 0.5:
+                break
+            if re.fullmatch(r"\d+", palavras[j]):
+                valores.append(palavras[j])
+            else:
+                valores.append(int(valor))
+            j += 1
+        if all(isinstance(v, str) or v < 10 for v in valores):
+            decimais = "".join(str(v) for v in valores)
+        else:
+            decimais = str(sum(int(v) for v in valores))
+        saida[-1] = f"{int(inteiro)},{decimais}"
+        i = j
+    return " ".join(saida)
+
+
 def _raiz(palavra):
     # "tomates" ≈ "tomate", "limoes" ≈ "limao"
     for fim, troca in (("oes", "ao"), ("aes", "ao"), ("es", ""), ("s", "")):
@@ -140,7 +177,7 @@ def mais_exatos(palavras, insumos):
 
 def interpretar(texto, insumos):
     """Transforma a frase em {tipo, quantidade, unidade, valor, insumos} sem tocar no banco."""
-    limpo = sem_acento(texto)
+    limpo = _virgula_falada(sem_acento(texto))
     if limpo.startswith(NAVEGAR):
         tipo = "navegar"
     else:
@@ -197,7 +234,8 @@ REFEICAO = ("refeic", "almoco", "janta", "cafe da manha", "lanche da equipe", "c
 def _separar_itens(texto):
     """Corta a frase em itens por vírgula, "e" ou "mais". "dois e meio quilos" e "1 quilo e meio" não cortam."""
     pedacos, atual = [], []
-    palavras = re.findall(r"[,;]|[^\s,;]+", texto)
+    # "1,245" é um número só: a vírgula entre dígitos não corta o item
+    palavras = re.findall(r"\d+(?:[.,]\d+)+[a-z]*|[,;]|[^\s,;]+", texto)
     for i, p in enumerate(palavras):
         seguinte = palavras[i + 1] if i + 1 < len(palavras) else ""
         anterior = atual[-1] if atual else ""
@@ -248,7 +286,7 @@ def _quebrar_por_quantidade(pedaco):
 def itens_falados(texto, insumos):
     """ "2 quilos de arroz, 1 kg de feijão e meio quilo de frango" → [{insumo, quantidade, unidade}] e o que não
     deu para entender. Cada pedaço precisa de uma quantidade e de um insumo cadastrado."""
-    limpo = sem_acento(texto)
+    limpo = _virgula_falada(sem_acento(texto))
     for chave in REFEICAO + ("refeicoes", "da equipe", "equipe", "usamos", "usei", "lancar", "lanca", "lance"):
         limpo = limpo.replace(chave, " ")
     itens, nao_entendi = [], []

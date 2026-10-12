@@ -8,31 +8,34 @@
         nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16,
         dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60,
         setenta: 70, oitenta: 80, noventa: 90, cem: 100, cento: 100, duzentos: 200, trezentos: 300, quinhentos: 500,
-        mil: 1000};
+        seiscentos: 600, setecentos: 700, oitocentos: 800, novecentos: 900, quatrocentos: 400, mil: 1000};
     var TIPOS = {text: 1, search: 1, email: 0, "": 1};
 
     function semAcento(t) { return t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
     function paraNumero(fala) {
-        var t = semAcento(fala).replace(/(\d)\s*[.,]\s*(\d)/g, "$1,$2");
+        var t = semAcento(fala).replace(/(\d)\s*(?:[.,]|virgula|ponto)\s*(\d)/g, "$1,$2");
         var digitos = t.match(/\d+(,\d+)?/);
         if (digitos) {
             var n = digitos[0];
             if (/\be meio\b|\be meia\b/.test(t)) n = String(parseFloat(n.replace(",", ".")) + 0.5).replace(".", ",");
             return n;
         }
-        var inteiro = 0, decimais = "", depois = false, achou = false;
+        var inteiro = 0, decimais = [], depois = false, achou = false;
         t.split(/\s+/).forEach(function (p) {
             if (p === "virgula" || p === "ponto") { depois = true; return; }
             if (p === "meio" || p === "meia") { inteiro += 0.5; achou = true; return; }
             if (p in NUMEROS) {
                 achou = true;
-                if (depois) decimais += String(NUMEROS[p]);
+                if (depois) decimais.push(NUMEROS[p]);
                 else if (p === "mil") inteiro = (inteiro || 1) * 1000;
                 else inteiro += NUMEROS[p];
             }
         });
         if (!achou) return fala.trim();
-        return (String(inteiro) + (decimais ? "." + decimais : "")).replace(".", ",");
+        // "dois quatro cinco" junta os dígitos; "duzentos e quarenta e cinco" soma: os dois dão 245
+        var soDigitos = decimais.every(function (d) { return d < 10; });
+        var casas = soDigitos ? decimais.join("") : String(decimais.reduce(function (a, b) { return a + b; }, 0));
+        return String(inteiro).replace(".", ",") + (casas ? "," + casas : "");
     }
     function serve(el) {
         if (!el || el.disabled || el.readOnly || el.id === "voz-texto" || el.closest("[data-sem-ditado]")) return false;
