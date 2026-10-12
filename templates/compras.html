@@ -4,7 +4,10 @@
 {% block conteudo %}
 <div class="top-bar">
     <h1>🛒 Compras</h1>
-    <a class="btn" href="{{ url_for('compras.importar_nota') }}">📄 Lançar nota fiscal</a>
+    <div>
+        <a class="btn btn-edit" href="{{ url_for('compras.lancar_varias') }}">☑️ Lançar várias de uma vez</a>
+        <a class="btn" href="{{ url_for('compras.importar_nota') }}">📄 Lançar nota fiscal</a>
+    </div>
 </div>
 <p class="sub">Registre aqui o que chegou de mercadoria. O relatório usa as compras para calcular quanto foi consumido entre uma contagem e outra.</p>
 
@@ -31,6 +34,8 @@
 {% endif %}
 {% endif %}
 {% if lancados is not none %}<div class="sucesso">Nota lançada: {{ lancados }} ite{{ 'ns' if lancados != 1 else 'm' }} entr{{ 'aram' if lancados != 1 else 'ou' }} nas compras{% if not nota_fora %} e no estoque{% endif %}.</div>{% endif %}
+{% if registradas is not none %}<div class="sucesso">{{ registradas }} compra(s) registrada(s) de uma vez.</div>{% endif %}
+{% if excluidas is not none %}<div class="sucesso">{{ excluidas }} compra(s) excluída(s).</div>{% endif %}
 {% if somadas is not none %}<div class="sucesso">{{ somadas }} ite{{ 'ns' if somadas != 1 else 'm' }} da nota passa{{ 'ram' if somadas != 1 else 'ou' }} para o dia da contagem e soma{{ 'ram' if somadas != 1 }} no estoque.</div>{% endif %}
 {% if nota_fora %}
 {% set por_data = nota_fora|selectattr('motivo', 'equalto', 'data')|list %}
@@ -173,11 +178,22 @@
 {% endif %}
 
 {% if registros %}
+<form method="post" action="{{ url_for('compras.excluir_varias') }}" id="form-compras-sel" class="barra-selecao" hidden>
+    <input type="hidden" name="mes" value="{{ mes }}">
+    <span id="total-selecionadas"></span>
+    <button class="btn btn-edit" type="button" id="limpar-selecao">Desmarcar</button>
+    {% if fora %}<button class="btn" type="submit" formaction="{{ url_for('compras.mover_varias_para_contagem') }}"
+            title="Para as que ficaram fora do estoque por serem de antes da contagem">➕ Somar no estoque</button>{% endif %}
+    <button class="btn btn-delete" type="submit"
+            onclick="return confirm('Excluir ' + document.querySelectorAll('.sel-compra:checked').length + ' compra(s)? Elas saem do estoque.')">🗑️ Excluir selecionadas</button>
+</form>
 <table class="tabela-compras">
-    <thead><tr><th>Recebido</th><th>Insumo</th><th>Qtd.</th><th>Valor</th><th>Fornecedor</th><th></th></tr></thead>
+    <thead><tr><th class="col-sel"><input type="checkbox" id="sel-todas" class="sel-insumo" aria-label="Marcar todas"></th><th>Recebido</th><th>Insumo</th><th>Qtd.</th><th>Valor</th><th>Fornecedor</th><th></th></tr></thead>
     <tbody>
         {% for r in registros %}
         <tr>
+            <td class="col-sel"><input type="checkbox" class="sel-insumo sel-compra" name="ids" value="{{ r['id'] }}"
+                form="form-compras-sel" aria-label="Selecionar {{ r['insumo_nome'] }}"></td>
             <td>{{ r['data']|data_br }}</td>
             <td>{{ r['insumo_nome'] }}{% if r['observacao'] %}<br><span class="sub">{{ r['observacao'] }}</span>{% endif %}{% if r['anexo'] %}<br><a class="sub" href="{{ url_for('compras.ver_anexo', nome=r['anexo']) }}" target="_blank">📎 ver arquivo</a>{% endif %}{% for a in extras.get(r['id'], []) %} <a class="sub" href="{{ url_for('compras.ver_anexo', nome=a) }}" target="_blank">📎 {{ loop.index + 1 }}</a>{% endfor %}
                 {% if r['validade'] %}<br><span class="tag {{ 'tag-recusado' if r['validade'] < hoje_iso else 'tag-aberta' }}">validade {{ r['validade']|data_br }}</span>{% endif %}
@@ -207,6 +223,29 @@
 <p class="vazio">Nenhuma compra {% if de or ate or filtro_fornecedor %}com esse filtro{% else %}registrada neste mês{% endif %}.</p>
 {% endif %}
 
+<script>
+(function () {
+    var barra = document.getElementById("form-compras-sel");
+    if (!barra) return;
+    var caixas = document.querySelectorAll(".sel-compra"), todas = document.getElementById("sel-todas");
+    function atualizar() {
+        var n = document.querySelectorAll(".sel-compra:checked").length;
+        barra.hidden = !n;
+        document.getElementById("total-selecionadas").textContent = n + (n === 1 ? " selecionada" : " selecionadas");
+        todas.checked = n > 0 && n === caixas.length;
+        todas.indeterminate = n > 0 && n < caixas.length;
+    }
+    caixas.forEach(function (c) { c.addEventListener("change", atualizar); });
+    todas.addEventListener("change", function () {
+        caixas.forEach(function (c) { c.checked = todas.checked; });
+        atualizar();
+    });
+    document.getElementById("limpar-selecao").addEventListener("click", function () {
+        caixas.forEach(function (c) { c.checked = false; });
+        atualizar();
+    });
+})();
+</script>
 <script src="{{ url_for('static', filename='unidades.js') }}"></script>
 <script>ligarUnidades("insumo_id", "unidade", "quantidade", "previa-unidade");</script>
 {% endblock %}

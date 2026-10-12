@@ -1,0 +1,114 @@
+{% extends "base_contagem.html" %}
+{% block titulo %}Lançar várias compras{% endblock %}
+{% block conteudo %}
+<div class="top-bar">
+    <h1>☑️ Lançar várias compras</h1>
+    <a class="btn btn-edit" href="{{ url_for('compras.compras') }}">← Voltar para Compras</a>
+</div>
+<p class="sub">Marque os insumos que chegaram, digite a quantidade de cada um e salve tudo de uma vez.
+    A data e o fornecedor valem para todos.</p>
+
+{% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+<form method="post" id="form-varias">
+    <div class="form-desperdicio">
+        <div class="linha">
+            <div>
+                <label for="data">Data do recebimento</label>
+                <input type="date" id="data" name="data" value="{{ data_padrao }}" required>
+            </div>
+            <div>
+                <label for="data_compra">Data da compra <span class="sub">(opcional)</span></label>
+                <input type="date" id="data_compra" name="data_compra" value="{{ form.get('data_compra', '') }}">
+            </div>
+        </div>
+        <div class="linha">
+            <div>
+                <label for="fornecedor">Fornecedor</label>
+                <input type="text" id="fornecedor" name="fornecedor" placeholder="Opcional" value="{{ form.get('fornecedor', '') }}" list="lista-fornecedores">
+            </div>
+            <div>
+                <label for="observacao">Observação</label>
+                <input type="text" id="observacao" name="observacao" placeholder="Opcional" value="{{ form.get('observacao', '') }}">
+            </div>
+        </div>
+        <datalist id="lista-fornecedores">{% for f in fornecedores %}<option value="{{ f }}">{% endfor %}</datalist>
+    </div>
+
+    <input type="search" id="busca-insumos" class="busca" placeholder="🔎 Procurar insumo..." aria-label="Procurar insumo">
+    <div class="barra-selecao" id="barra-varias" hidden>
+        <span id="total-marcados"></span>
+        <button class="btn" type="submit">💾 Registrar compras</button>
+    </div>
+
+    {% for categoria, itens in grupos %}
+    <section class="categoria-insumos">
+    <h2>{{ categoria }} <span class="sub">({{ itens|length }})</span></h2>
+    <table class="tabela-varias">
+        <tbody>
+        {% for item in itens %}{% set id = item['id']|string %}{% set marcado = id in marcados %}
+        <tr class="linha-insumo{% if marcado %} marcada{% endif %}" data-busca="{{ item['nome'] }} {{ item['codigo'] or '' }}">
+            <td class="col-sel"><input type="checkbox" class="sel-insumo" name="ids" value="{{ id }}" id="sel-{{ id }}"
+                {% if marcado %}checked{% endif %} aria-label="Marcar {{ item['nome'] }}"></td>
+            <td><label for="sel-{{ id }}" class="nome-insumo">{{ item['nome'] }}</label>
+                {% if erros.get(item['id']) %}<br><span class="erro-item">⚠️ {{ erros[item['id']] }}</span>{% endif %}
+                <div class="campos-compra"{% if not marcado %} hidden{% endif %}>
+                    <input type="text" name="quantidade_{{ id }}" inputmode="decimal" placeholder="Qtd." aria-label="Quantidade de {{ item['nome'] }}"
+                           value="{{ form.get('quantidade_' ~ id, '') }}">
+                    <select name="unidade_{{ id }}" aria-label="Unidade de {{ item['nome'] }}">
+                        {% set escolhida = form.get('unidade_' ~ id) or item['unidade'] %}
+                        {% for u in item['unidades'] %}<option value="{{ u }}" {% if u == escolhida %}selected{% endif %}>{{ u }}</option>{% endfor %}
+                    </select>
+                    <input type="text" name="valor_{{ id }}" inputmode="decimal" placeholder="R$ (opcional)" aria-label="Valor pago de {{ item['nome'] }}"
+                           value="{{ form.get('valor_' ~ id, '') }}">
+                </div></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </section>
+    {% endfor %}
+
+    <div class="form-actions"><button class="btn" type="submit">💾 Registrar compras</button></div>
+</form>
+
+<script>
+(function () {
+    var barra = document.getElementById("barra-varias");
+    function atualizar() {
+        var n = 0;
+        document.querySelectorAll(".linha-insumo").forEach(function (tr) {
+            var c = tr.querySelector(".sel-insumo"), campos = tr.querySelector(".campos-compra");
+            campos.hidden = !c.checked;
+            tr.classList.toggle("marcada", c.checked);
+            campos.querySelector("input").required = c.checked;
+            if (c.checked) n++;
+        });
+        barra.hidden = !n;
+        document.getElementById("total-marcados").textContent = n + (n === 1 ? " insumo marcado" : " insumos marcados");
+    }
+    document.querySelectorAll(".linha-insumo .sel-insumo").forEach(function (c) {
+        c.addEventListener("change", function () {
+            atualizar();
+            if (c.checked) c.closest("tr").querySelector(".campos-compra input").focus();
+        });
+    });
+    atualizar();
+    var busca = document.getElementById("busca-insumos");
+    function limpar(t) { return t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+    busca.addEventListener("input", function () {
+        var palavras = limpar(busca.value.trim()).split(/\s+/).filter(Boolean);
+        document.querySelectorAll(".categoria-insumos").forEach(function (sec) {
+            var visiveis = 0;
+            sec.querySelectorAll(".linha-insumo").forEach(function (tr) {
+                var mostra = tr.classList.contains("marcada") || palavras.every(function (p) {
+                    return limpar(tr.dataset.busca).indexOf(p) !== -1; });
+                tr.hidden = !mostra;
+                if (mostra) visiveis++;
+            });
+            sec.hidden = !visiveis;
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -572,7 +572,7 @@ textarea { width: 100%; padding: 8px; border: 1px solid #D3CBBB; border-radius: 
 .dica { margin: 4px 0 0; font-size: 13px; }
 @media (max-width: 600px) {
     .valor-total strong { font-size: 28px; }
-    .tabela-compras th:nth-child(5), .tabela-compras td:nth-child(5) { display: none; }
+    .tabela-compras th:nth-child(6), .tabela-compras td:nth-child(6) { display: none; }
 }
 @media print {
     .valor-total { background: #fff; color: var(--texto); border: 2px solid var(--texto); }
@@ -710,7 +710,8 @@ tr.inativo td { opacity: 0.6; }
 @media (max-width: 600px) {
     .tabela-compras { font-size: 13px; }
     .tabela-compras th, .tabela-compras td { padding: 6px 3px; }
-    .tabela-compras .btn { padding: 6px 8px; font-size: 12px; }
+    .tabela-compras .btn { padding: 6px 8px; font-size: 12px; word-break: normal; }
+    .tabela-compras .col-sel { width: 26px; }
     .tabela-compras .tag { white-space: normal; }
     .tabela-compras td { word-break: break-word; }
 }
@@ -841,3 +842,14 @@ select.destino-importar { width: 100%; margin: 4px 0; }
     background: #fff4f4; border: 2px solid var(--vermelho); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
 .barra-selecao span { font-weight: 700; flex: 1; }
 .barra-selecao[hidden] { display: none; }
+
+/* Compras: lançar várias de uma vez */
+.tabela-varias td { vertical-align: top; }
+.tabela-varias tr.marcada { background: #fffaf0; }
+.tabela-varias label.nome-insumo { cursor: pointer; text-decoration: none; }
+.campos-compra { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.campos-compra[hidden] { display: none; }
+.campos-compra input, .campos-compra select { padding: 8px 10px; border: 1px solid #D3CBBB; border-radius: 8px; font-size: 16px; }
+.campos-compra input[name^="quantidade_"] { width: 90px; }
+.campos-compra input[name^="valor_"] { width: 130px; }
+.erro-item { color: var(--vermelho); font-weight: 600; font-size: 14px; }
