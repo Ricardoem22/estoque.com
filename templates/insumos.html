@@ -27,6 +27,7 @@
 </form>
 
 <input type="search" id="busca-insumos" class="busca" placeholder="🔎 Procurar insumo..." aria-label="Procurar insumo">
+<label class="marcar-todos-geral"><input type="checkbox" id="sel-todos"> Marcar todos os insumos</label>
 <form method="post" action="{{ url_for('contagem.excluir_varios_insumos') }}" id="form-excluir-varios" class="barra-selecao" hidden>
     <span id="total-selecionados"></span>
     <button class="btn btn-edit" type="button" id="limpar-selecao">Desmarcar</button>
@@ -73,6 +74,9 @@
     function atualizar() {
         var n = document.querySelectorAll(".sel-insumo:checked").length;
         barra.hidden = !n;
+        var visiveis = document.querySelectorAll(".linha-insumo:not([hidden]) .sel-insumo").length;
+        var sel = document.getElementById("sel-todos");
+        if (sel) { sel.checked = n > 0 && n === visiveis; sel.indeterminate = n > 0 && n < visiveis; }
         document.getElementById("total-selecionados").textContent = n + (n === 1 ? " selecionado" : " selecionados");
         document.querySelectorAll(".categoria-insumos").forEach(function (sec) {
             var todos = sec.querySelectorAll(".linha-insumo:not([hidden]) .sel-insumo");
@@ -90,6 +94,12 @@
                 .forEach(function (s) { s.checked = c.checked; });
             atualizar();
         });
+    });
+    var todos = document.getElementById("sel-todos");
+    todos.addEventListener("change", function () {
+        // Marca só os que aparecem na busca
+        document.querySelectorAll(".linha-insumo:not([hidden]) .sel-insumo").forEach(function (s) { s.checked = todos.checked; });
+        atualizar();
     });
     document.getElementById("limpar-selecao").addEventListener("click", function () {
         document.querySelectorAll(".sel-insumo").forEach(function (s) { s.checked = false; });

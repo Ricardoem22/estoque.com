@@ -853,3 +853,5 @@ select.destino-importar { width: 100%; margin: 4px 0; }
 .campos-compra input[name^="quantidade_"] { width: 90px; }
 .campos-compra input[name^="valor_"] { width: 130px; }
 .erro-item { color: var(--vermelho); font-weight: 600; font-size: 14px; }
+.marcar-todos-geral { display: inline-flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-weight: 600; cursor: pointer; }
+#sel-todos { width: 20px; height: 20px; cursor: pointer; }
