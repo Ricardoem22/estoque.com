@@ -765,6 +765,29 @@ def excluir_varios_insumos():
     return redirect(url_for("contagem.insumos", excluidos=excluidos))
 
 
+@bp.route("/insumos/exportar", methods=["POST"])
+def exportar_insumos():
+    ids = {int(i) for i in request.form.getlist("ids") if i.isdigit()}
+    conn = get_connection()
+    insumos = [i for i in conn.execute("SELECT * FROM insumos").fetchall() if i["id"] in ids]
+    conn.close()
+    if not insumos:
+        return redirect(url_for("contagem.insumos"))
+    from exportar import Texto, responder
+    from relatorio import calcular_linhas
+    estoque = {l["id"]: l["estoque"] for l in calcular_linhas()}
+    tabela = [[categoria, i["nome"], i["unidade"], formatar_quantidade(estoque.get(i["id"])), Texto(i["codigo"]),
+               Texto(i["ncm"]), i["marca"], i["fornecedor"], i["local"], formatar_quantidade(i["minimo"]),
+               formatar_quantidade(i["ideal"]),
+               f"{i['custo']:.2f}".replace(".", ",") if i["custo"] is not None else "",
+               "sim" if i["ativo"] else "não", i["observacao"]]
+              for categoria, itens in agrupar_por_categoria(insumos) for i in itens]
+    return responder(f"insumos_{config.hoje().isoformat()}", "Insumos", [
+        "Categoria", "Insumo", "Unidade", "Estoque atual", "Código", "NCM", "Marca", "Fornecedor", "Local",
+        "Mínimo", "Ideal", "Custo (R$)", "Ativo", "Observação"], tabela,
+        subtitulo=f"{len(tabela)} insumo(s) · exportado em {data_br_filter(config.hoje().isoformat())}", formato="xlsx")
+
+
 @bp.route("/insumos/<int:id>/excluir", methods=["POST"])
 def excluir_insumo(id):
     conn = get_connection()

@@ -27,11 +27,12 @@
 </form>
 
 <input type="search" id="busca-insumos" class="busca" placeholder="🔎 Procurar insumo..." aria-label="Procurar insumo">
-<form method="post" action="{{ url_for('contagem.excluir_varios_insumos') }}" id="form-excluir-varios" class="barra-selecao" hidden
-      onsubmit="return confirm('Excluir ' + document.querySelectorAll('.sel-insumo:checked').length + ' insumo(s)? Eles saem também das contagens e compras antigas.')">
+<form method="post" action="{{ url_for('contagem.excluir_varios_insumos') }}" id="form-excluir-varios" class="barra-selecao" hidden>
     <span id="total-selecionados"></span>
     <button class="btn btn-edit" type="button" id="limpar-selecao">Desmarcar</button>
-    <button class="btn btn-delete" type="submit">🗑️ Excluir selecionados</button>
+    <button class="btn" type="submit" formaction="{{ url_for('contagem.exportar_insumos') }}">📊 Exportar em Excel</button>
+    <button class="btn btn-delete" type="submit"
+            onclick="return confirm('Excluir ' + document.querySelectorAll('.sel-insumo:checked').length + ' insumo(s)? Eles saem também das contagens e compras antigas.')">🗑️ Excluir selecionados</button>
 </form>
 <p class="vazio" id="nada-encontrado" hidden>Nenhum insumo com esse nome.</p>
 

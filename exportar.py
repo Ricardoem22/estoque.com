@@ -60,9 +60,13 @@ def _xlsx(titulo, subtitulo, cabecalho, linhas):
     return saida.getvalue()
 
 
+class Texto(str):
+    """Fica como texto no Excel (código, NCM): não perde o zero da frente."""
+
+
 def _numero(valor):
     """No Excel, "3,5" vira número de verdade para dar para somar."""
-    if isinstance(valor, str):
+    if isinstance(valor, str) and not isinstance(valor, Texto):
         texto = valor.strip()
         if texto and texto.replace(",", "", 1).replace("-", "", 1).isdigit() and texto.count(",") <= 1:
             return float(texto.replace(",", "."))
