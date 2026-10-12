@@ -5,7 +5,7 @@ import csv
 import io
 import re
 
-from flask import Response, request
+from flask import Response, current_app, request
 
 FORMATOS = {
     "csv": ("text/csv; charset=utf-8", "csv"),
@@ -134,5 +134,24 @@ def responder(nome_arquivo, titulo, cabecalho, linhas, subtitulo="", formato=Non
     formato = formato or formato_pedido()
     gerar = {"csv": _csv, "xlsx": _xlsx, "pdf": _pdf, "docx": _docx}[formato]
     mimetype, extensao = FORMATOS[formato]
-    return Response(gerar(titulo, subtitulo, cabecalho, linhas), mimetype=mimetype,
+    try:
+        dados = gerar(titulo, subtitulo, cabecalho, linhas)
+    except ImportError as erro:
+        # PDF e Word usam fpdf2 e python-docx: no servidor faltou o "pip install" depois de atualizar
+        current_app.logger.exception("Exportar %s: biblioteca faltando", formato)
+        return _aviso(f"Para baixar em {formato.upper()} falta instalar uma parte do sistema ({erro.name}). "
+                      "No Bash do PythonAnywhere, cole uma linha por vez: <code>cd ~/estoque.com</code> e depois "
+                      "<code>pip install --user -r requirements.txt</code>. Em seguida clique em Reload na aba Web.")
+    except Exception:
+        current_app.logger.exception("Exportar %s falhou", formato)
+        return _aviso(f"Não consegui montar o arquivo em {formato.upper()}. Baixe em Excel enquanto isso.")
+    return Response(dados, mimetype=mimetype,
                     headers={"Content-Disposition": f"attachment; filename={nome_arquivo}.{extensao}"})
+
+
+def _aviso(mensagem):
+    voltar = request.referrer or "/"
+    return Response(f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+                    f"<body style='font-family:sans-serif;padding:20px;max-width:640px'><h2>⚠️ Não deu para baixar</h2>"
+                    f"<p>{mensagem}</p><p><a href='{voltar}'>← Voltar</a></p></body>", status=503,
+                    mimetype="text/html")
